@@ -29,9 +29,7 @@ Python for the data pipeline; plain static HTML/CSS/JS for the apps. DuckDB with
 
 **No player data is published here.** This repository contains code and documentation only. No FantasyPros or Yahoo data — raw responses, projections, rankings, or derived tables — is committed, distributed, or served from it. Everything under `data/` is generated locally and gitignored in full.
 
-That is a licensing requirement, not a preference. FantasyPros' Premium tier is licensed for personal, non-commercial use, and Yahoo's API carries its own terms; neither permits republishing their data. **The [MIT license](LICENSE) covers this repository's code and documentation only. It grants no rights to any provider's data.**
-
-Running this requires your own FantasyPros API key, obtained under your own agreement with FantasyPros, kept in your own `.env`. Test fixtures are synthetic — hand-written JSON shaped like a real response, never a captured one ([ADR-0006](docs/decisions/ADR-0006-no-provider-data-redistribution.md)).
+Running this requires your own FantasyPros API key, kept in your own `.env`. Test fixtures are synthetic — hand-written JSON shaped like a real response, never a captured one ([ADR-0006](docs/decisions/ADR-0006-no-provider-data-redistribution.md)).
 
 A [pre-commit hook](.githooks/pre-commit) and a [CI check](.github/workflows/data-guard.yml) both refuse anything under `data/`, any `.env`, and any credential-shaped string, so this holds by construction rather than by memory.
 
