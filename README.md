@@ -25,12 +25,23 @@ Tools for a Yahoo 9-category head-to-head NBA fantasy league: a draft assistant,
 
 Python for the data pipeline; plain static HTML/CSS/JS for the apps. DuckDB with Parquet snapshots for storage. Reasoning in [ADR-0001](docs/decisions/ADR-0001-python-and-static-html-stack.md) and [ADR-0002](docs/decisions/ADR-0002-duckdb-parquet-player-database.md).
 
+## Data and API access
+
+**No player data is published here.** This repository contains code and documentation only. No FantasyPros or Yahoo data — raw responses, projections, rankings, or derived tables — is committed, distributed, or served from it. Everything under `data/` is generated locally and gitignored in full.
+
+That is a licensing requirement, not a preference. FantasyPros' Premium tier is licensed for personal, non-commercial use, and Yahoo's API carries its own terms; neither permits republishing their data. **The [MIT license](LICENSE) covers this repository's code and documentation only. It grants no rights to any provider's data.**
+
+Running this requires your own FantasyPros API key, obtained under your own agreement with FantasyPros, kept in your own `.env`. Test fixtures are synthetic — hand-written JSON shaped like a real response, never a captured one ([ADR-0006](docs/decisions/ADR-0006-no-provider-data-redistribution.md)).
+
+A [pre-commit hook](.githooks/pre-commit) and a [CI check](.github/workflows/data-guard.yml) both refuse anything under `data/`, any `.env`, and any credential-shaped string, so this holds by construction rather than by memory.
+
 ## Getting started
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-cp .env.example .env   # then add your FantasyPros API key
+cp .env.example .env                  # then add your own FantasyPros API key
+git config core.hooksPath .githooks   # blocks committing data or keys
 ```
 
 Nothing to run yet. The daily refresh and the apps arrive in Phase 2 and Phase 3.

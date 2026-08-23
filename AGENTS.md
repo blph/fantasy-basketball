@@ -30,7 +30,9 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 ## Testing
 
 - Tests live in `tests/`.
-- Never hit the live API in a test. Fixtures are archived JSON from `data/raw/`, copied into `tests/fixtures/` and committed.
+- Never hit the live API in a test.
+- Fixtures are **synthetic**: hand-authored JSON matching the shape of a real response, with invented player names and numbers. Never copy a file from `data/raw/` into `tests/fixtures/` — this repo is public and provider data is not ours to republish ([ADR-0006](docs/decisions/ADR-0006-no-provider-data-redistribution.md)).
+- When a live response reveals a shape a fixture gets wrong, edit the fixture to match the *shape*. Do not paste the payload.
 - Run `pytest` and `ruff check .` before finishing a task; fix failures rather than reporting them as pre-existing without checking.
 
 ## Boundaries (do NOT)
@@ -38,7 +40,8 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - DO NOT call the FantasyPros API outside `src/fantasy_bb/ingest/`. Analytics and apps read the database.
 - DO NOT write to `data/` from anything but ingestion.
 - DO NOT modify an existing `as_of_date` partition. Facts are append-only ([ADR-0004](docs/decisions/ADR-0004-daily-append-only-snapshots.md)); corrections are new snapshots.
-- DO NOT commit anything under `data/`, or any real API key.
+- DO NOT commit anything under `data/`, or any real API key. A key that reaches a public commit is compromised on arrival — rotate it, do not revert.
+- DO NOT commit provider data in any form: API responses as test fixtures, sample payloads pasted into docs, or exported tables. The repo is public and the API tiers are personal-use.
 - DO NOT add a runtime dependency without an ADR.
 - DO NOT key a fact table on a provider's player ID. Use our `player_key` surrogate.
 - DO NOT value FG%/FT% as bare rates. They are volume-weighted; without makes and attempts the math is silently wrong. See [schema.md](docs/database/schema.md#marts).
@@ -57,7 +60,8 @@ Deeper docs: [API endpoints](docs/api/fantasypros-endpoints.md) · [database sch
 
 ## Security & Data Handling
 
-- Treat this file as public.
+- The repository is public. Treat every file in it as public, because it is.
+- It publishes no provider data. `README.md` → "Data and API access" is the canonical statement; `scripts/check-no-data.sh` enforces it from both the pre-commit hook and CI.
 - Secrets live in `.env` (gitignored), read via `os.environ`. Never inline, never log, never write into an archived response.
 - `data/` and `.env` are gitignored. Verify with `git status` before committing.
 

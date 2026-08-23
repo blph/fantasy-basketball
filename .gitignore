@@ -1,13 +1,17 @@
-# Data — never committed. Rebuilt from the API by the daily refresh.
-data/*
+# Provider data — never committed. Rebuilt from the API by the daily refresh.
+# See "Data and API access" in README.md: republishing it is not permitted.
+data/**
 !data/README.md
 *.duckdb
 *.duckdb.wal
 *.parquet
+*.csv
+*.tsv
 
 # Secrets
-.env
-.env.local
+.env*
+!.env.example
+*token*.json
 
 # Python
 __pycache__/

@@ -1,0 +1,16 @@
+# Blocks provider data and credentials from the public repository.
+# The local pre-commit hook can be skipped with --no-verify; this cannot.
+name: data-guard
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check no provider data or credentials are tracked
+        run: ./scripts/check-no-data.sh --tracked
