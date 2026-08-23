@@ -1,0 +1,22 @@
+# Data — never committed. Rebuilt from the API by the daily refresh.
+data/*
+!data/README.md
+*.duckdb
+*.duckdb.wal
+*.parquet
+
+# Secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store

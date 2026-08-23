@@ -1,0 +1,63 @@
+# League configuration.
+#
+# Consumed by valuation and roster logic. Replacement level and category
+# targets cannot be computed until the TODO fields are filled in.
+
+league:
+  name: TODO # league name
+  platform: yahoo
+  league_id: TODO # Yahoo league ID, needed for the Yahoo API integration
+  season: "2026-27"
+  scoring_type: head_to_head_categories
+  team_count: TODO # drives replacement level and roster-pool size
+  draft_date: TODO # YYYY-MM-DD
+  draft_type: TODO # snake | auction | linear
+
+# The 9 categories. `direction: lower_is_better` inverts the z-score.
+# `volume_weighted: true` means the category must be valued using makes and
+# attempts, not the bare rate. See docs/database/schema.md.
+categories:
+  - key: fg_pct
+    label: FG%
+    direction: higher_is_better
+    volume_weighted: true
+    volume_stat: fga
+  - key: ft_pct
+    label: FT%
+    direction: higher_is_better
+    volume_weighted: true
+    volume_stat: fta
+  - key: fg3m
+    label: 3PM
+    direction: higher_is_better
+  - key: pts
+    label: PTS
+    direction: higher_is_better
+  - key: reb
+    label: REB
+    direction: higher_is_better
+  - key: ast
+    label: AST
+    direction: higher_is_better
+  - key: stl
+    label: STL
+    direction: higher_is_better
+  - key: blk
+    label: BLK
+    direction: higher_is_better
+  - key: tov
+    label: TO
+    direction: lower_is_better
+
+# Roster slots. Total rostered players across the league sets the pool that
+# z-scores are computed against, so these numbers change every valuation.
+roster:
+  starters: TODO # e.g. {PG: 1, SG: 1, G: 1, SF: 1, PF: 1, F: 1, C: 2, UTIL: 2}
+  bench: TODO # bench slot count
+  injured_reserve: TODO # IL slot count
+
+# Weekly settings. Yahoo weeks run Monday to Sunday by default.
+schedule:
+  week_start_day: monday
+  max_acquisitions_per_week: TODO # caps streaming; null if unlimited
+  playoff_start_week: TODO
