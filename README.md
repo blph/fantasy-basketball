@@ -1,5 +1,7 @@
 # Fantasy Basketball
 
+**Personal project.** I built this to manage my own fantasy league. It is public for reference, not maintained as a product — no support, no stability guarantees, and the league settings in [config/league.yaml](config/league.yaml) are mine. [MIT licensed](LICENSE) if you want to borrow from it.
+
 Tools for a Yahoo 9-category head-to-head NBA fantasy league: a draft assistant, daily and weekly digests, and roster management, all built on a player database refreshed daily from the FantasyPros API.
 
 **Status: Phase 0 — project setup.** Documentation and structure only; nothing is built yet.
