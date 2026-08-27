@@ -26,12 +26,13 @@ Lands in [`docs/preseason/`](preseason/).
 
 The foundation everything else reads from.
 
-1. Obtain a FantasyPros API key and run the [verification checklist](api/fantasypros-endpoints.md#verification-checklist). **Do this before writing ingestion code** — the schema is provisional until real responses confirm it.
-2. Resolve the two open questions in [ADR-0003](decisions/ADR-0003-fantasypros-primary-data-source.md): the actual-production source, and the Yahoo league-state integration. Each gets an ADR.
-3. Build ingestion (`src/fantasy_bb/ingest/`), one module per endpoint, with raw-response archiving.
-4. Build the DuckDB layer (`src/fantasy_bb/db/`) per [schema.md](database/schema.md).
-5. Build valuation (`src/fantasy_bb/analytics/`): 9-cat z-scores with volume-weighted percentage categories, replacement level, and punt-aware valuation.
-6. Automate the daily refresh (`scripts/`).
+1. Review [data-providers.md](api/data-providers.md). ESPN and Sleeper need no key; only Yahoo needs OAuth setup.
+2. Settle the **ESPN↔Yahoo player-ID join** — they share no identifier. Highest-risk piece of the design; needs an ADR before ingestion.
+3. Set up Yahoo OAuth2 for league state.
+4. Build ingestion (`src/fantasy_bb/ingest/`), one module per provider endpoint, with raw-response archiving.
+5. Build the DuckDB layer (`src/fantasy_bb/db/`) per [schema.md](database/schema.md).
+6. Build valuation (`src/fantasy_bb/analytics/`): volume-weighted percentage categories, replacement level, punt-aware, games-per-week aware.
+7. Automate the daily refresh (`scripts/`).
 
 Blocks everything downstream.
 
@@ -40,6 +41,8 @@ Blocks everything downstream.
 ## Phase 3 — Draft Assistant
 
 A dedicated, visually strong table with everything needed on draft day: consensus rank, ADP, projected line, per-category z-scores, tiers, positional scarcity, injury flags, and rank dispersion as a risk signal.
+
+Data is available now: ESPN supplies ROTO category ranks, ADP with trend deltas, and auction values; Sleeper supplies 2026-27 projections. ESPN's own projections publish later (expect late September to mid-October).
 
 Requirements to settle before building:
 - How draft state is tracked live (manual entry, import, or Yahoo sync) — needs an ADR.
@@ -57,7 +60,7 @@ AI-generated briefings.
 - **Daily:** injuries and status changes, standout and poor performances, waiver-wire risers, lineup actions needed today.
 - **Weekly:** matchup review by category, schedule outlook (games per week drives streaming), trends over rolling windows.
 
-Depends on `fact_player_game`, which is blocked on the actual-production source. Depends on Yahoo integration for matchup context.
+No longer blocked: ESPN supplies game-by-game box scores and the NBA schedule (games per week drives streaming). Yahoo supplies matchup context.
 
 ---
 
@@ -65,7 +68,7 @@ Depends on `fact_player_game`, which is blocked on the actual-production source.
 
 Daily and weekly recommendations: adds, drops, lineup moves, and streaming plays, judged against our current category standing rather than against generic player value. Winning a matchup means winning categories, so the right add is the one that flips a category we are close in, not the highest-ranked free agent.
 
-Depends on Phase 4 and full Yahoo integration.
+Depends on Phase 4 and Yahoo integration. Yahoo is the only source of league state, so it is required, not optional.
 
 ---
 

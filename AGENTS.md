@@ -4,7 +4,7 @@ Owner: Bryan
 
 ## Overview
 
-A suite of assistants for one Yahoo 9-category head-to-head NBA fantasy league: draft assistant, daily and weekly digests, and roster management. All of it reads from a local player database refreshed once a day from the FantasyPros API.
+A suite of assistants for one Yahoo 9-category head-to-head NBA fantasy league: draft assistant, daily and weekly digests, and roster management. All of it reads from a local player database refreshed once a day from the ESPN and Yahoo APIs ([ADR-0007](docs/decisions/ADR-0007-espn-primary-data-source.md)).
 
 Status: **Phase 0 — scaffolding only.** No ingestion, database, or app code exists yet. See [docs/roadmap.md](docs/roadmap.md).
 
@@ -37,7 +37,8 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 
 ## Boundaries (do NOT)
 
-- DO NOT call the FantasyPros API outside `src/fantasy_bb/ingest/`. Analytics and apps read the database.
+- DO NOT call any provider API outside `src/fantasy_bb/ingest/`. Analytics and apps read the database.
+- DO NOT join providers on a raw name. ESPN and Yahoo share no identifier; joins go through the crosswalk, and an unresolved player is an error, not a skipped row.
 - DO NOT write to `data/` from anything but ingestion.
 - DO NOT modify an existing `as_of_date` partition. Facts are append-only ([ADR-0004](docs/decisions/ADR-0004-daily-append-only-snapshots.md)); corrections are new snapshots.
 - DO NOT commit anything under `data/`, or any real API key. A key that reaches a public commit is compromised on arrival — rotate it, do not revert.
@@ -56,7 +57,7 @@ API → data/raw/{endpoint}/{date}.json → data/parquet/{table}/as_of_date=… 
 
 Apps read marts only. They never call the API and never recompute valuations at load time — draft day is when latency is least acceptable.
 
-Deeper docs: [API endpoints](docs/api/fantasypros-endpoints.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md)
+Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md)
 
 ## Security & Data Handling
 
@@ -85,6 +86,8 @@ Deeper docs: [API endpoints](docs/api/fantasypros-endpoints.md) · [database sch
 - **9-cat**: our scoring — FG%, FT%, 3PM, PTS, REB, AST, STL, BLK, TO. Turnovers count *against*.
 - **H2H categories**: each week we beat one opponent category by category; the weekly result is a win-loss-tie tally, not a points total.
 - **ECR**: Expert Consensus Ranking, FantasyPros' aggregate across its expert panel.
+- **ROTO rank**: ESPN's category-league ranking. The right sort for our league; `STANDARD` is the points-league one.
+- **Scoring period**: ESPN's day index within a season. Box scores and the schedule are both keyed by it.
 - **ADP**: Average Draft Position.
 - **z-score**: a player's per-category value in standard deviations above the rostered-player mean. The basis of our valuation.
 - **Punt build**: deliberately conceding a category to dominate the others. Changes which players are valuable, so valuation must be able to exclude a category.

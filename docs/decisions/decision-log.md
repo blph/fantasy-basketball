@@ -10,16 +10,16 @@ Record the decision in the **same commit** as the change it describes.
 | --- | --- | --- | --- | --- | --- |
 | [ADR-0001](ADR-0001-python-and-static-html-stack.md) | Python plus static HTML as the project stack | Accepted | 2026-08-22 | Bryan | |
 | [ADR-0002](ADR-0002-duckdb-parquet-player-database.md) | DuckDB plus Parquet as the player database | Accepted | 2026-08-22 | Bryan | |
-| [ADR-0003](ADR-0003-fantasypros-primary-data-source.md) | FantasyPros as the primary player data source | Accepted | 2026-08-22 | Bryan | |
+| [ADR-0003](ADR-0003-fantasypros-primary-data-source.md) | FantasyPros as the primary player data source | Superseded by ADR-0007 | 2026-08-22 | Bryan | |
 | [ADR-0004](ADR-0004-daily-append-only-snapshots.md) | Daily refresh with append-only dated snapshots | Accepted | 2026-08-22 | Bryan | |
 | [ADR-0005](ADR-0005-public-repository-mit-license.md) | Public repository under the MIT license | Accepted | 2026-08-23 | Bryan | |
 | [ADR-0006](ADR-0006-no-provider-data-redistribution.md) | Publish no provider data, and enforce it mechanically | Accepted | 2026-08-23 | Bryan | |
+| [ADR-0007](ADR-0007-espn-primary-data-source.md) | ESPN as the primary data source | Accepted | 2026-08-23 | Bryan | ADR-0003 |
 
 ## Decisions expected next
 
 Known open questions that will each need a record once resolved. Listed here so they are not lost, not because they are decided.
 
-- **Source of actual NBA production.** FantasyPros has no confirmed NBA box-score endpoint. Blocks digests and trend detection. See [ADR-0003](ADR-0003-fantasypros-primary-data-source.md) consequences.
-- **Yahoo Fantasy Sports API integration.** Required for league state (roster, opponents, matchups, free agents). OAuth2, separate auth model.
+- **ESPN↔Yahoo player-ID join strategy.** No shared identifier exists between them. Crosswalk table or normalized name-and-team matching. Highest-risk piece of the design; decide in Phase 2.
 - **AI digest generation approach.** Model, prompt structure, and how digests are delivered.
 - **Draft Assistant interaction model.** Live draft-day input: manual entry, import, or Yahoo sync.

@@ -1,6 +1,6 @@
 # ADR-0003: FantasyPros as the primary player data source
 
-- Status: Accepted
+- Status: Superseded by [ADR-0007](ADR-0007-espn-primary-data-source.md)
 - Date: 2026-08-22
 - Owner: Bryan
 
@@ -63,3 +63,12 @@ Its consensus-across-130+-experts aggregation is the thing that is genuinely har
 
 - Endpoint reference: [docs/api/fantasypros-endpoints.md](../api/fantasypros-endpoints.md).
 - [FantasyPros API](https://www.fantasypros.com/api-data/)
+
+## Superseded
+
+Live API testing on 2026-08-23 contradicted this record on two points: the FantasyPros free tier
+returns only 10 rows per endpoint, and the suspected box-score gap was **confirmed** — no such
+endpoint exists at any tier. See [ADR-0007](ADR-0007-espn-primary-data-source.md) for the
+replacement decision and [data-providers.md](../api/data-providers.md) for the evidence.
+
+This record is left unedited above, as written when the decision was made.
