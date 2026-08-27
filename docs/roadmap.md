@@ -44,6 +44,8 @@ A dedicated, visually strong table with everything needed on draft day: consensu
 
 Data is available now: ESPN supplies ROTO category ranks, ADP with trend deltas, and auction values; Sleeper supplies 2026-27 projections. ESPN's own projections publish later (expect late September to mid-October).
 
+**Shipped in the interim:** a Google Sheet draft board built by [scripts/draft-board/](../scripts/draft-board/) from manual exports, implementing the [playbook](references/fantasy-basketball-draft-playbook.md) in full — z-scores on the 156-player pool, G-score multipliers, VOR, a games-played adjustment, tiering, six punt builds, and a live category tracker. It covers the 2026-27 draft; the requirements below still stand for the real assistant ([ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)).
+
 Requirements to settle before building:
 - How draft state is tracked live (manual entry, import, or Yahoo sync) — needs an ADR.
 - Punt-build support: excluding a category should re-rank the board.

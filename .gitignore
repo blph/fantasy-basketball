@@ -24,3 +24,9 @@ venv/
 
 # macOS
 .DS_Store
+# Generated from a provider export. Rebuild it with scripts/draft-board/gen_data.py.
+scripts/draft-board/Data.gs
+
+# Browser-automation artifacts. Page snapshots capture account details, and
+# this repo is public.
+.playwright-cli/
