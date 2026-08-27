@@ -56,6 +56,11 @@ synthesizes its own players so it runs on a clean clone.
 **Not a reversal of ADR-0007.** ESPN and Yahoo remain the pipeline's data
 sources. This is interim tooling for one draft, not a change of provider.
 
+New exports are brought in by a `Refresh data` action that writes only the
+cells whose values changed and preserves the hand-edited columns, so the
+games-played overrides that section 6a asks for survive every import. The
+operating manual is [docs/draft-board/](../draft-board/build-and-maintenance.md).
+
 ## Deliberate deviations from the playbook
 
 Recorded because they are judgment calls, not oversights:
