@@ -18,6 +18,7 @@ Tools for a Yahoo 9-category head-to-head NBA fantasy league: a draft assistant,
 | [docs/decisions/decision-log.md](docs/decisions/decision-log.md) | Decision records |
 | [docs/preseason/](docs/preseason/) | Pre-season research (Phase 1) |
 | [docs/references/](docs/references/) | The 9-cat draft playbook: the valuation method, with sources |
+| [docs/draft-board/](docs/draft-board/) | How the draft board was built and maintained, and what every number on it means |
 | [scripts/draft-board/](scripts/draft-board/) | Builds the draft board as a Google Sheet |
 | [config/league.yaml](config/league.yaml) | League settings — **has TODOs to fill in** |
 | `src/fantasy_bb/` | Python: ingestion, database, analytics, digests |
