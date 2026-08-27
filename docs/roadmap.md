@@ -2,7 +2,7 @@
 
 **A living document.** This is the initial sketch, not a complete plan. Phases will be added, reordered, and rewritten as the season approaches.
 
-Current position: **Phase 0 complete.** Nothing is built.
+Current position: **Phase 0 complete.** The pipeline is not built. One thing is: the 2026-27 draft board, shipped ahead of the pipeline because the draft would not wait — see Phase 3 below and [ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md).
 
 ---
 

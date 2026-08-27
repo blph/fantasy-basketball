@@ -159,7 +159,9 @@ impact  = (player FGA / pool average FGA) x (player FG% - pool FG%)
 z_FG%   = impact / STDEV(impact across pool)
 ```
 
-Use aggregate pool FG% (total makes divided by total attempts), not the average of everyone's percentage. Repeat for FT% using FTA.
+Use aggregate pool FG% (total makes divided by total attempts), not the average of everyone's percentage. Repeat for FT% using FTA. Using the aggregate is what makes the impact column sum to exactly zero across the pool, which is why dividing by its standard deviation gives a proper z-score with no mean to subtract.
+
+**An open question on that denominator.** Rosenof's Table 5(b) defines its sigma over the spread of players' raw success *rates*, not over the volume-weighted impact column this document divides by. The two differ by a per-category constant, and the difference is larger for FT% than FG% because free-throw attempts are more dispersed. Which he intends is unresolved, so the Settings tab prints both and their ratio and the board changes nothing until someone reads them. Do not attribute this exact formula to him; section 12E now carries it.
 
 ### Step 5: Sum all nine
 
@@ -365,10 +367,19 @@ If your projection source fails the spread test, build the estimate yourself:
 
 **The 72 in the Adjusted Value formula is cosmetic.** It is a constant applied to every player, so it cannot change anyone's rank. Use 82, use your pool average, use whatever makes the numbers readable. Only the ratios between players matter.
 
-**Do not over-penalize injury-prone stars.** Rosenof flags this as a known gap in his own model: real managers swap in healthy players when someone goes down, which mitigates the risk and makes injury-prone players more valuable than their expected performance implies. A straight linear GP discount assumes you are stuck with the hole in your lineup.
+**Do not over-penalize injury-prone stars.** Rosenof flags this as a known gap in his own model: real managers swap in healthy players when someone goes down, which mitigates the risk and makes injury-prone players more valuable than their expected performance implies.
 
-- Deep bench, free waiver moves: soften the discount.
-- Shallow league, tight roster, limited transactions: apply it fully.
+**The linear form already handles that, exactly.** This document used to advise softening the discount for a deep bench, which is wrong and would double-count the mitigation. Work out what `VOR x GP / 72` actually computes. A player gives you `g_p - g_r` of value over replacement on each of the `GP_p` games he plays. On the remaining `72 - GP_p` you stream someone at replacement level, who by definition contributes `g_r - g_r = 0`. So your expected season value is:
+
+```
+GP_p x (g_p - g_r) / 72  +  (72 - GP_p) x 0  =  VOR x GP_p / 72
+```
+
+which is the formula. It is not a crude approximation that over-punishes the fragile — it is the exact expected value *given* that you replace an injured player at replacement level, which is precisely the mitigation Rosenof names as missing from his own model. The board already does it; the paper does not.
+
+The one legitimate refinement runs the other way. In a deep league your bench replacement is *above* replacement level, so the honest discount is slightly **larger**, not smaller. A hard cap on weekly pickups pushes the other way again, since you cannot always stream the hole shut.
+
+**Availability must never promote a player.** Below replacement VOR is negative, and a negative times a fraction moves toward zero — up the board. Switch the scaling off there, or the last forty names end up sorted by fragility.
 
 ---
 
@@ -423,7 +434,7 @@ Your standard board is live until you commit. Once your first four or five picks
 Two guardrails:
 
 - **A build rank is not a licence to reach.** The point of a punt is buying players near their normal ADP whose value to you is higher, not paying build price for them.
-- **Do not switch builds after round 7.** By then your earlier picks are sunk cost. Finish the build that fits what you have.
+- **The later you switch, the more of your earlier capital you waste.** By the last third of the draft your earlier picks are sunk cost, so finish the build that fits what you have. This used to read "do not switch builds after round 7"; the instinct is right but the round number is invented, and it is listed in section 12E as such. Published punt guides lean the other way, treating a mid-draft pivot as normal when the early rounds do not cooperate — punt blocks especially. The thing that actually loses drafts is having no build at all and drifting into mediocrity everywhere.
 
 ---
 
@@ -608,13 +619,20 @@ Your first-round pick should still be a first-round-caliber player. Taking a spe
 
 Gobert projecting 28th in a punt-FT% build is worthless at the end of round two. He is real value at his round-five ADP. The point of punting is that some players' values are inflated inside your build, so you can take them near their normal ADP and get surplus. Reaching too far erases the surplus.
 
+### The single punts
+
+The four most commonly played, and the four worth having pre-computed: **FT%, FG%, AST, 3PM**. Add **BLK**, which is less popular but is the build you are most likely to fall into rather than plan — a guard-heavy start puts you there whether or not you meant it, and published guides describe it as the easiest build to pivot into mid-draft.
+
 ### Working pairings
 
 - FG% + REB
 - AST + STL
-- BLK + FG%
 - PTS + FT%
 - The triple punt: FG% / FT% / TO
+
+**Not BLK + FG%.** An earlier version of this document listed that pairing. It is wrong, and the sheet was right not to ship it. Punt-blocks and punt-FG% are competing routes to the same small-ball roster, not complements — you pick one. And a punt-blocks build is specifically trying to *protect* FG%, because it is rostering guards and wings who do not get free rim points. Conceding both is not a pairing, it is the three-category "punt big-man stats" build (REB / BLK / FG%), which is a different and much harder thing.
+
+Punt TO is not a build on its own either. It rides along with FG% and usage builds; nobody publishes a standalone punt-turnovers guide.
 
 ### Punting is subtraction, not addition
 
@@ -654,7 +672,7 @@ Value peaks at the coin flip. Capital spent on a category you already dominate i
 ### Targets
 
 - Aim for roughly 60% in your live categories, not 90%.
-- Soft-punt rather than hard-punt. The algorithm's punted-category weights peaked around 75% of normal, not zero, because a small chance of winning is never no chance.
+- Soft-punt rather than hard-punt. Rosenof's dynamic algorithm did not zero a punted category: it "took a more subtle 'soft-punting' approach," with the punted tail "peaking around 75% or so" of the baseline weight, because a small chance of winning is never no chance. Read that as direction, not as a coefficient to copy — the 75% is a first-round figure from a weight vector constrained to sum to one, and the paper says explicitly that those weights forecast your own later picks rather than score the player in front of you. It also argues that a static list cannot execute punting properly at all. The board's Punt weight constant is our own tuning choice, informed by that finding rather than prescribed by it. See ADR-0009.
 - Aim to win six or seven, not exactly five. Five leaves no margin for an injury or a cold week.
 
 ---
@@ -765,6 +783,10 @@ You asked specifically about this, so here it is plainly. The following are my s
 | "Aim for 60%, not 90%" and "win six or seven, not five" | Section 10 | My translation of Rosenof's results into a usable rule of thumb. He does not state these targets |
 | The GP estimation procedure (weighted 3-year, 70/30 regression, age adjustment) | Section 6a | Mine, informed by the injury literature but not a published method |
 | The spreadsheet column schema | Section 6 | Mine |
+| "The later you switch, the more you waste" | Section 6b | Mine. Previously stated as a hard "not after round 7", which read as sourced and was not. The instinct holds; the round number was invented, and published guides are more relaxed about mid-draft pivots than it implied |
+| Dividing the percentage impact by the SD of the impact column | Section 4 | Mine, or at least not Rosenof's. His Table 5(b) defines that sigma over the raw rate. My derivation favours the impact SD — if a team's category outcome is the mean of its members' impacts, dividing by SD(impact) puts the percentages on the same "share of a team standard deviation" footing the counting categories get — but that reasoning is mine and the question is open |
+| The punt weight of 0.25 | Section 6b, ADR-0009 | Mine. Rosenof's soft-punting finding gives the direction; the specific retention is a tuning choice, and his ~75% figure does not transfer to a static board unmodified |
+| The rate bands on the Category Tracker (0.005 FG%, 0.010 FT%) | Category Tracker | Mine, and explicitly uncalibrated. Starting guesses pending a season of real standings |
 
 ### Corrections applied after review
 
@@ -772,6 +794,13 @@ The document was reviewed against the sources above and two formula errors were 
 
 - **Adjusted Value** originally scaled the raw G-score by the games-played ratio. Because G-scores are centered on the pool mean, roughly half were negative, and scaling a negative number by a fraction moved that player *up* the board. Now scales VOR instead, which is positive across the pool.
 - **The Gap column** was originally defined as `My Rank - Yahoo ADP` with an instruction to sort descending, which put the avoid list on top. Definition flipped to `Yahoo ADP - My Rank`.
+
+A second review, recorded in `docs/reviews/2026-08-27-draft-board-methodology-review.md`, found four more:
+
+- **`BLK + FG%` was listed as a working pairing.** It is not one. The two are competing routes to the same roster, and a punt-blocks build is trying to protect FG%. Removed from section 10; the sheet had never implemented it.
+- **"Soften the GP discount for a deep bench"** would have double-counted the replacement-level backfill the linear form already assumes. The correct refinement runs the opposite way. Section 6a now derives it.
+- **The percentage-impact formula was attributed to Rosenof.** It does not match his Table 5(b). Moved to section 12E above.
+- **The tier local-median window in the spreadsheet was described as centred and was not** — nine rows above, five below, which inflated the median and made breaks fire late. This document's `OFFSET($D$2,ROW()-9,0,15,1)` is correct and resolves to rows `r-7` through `r+7`; the sheet's `INDEX` translation of it was off by two in each direction and has been fixed to match. The review that surfaced this initially blamed the formula here as well, which was wrong.
 
 Also added after review: section 6b on punt re-ranking (the mechanic section 10 depends on and previously assumed), section 8a on roster construction and streaming, projection sources in section 2, playoff schedule as a late-round tiebreaker, and the reconciliation of the turnover guidance between sections 2 and 10.
 

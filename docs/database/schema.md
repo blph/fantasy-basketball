@@ -24,7 +24,7 @@ That is a columnar analytical workload, which is why it is DuckDB and not SQLite
 Data flows one way. Nothing downstream writes back upstream.
 
 ```
-FantasyPros API
+ESPN API  ·  Yahoo API  ·  Sleeper API
       │
       ▼
 data/raw/{endpoint}/{date}.json      raw archive, verbatim, never parsed in place
@@ -57,9 +57,9 @@ The join table for the entire system.
 | Column | Type | Note |
 | --- | --- | --- |
 | `player_key` | BIGINT | **Our** surrogate key, stable forever |
-| `fp_player_id` | VARCHAR | FantasyPros ID |
-| `yahoo_player_id` | VARCHAR | For the Yahoo join — availability unconfirmed |
-| `espn_player_id` | VARCHAR | Unconfirmed |
+| `espn_player_id` | VARCHAR | Primary provider ID per [ADR-0007](../decisions/ADR-0007-espn-primary-data-source.md) |
+| `yahoo_player_id` | VARCHAR | For the Yahoo join — no direct bridge from ESPN, needs name-and-team matching |
+| `sleeper_player_id` | VARCHAR | Projections stopgap until ESPN publishes |
 | `nba_player_id` | VARCHAR | For a box-score source — unconfirmed |
 | `full_name` | VARCHAR | |
 | `team_key` | VARCHAR | FK to `dim_team` |
@@ -84,7 +84,9 @@ Worth a real table rather than computing on the fly. Weekly digests, matchup bou
 
 ### `dim_expert`
 
-`expert_key`, name, affiliation. From `/nba/{season}/rankings/experts`.
+`expert_key`, name, affiliation.
+
+**Blocked, and possibly permanently.** This table and `fact_expert_ranking` were designed around FantasyPros' expert panel, which [ADR-0007](../decisions/ADR-0007-espn-primary-data-source.md) gave up: ESPN publishes one opinion, not a panel, and no consensus dispersion. Build these only if a second ranking source is ever added. Nothing else in the schema depends on them.
 
 ---
 
@@ -148,20 +150,35 @@ Precomputed nightly at the end of each refresh. This is where the query cost is 
 
 Per-player, per-`as_of_date` z-score for each of the 9 categories, plus a composite total.
 
-Two things the naive version gets wrong:
+Three things the naive version gets wrong:
 
-- **Percentage categories use impact, not rate.** FG% value is `(player_fg_pct − league_fg_pct) × player_fga`, normalized. A player's shooting matters in proportion to how much they shoot. This is the single most common fantasy-basketball valuation error.
+- **Percentage categories use impact, not rate.** FG% value is `(player_fga / pool_avg_fga) × (player_fg_pct − pool_fg_pct)`, divided by the standard deviation of that impact column across the pool. A player's shooting matters in proportion to how much they shoot. This is the single most common fantasy-basketball valuation error.
+- **The pool rate is the aggregate**, `SUM(fgm) / SUM(fga)` across the pool — not the average of the individual percentages, which would count a 3-shot night the same as an 18-shot one. This is load-bearing beyond correctness of the mean: using the aggregate makes the impact column sum to exactly zero across the pool, which is why no mean subtraction is needed before dividing by its SD.
 - **Turnovers invert.** Negative weight, not positive.
 
-Z-scores are computed against the **rostered player pool** (roughly the top *N* by team count and roster size), not the full league. A replacement-level player should sit near zero, and including 500 deep-bench players drags the mean down and inflates everyone's value.
+The choice of that SD is a known open question: Rosenof's Table 5(b) defines it over the raw rate rather than the impact column. The spreadsheet prints both and their ratio. **Whatever Phase 2 does here, it must match whatever the sheet is doing at the time, and say so in this file** — a silent divergence between the two implementations is exactly the failure ADR-0008's cross-check exists to catch.
+
+Z-scores are computed against the **rostered player pool** — `team_count × (starters + bench)` from `config/league.yaml`, which is 156 for this league — not the full league. A replacement-level player should sit near zero, and including 500 deep-bench players drags the mean down and inflates everyone's value. Injured-list slots are excluded from that product.
+
+### `mart_player_gscores`
+
+Per-player, per-`as_of_date` **G-score**: each z-score multiplied by that category's week-to-week volatility discount, plus a composite `g_total`. Multipliers come from `config/league.yaml`, not hardcoded, and the file records their vintage.
+
+**This, not `mart_player_zscores`, is the valuation.** The playbook, ADR-0008, and the shipped draft board all treat z-score as an intermediate and G-score as the answer, because an edge in a volatile category converts to head-to-head wins less often than the same edge in a stable one. An earlier version of this document specified z-scores only, which would have had Phase 2 rebuild the wrong metric and silently discard the one edge this project has over a free ranking site.
+
+`scripts/draft-board/valuation.py` is the reference implementation to test against.
 
 ### `mart_player_value`
 
-Composite value, positional rank, tier, and value over replacement. Joins z-scores with injury status and games projected.
+Composite value, tier, and value over replacement, built from `g_total`. Joins with injury status and games projected.
+
+Value over replacement is scaled by projected availability, `vor × games / divisor`, and that scaling is **switched off where VOR is negative** — otherwise a fraction moves a negative value toward zero, ranking the less available of two equal players higher.
 
 ### `mart_replacement_level`
 
-Per-position baseline given our league size and roster slots, from `config/league.yaml`. What makes "value over replacement" mean anything specific to our league rather than to a generic one.
+The league-wide baseline: the `Q`-th best `g_total`, given team count and roster slots from `config/league.yaml`. What makes "value over replacement" mean anything specific to our league rather than a generic one.
+
+Deliberately **not per-position.** Rosenof addresses this directly (§4.1.3) and judges the omission tolerable because flex spots are plentiful, players carry multiple eligibilities, and value is spread fairly evenly across positions; computing z-scores within position groups is a known fantasy-baseball mistake. Positional scarcity belongs in the draft-day *tiebreak* — how many at this position remain in the live tier — not in the valuation. Where a per-build punt ranking is needed, each build gets its own replacement level.
 
 ### `mart_category_trend`
 
@@ -222,4 +239,4 @@ Named so we do not do them:
 - Confirm FG/FT **makes and attempts** are available.
 - Confirm whether `/nba/players` supplies a Yahoo ID.
 - Resolve the actual-production source for `fact_player_game`.
-- Fill in the `TODO` fields in `config/league.yaml`; `mart_replacement_level` cannot be computed without team count and roster slots.
+- Fill in the remaining `TODO` fields in `config/league.yaml`. Team count, roster slots and scoring format are now recorded, so `Q = 156` is grounded; `draft_date` is still open.

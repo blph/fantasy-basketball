@@ -62,6 +62,33 @@ Two things it alone provides: **expert consensus dispersion** (`rank_ecr`, `rank
 
 Confirmed absent at every tier: box scores, game logs, schedule, depth charts. Probed twelve candidate paths; all returned API Gateway's unrouted-path 403, verified against a nonsense-path control.
 
+### Hashtag Basketball — interim, and not an API
+
+**The provider actually feeding the only shipped artefact.** It appears here because
+`data-providers.md` is where someone will look to find that out, and until now the
+answer lived only in ADR-0008 and a docstring.
+
+Not an API and not automated: a **manual markdown export**, saved by hand into
+gitignored `data/player_data/` and parsed by
+[`gen_data.py`](../../scripts/draft-board/gen_data.py). It supplies per-game
+projections for 200 players **with makes and attempts** (as `0.573(10.5/18.3)`,
+which is what makes volume-weighted FG%/FT% possible), its own rank — used as the
+draft board's pool seed — and its own ADP.
+
+Two limitations worth costing:
+
+- **The ADP is Hashtag's aggregate, not Yahoo's.** The playbook is emphatic that ADP
+  is platform-specific and that the only one that matters is the room you are
+  drafting in. ESPN publishes ADP on 1,095 players free and unauthenticated, which is
+  closer to a real draft room than a ranking site's aggregate, and Yahoo's own would
+  need the OAuth integration Phase 2 needs anyway. Until then the board labels the
+  source on its Settings tab so the GAP column cannot be misread.
+- **One opinion, no dispersion.** Same weakness ADR-0007 names for ESPN.
+
+Interim per [ADR-0008](../decisions/ADR-0008-google-sheet-draft-board.md), and
+retired when Phase 2 ingestion lands. Its data is provider data and is gitignored in
+full, `Data.gs` included.
+
 ### Ruled out
 
 - **stats.nba.com** — timed out from this environment. Official box scores and advanced stats; may work from a home network. Unofficial and needs header spoofing.
