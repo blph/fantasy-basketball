@@ -8,10 +8,10 @@ indicator) alongside the rank itself.
 Emits Data.gs — an array of arrays, one per player, in Board column order.
 Provider data. Never commit the output.
 """
-import re
-import sys
 import json
+import re
 import statistics as st
+import sys
 
 SRC = sys.argv[1] if len(sys.argv) > 1 else (
     "/Users/bryanpreza/Documents/Visual Studio Code/Fantasy Basketball/"
