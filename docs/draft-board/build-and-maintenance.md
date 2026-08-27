@@ -256,9 +256,15 @@ the board into it is two steps: pull the tab out of Google, then convert it.
 
 2. **Convert it.**
    ```bash
-   python3 scripts/draft-board/export_yahoo_rankings.py raw.csv \
-           -o ~/Desktop/yahoo-rankings-2026-27.csv
+   python3 scripts/draft-board/export_yahoo_rankings.py raw.csv
    ```
+   With no `-o` it writes `data/exports/yahoo-rankings-2026-27-MMDD.csv`, dated
+   like the `player_data_MMDD.md` exports beside it, and creates the directory if
+   it is missing. One file per export rather than one per season: the board moves
+   on every refresh, and keeping them apart is what lets you diff two boards or
+   recover the rankings you actually drafted from. The path resolves off the repo
+   root, not the working directory, so it lands in the same place wherever you
+   run it from. `-o` still overrides.
 
 Three things the converter reconciles, each of which is a wrong file if skipped:
 
@@ -275,9 +281,11 @@ Rank is renumbered from row order rather than copied from column `A`. Row order
 Export **after** `Rebuild & re-sort`, never between a refresh and a re-sort —
 in that window the row order is still the previous board's.
 
-The output is provider-derived, so it goes to the Desktop and never into the
-repo. `*.csv` is gitignored and `check-no-data.sh` blocks it from both the
-pre-commit hook and CI.
+The output is provider-derived, so it stays out of version control — but it does
+live in the project, in `data/exports/`. In the working tree and in a commit are
+different things: `data/**` and `*.csv` are both gitignored, and
+`check-no-data.sh` blocks either from being staged, from both the pre-commit hook
+and CI. The file is there when you need it and cannot be committed by accident.
 
 ---
 

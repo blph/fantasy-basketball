@@ -27,7 +27,7 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Test (all): `pytest`
 - Test (single): `pytest tests/test_file.py::test_name`
 - Dry-run the draft board: `cd scripts/draft-board && node harness.js`
-- Export rankings for Yahoo: `python3 scripts/draft-board/export_yahoo_rankings.py raw.csv -o ~/Desktop/yahoo-rankings-2026-27.csv`
+- Export rankings for Yahoo: `python3 scripts/draft-board/export_yahoo_rankings.py raw.csv` (writes `data/exports/`, dated)
 - Re-verify the board's math: `python3 scripts/draft-board/verify.py`
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
 - Lint: `ruff check .`
@@ -47,7 +47,7 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 
 - DO NOT call any provider API outside `src/fantasy_bb/ingest/`. Analytics and apps read the database.
 - DO NOT join providers on a raw name. ESPN and Yahoo share no identifier; joins go through the crosswalk, and an unresolved player is an error, not a skipped row.
-- DO NOT write to `data/` from anything but ingestion.
+- DO NOT write to the pipeline directories — `data/raw/`, `data/parquet/`, `data/fantasy.duckdb` — from anything but ingestion. The draft-board workflow is the one exception: it reads `data/player_data/` and writes `data/exports/`.
 - DO NOT modify an existing `as_of_date` partition. Facts are append-only ([ADR-0004](docs/decisions/ADR-0004-daily-append-only-snapshots.md)); corrections are new snapshots.
 - DO NOT commit anything under `data/`, or any real API key. A key that reaches a public commit is compromised on arrival — rotate it, do not revert.
 - DO NOT commit provider data in any form: API responses as test fixtures, sample payloads pasted into docs, or exported tables. The repo is public and the API tiers are personal-use.
