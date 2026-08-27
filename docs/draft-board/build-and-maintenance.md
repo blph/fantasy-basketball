@@ -21,7 +21,7 @@ was an implementation, not a design. A sheet gets there in time, and — more
 importantly — it is auditable cell by cell, which matters more than elegance
 when a pick is on a sixty-second clock.
 
-**Why Apps Script.** The board is roughly 200 rows by 67 columns, plus formulas,
+**Why Apps Script.** The board is roughly 200 rows by 73 columns, plus formulas,
 number formats, frozen panes, column groups and conditional formatting. That is
 not buildable by hand through the UI, and pasting values would throw away the
 one property that makes the board trustworthy.
@@ -39,7 +39,7 @@ can be retuned without touching code.
 | `Draft Board` | The one you use on the clock. Sorted by Adjusted Value, static row order, Gone/Mine checkboxes. |
 | `Board` | The audit. One row per player, every intermediate number visible. |
 | `Punts` | Nine builds, each listing who it gets at a discount. |
-| `Category Tracker` | Sums live from the Mine checkboxes. |
+| `Category Tracker` | Sums live from the Mine checkboxes, against what an average team holds at your current roster size. Tick `Punted` to concede a category and drop it from the read. |
 | `Settings` | Every constant, plus the pool statistics and sanity checks. |
 | `README` | The cheat sheet, mirrored to [cheat-sheet.md](cheat-sheet.md). |
 
@@ -124,6 +124,8 @@ actually moved, running it often costs nothing.
 | **Updated, where the value changed** | Seed rank, player, team, position, GP, MPG, FGM/FGA/FG%, FTM/FTA/FT%, 3PM, PTS, REB, AST, STL, BLK, TO, ADP |
 | **Never touched** | `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Notes` — every yellow input column |
 | **Never touched** | All formulas, all formatting, column widths, named ranges, conditional formatting |
+| **Never touched** | Punts, Category Tracker, Settings, README |
+| **Rebuilt only if row positions moved** | Draft Board |
 
 **One exception, and it is a hard one.** `Refresh data` writes into a fixed
 column layout. Adding or removing a punt build changes that layout, so a build
@@ -142,8 +144,6 @@ many actually drafted. And Yahoo's format here is **Head-to-Head Categories**,
 where all nine categories settle separately every week; that is not the same as
 Yahoo's *One Win*, which ESPN confusingly calls *Most Categories*. The board used
 to ship the ESPN wording, which pointed the Punts tab at the wrong advice.
-| **Never touched** | Punts, Category Tracker, Settings, README |
-| **Rebuilt only if row positions moved** | Draft Board |
 
 Everything downstream of the raw stats is a live formula, so z-scores, G-scores,
 VOR, Adjusted Value, tiers, gaps and the punt columns all update themselves.
@@ -191,7 +191,7 @@ development:
 
 - A **frozen column may not split a merged cell**. Block headers are merged
   across their columns, so `setFrozenColumns` must land on a block boundary.
-- A **new sheet is 26 columns**. The Board needs 67. `ensureGrid()` grows it
+- A **new sheet is 26 columns**. The Board needs 73. `ensureGrid()` grows it
   first; `setColumnWidth` past the last column throws.
 - A **string starting with `=` is stored as a formula**, whatever the cell's
   number format. The README tab's formula column leads each entry with a space.

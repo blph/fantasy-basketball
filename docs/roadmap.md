@@ -2,7 +2,7 @@
 
 **A living document.** This is the initial sketch, not a complete plan. Phases will be added, reordered, and rewritten as the season approaches.
 
-Current position: **Phase 0 complete.** The pipeline is not built. One thing is: the 2026-27 draft board, shipped ahead of the pipeline because the draft would not wait — see Phase 3 below and [ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md).
+Current position: **Phase 0 complete.** The pipeline is not built. Two things are: the 2026-27 draft board, shipped ahead of the pipeline because the draft would not wait (see Phase 3 below and [ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)), and the valuation itself in Python — [`valuation.py`](../scripts/draft-board/valuation.py), written from the playbook and covered by tests, which Phase 2 inherits rather than rewrites.
 
 ---
 
@@ -31,7 +31,7 @@ The foundation everything else reads from.
 3. Set up Yahoo OAuth2 for league state.
 4. Build ingestion (`src/fantasy_bb/ingest/`), one module per provider endpoint, with raw-response archiving.
 5. Build the DuckDB layer (`src/fantasy_bb/db/`) per [schema.md](database/schema.md).
-6. Build valuation (`src/fantasy_bb/analytics/`): volume-weighted percentage categories, replacement level, punt-aware, games-per-week aware.
+6. Build valuation (`src/fantasy_bb/analytics/`): volume-weighted percentage categories, replacement level, punt-aware, games-per-week aware. [`scripts/draft-board/valuation.py`](../scripts/draft-board/valuation.py) is the reference implementation and `tests/test_valuation.py` the behaviour to preserve — port them, do not start over.
 7. Automate the daily refresh (`scripts/`).
 
 Blocks everything downstream.
@@ -44,7 +44,7 @@ A dedicated, visually strong table with everything needed on draft day: consensu
 
 Data is available now: ESPN supplies ROTO category ranks, ADP with trend deltas, and auction values; Sleeper supplies 2026-27 projections. ESPN's own projections publish later (expect late September to mid-October).
 
-**Shipped in the interim:** a Google Sheet draft board built by [scripts/draft-board/](../scripts/draft-board/) from manual exports, implementing the [playbook](references/fantasy-basketball-draft-playbook.md) in full — z-scores on the 156-player pool, G-score multipliers, VOR, a games-played adjustment, tiering, six punt builds, and a live category tracker. It covers the 2026-27 draft; the requirements below still stand for the real assistant ([ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)). Operating manual in [docs/draft-board/](draft-board/build-and-maintenance.md).
+**Shipped in the interim:** a Google Sheet draft board built by [scripts/draft-board/](../scripts/draft-board/) from manual exports, implementing the [playbook](references/fantasy-basketball-draft-playbook.md) in full — z-scores on the 156-player pool, G-score multipliers, VOR, a games-played adjustment, tiering, nine punt builds with a tunable soft-punt weight ([ADR-0009](decisions/ADR-0009-soft-punt-weighting.md), [ADR-0010](decisions/ADR-0010-punt-build-set.md)), and a live category tracker. It covers the 2026-27 draft; the requirements below still stand for the real assistant ([ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)). Operating manual in [docs/draft-board/](draft-board/build-and-maintenance.md).
 
 Requirements to settle before building:
 - How draft state is tracked live (manual entry, import, or Yahoo sync) — needs an ADR.

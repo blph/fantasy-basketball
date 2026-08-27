@@ -9,6 +9,6 @@ Static HTML/CSS/JS. No build step, no dev server ([ADR-0001](../docs/decisions/A
 
 ## Rules
 
-- **Read data only.** Apps never call the FantasyPros API and never recompute valuations at load time. Python precomputes marts; apps display them.
+- **Read data only.** Apps never call a provider API and never recompute valuations at load time. Python precomputes marts; apps display them.
 - **Must work offline, opened directly from the filesystem.** Draft day has no tolerance for a failed build or a dead network.
 - Data reaches an app as a generated static JSON file exported by the Python layer, not a live query.

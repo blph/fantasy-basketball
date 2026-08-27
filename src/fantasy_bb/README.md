@@ -6,7 +6,7 @@ Data flows one way. No module writes back to an earlier stage.
 
 | Package | Owns | Rule |
 | --- | --- | --- |
-| `ingest/` | FantasyPros API calls, raw archiving, Parquet snapshot writes | **The only place allowed to make API calls or write to `data/`.** One module per endpoint. |
+| `ingest/` | ESPN, Yahoo and Sleeper API calls, raw archiving, Parquet snapshot writes | **The only place allowed to make API calls or write to the pipeline directories.** One module per endpoint. See [ADR-0007](../../docs/decisions/ADR-0007-espn-primary-data-source.md). |
 | `db/` | DuckDB connection, DDL, views, mart builds | Reads Parquet, writes marts. Never calls the API. |
 | `analytics/` | z-scores, replacement level, punt-aware valuation, trends | Pure functions over frames. No I/O, so it stays testable without fixtures. |
 | `digests/` | Daily and weekly briefing generation | Reads marts only. |

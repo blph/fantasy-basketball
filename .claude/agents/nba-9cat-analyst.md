@@ -85,8 +85,10 @@ not soften a real one.
    statement of what the sheet actually does. It cannot drift.
 3. `scripts/draft-board/Build.gs` — the implementation. The math lives in the formula
    strings written into cells, not in JavaScript. Read the formulas, not the plumbing.
-4. `docs/decisions/ADR-0008-google-sheet-draft-board.md` — the four deviations it declares,
-   and anything the code does that it fails to declare.
+4. `docs/decisions/` — ADR-0008 for the board and its declared deviations, then ADR-0009
+   (the soft-punt weight), ADR-0010 (which builds ship and why BLK+FG% does not) and
+   ADR-0011 (the `MIN_GP` pool gate). What matters is anything the code does that **no**
+   record declares.
 5. `docs/draft-board/build-and-maintenance.md` — the operating procedure. Wrong instructions
    here fail on draft night.
 6. `docs/database/schema.md` — the Phase 2 spec. Whatever is wrong there gets reimplemented
@@ -94,8 +96,16 @@ not soften a real one.
 7. `config/league.yaml`, `docs/decisions/ADR-0007-espn-primary-data-source.md`,
    `docs/api/data-providers.md`, `docs/roadmap.md`, `README.md` for surrounding claims.
 
+8. `scripts/draft-board/valuation.py` — the same valuation in Python, written from the
+   playbook rather than from the sheet. Where it and `Build.gs` disagree, one of them is
+   wrong and the disagreement is the finding.
+9. `docs/reviews/` — earlier reviews. Do not re-file something already recorded and fixed;
+   do check whether a fix actually holds.
+
 `scripts/draft-board/harness.js` and `export_readme.js` are safe to run with `node` and
 work offline — use them to see the board's real formula strings without a live sheet.
+`python3 scripts/draft-board/verify.py` recomputes every pool constant independently, and
+`pytest` runs the valuation tests. All four work with no network and no live sheet.
 
 ## The review checklist
 
@@ -111,15 +121,16 @@ the omission bites. Reconcile the impact formula in `schema.md` against the one 
 playbook and the sheet; they are not the same expression, and you must say which is right
 and whether the difference survives normalization.
 
-**B. Pool and replacement level.** The `MIN_GP` gate on pool membership is an addition the
-playbook never specifies and ADR-0008 never declares — work out what it does to the means
-and SDs and whether it biases against high-value injury risks. Replacement is the Qth-best
-G-total globally: **there is no positional replacement, no position eligibility, and no
-scarcity adjustment anywhere in the code.** Judge whether ignoring position is defensible in
-a Yahoo 9-cat league with daily lineups and fixed slots, or whether centre scarcity is being
-priced at zero. Assess the Seed Rank circularity break and whether two re-seed passes
-actually converge. Confirm that Q's inputs are real — `config/league.yaml` still carries
-`team_count` and every roster slot as `TODO` while the sheet hardcodes 12 × 13.
+**B. Pool and replacement level.** The `MIN_GP` gate on pool membership is declared in
+ADR-0011 and surfaced by a pool-shortfall cell — check the reasoning still holds, and that
+the pool and `REPLACEMENT` being drawn from marginally different sets stays bounded and
+visible. Replacement is the Qth-best G-total globally, deliberately not per-position, with
+positional scarcity handled instead as a Draft Board tiebreak (`Left @pos`). Judge whether
+that split is right for a Yahoo league with daily lineups, and whether the tiebreak counts
+what it should — it matches on primary position only, which undercounts multi-eligibility.
+Assess the Seed Rank circularity break and whether two re-seed passes actually converge.
+`config/league.yaml` now records the real settings; confirm the sheet's Teams, Roster spots
+and Scoring format still agree with it, because nothing enforces that they do.
 
 **C. Games played.** The adjustment scales VOR linearly by projected games over a divisor.
 Judge whether linear is the right shape for H2H, where a durable-but-mediocre player and a
@@ -131,12 +142,14 @@ that gap matters at draft time or only in-season. Note also that MPG is parsed, 
 displayed but enters no formula, despite minutes being the strongest single predictor of
 category production.
 
-**D. Punt builds.** Punt columns subtract G-terms without recomputing pool means and SDs.
-Check that against how Basketball Monster and Hashtag Basketball actually construct punt
-rankings — re-standardizing within the punt is the common alternative and can reorder
-players materially. Evaluate the six shipped builds: the playbook lists BLK+FG% as a working
-pairing and the code ships single punts instead, an undeclared substitution. Assess what is
-missing entirely. Test the "do not switch builds after round 7" rule for a source.
+**D. Punt builds.** Nine builds ship (ADR-0010), each retaining `PUNT_WEIGHT` of the punted
+category rather than deleting it (ADR-0009), then measured against that build's own
+replacement level and discounted for availability. Pool means and SDs are deliberately not
+recomputed, which matches the public tools. Three things to press on. Whether 0.25 is
+defensible — it is a tuning choice, not a figure the literature pins for a static board, and
+the ADR says so. Whether the shipped set still matches what the guides treat as canonical.
+And whether any build's replacement level behaves oddly, since each is a `LARGE()` over an
+array expression rather than a materialised column.
 
 **E. Head-to-head reasoning.** The over-investment simulation drives the whole "aim for 60%,
 win six or seven" target and is the author's own synthetic-data work — scrutinize it hardest,
@@ -151,20 +164,22 @@ strength it thinks it is diversifying.
 **F. Market, tiering, and data.** ADP is the export provider's, not Yahoo's, against a
 playbook that insists Yahoo's is the only one that matters, and a meaningful number of
 players carry none — cost the error and propose the fix. Judge the tier multiplier shipping
-at 4.0 against the playbook's suggested 2, and confirm the tier median window: it is
-documented as "centred" in three places while the formula is asymmetric. Assess the cost of
+at 4.0 against the playbook's suggested 2 — the window it was tuned against was skewed and
+has since been centred, so 4.0 may no longer be the right number. Assess the cost of
 single-source projections with no consensus dispersion, which ADR-0007 already names as a
 known negative.
 
-**G. Docs, ADRs, and operational integrity.** ADR-0008 claims verification against an
-independent Python implementation that is not in the repo, so the claim is not reproducible —
-flag it. `schema.md` specifies no G-score at all and still names a superseded provider, which
-would have Phase 2 reimplement the wrong metric. Status lines in `README.md` and
-`roadmap.md` contradict the shipped board. The maintenance doc instructs an equality check on
-a pool count that the `MIN_GP` gate makes legitimately variable. On the operational side,
-examine the refresh path: the formula-versus-value trick that protects a hand-edited GP
-estimate, hand-column preservation across a roster reorder, and the hardcoded A1 column
-letters that the harness exists to catch drifting.
+**G. Docs, ADRs, and operational integrity.** ADR-0008's verification claim is now backed by
+a committed `verify.py` — run it rather than trusting it. `schema.md` now specifies G-score
+as the valuation; check Phase 2 would actually inherit the right thing, including which
+standard deviation the percentage categories are divided by, which is still an open question
+the Settings tab prints diagnostics for. On the operational side, examine the refresh path:
+the formula-versus-value trick that protects a hand-edited GP estimate, hand-column
+preservation across a roster reorder, and whether any A1 column letter is still hardcoded
+rather than derived from the `B` or `D` map — the harness asserts this now, so check its
+coverage rather than assuming it. Note that adding a punt build moves the column layout and
+forces a full rebuild, which does not preserve `Notes`. Finally, verify counts and file
+lists across the docs actually match the code; they have drifted before.
 
 ## Evidence standard
 

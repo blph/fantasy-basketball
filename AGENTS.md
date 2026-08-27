@@ -6,7 +6,7 @@ Owner: Bryan
 
 A suite of assistants for one Yahoo 9-category head-to-head NBA fantasy league: draft assistant, daily and weekly digests, and roster management. All of it reads from a local player database refreshed once a day from the ESPN and Yahoo APIs ([ADR-0007](docs/decisions/ADR-0007-espn-primary-data-source.md)).
 
-Status: **Phase 0 — scaffolding only.** No ingestion, database, or app code exists yet. See [docs/roadmap.md](docs/roadmap.md).
+Status: **Phase 0 — scaffolding only** for the pipeline: no ingestion, database, or app code exists yet. The draft board is the exception below, and its valuation is real Python — `scripts/draft-board/valuation.py`, `verify.py`, and the tests over them. See [docs/roadmap.md](docs/roadmap.md).
 
 League: 12 teams, 13 roster spots (Q = 156), Yahoo **Head-to-Head Categories** — every category settled separately each week, so punt hard at your peril. Settings live in [config/league.yaml](config/league.yaml); Yahoo's page reports Max Teams 14, which is capacity, not the 12 who play.
 
@@ -103,6 +103,6 @@ Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](d
 - **z-score**: a player's per-category value in standard deviations above the rostered-player mean. The basis of our valuation.
 - **G-score**: a z-score discounted by how much that category swings week to week. In head-to-head, an edge in a volatile category wins fewer weeks than the same edge in a stable one, so steals count roughly half and assists count full.
 - **VOR**: value over replacement. G-score minus the G-score of the last player who gets drafted, so zero means "freely available" instead of "average".
-- **Punt build**: deliberately conceding a category to dominate the others. Changes which players are valuable, so valuation must be able to exclude a category.
+- **Punt build**: deliberately giving up on a category to dominate the others. Changes which players are valuable, so valuation must be able to discount a category. Discount, not delete — a conceded category is still won by accident some weeks, and the board keeps a `PUNT_WEIGHT` fraction of it ([ADR-0009](docs/decisions/ADR-0009-soft-punt-weighting.md)).
 - **Streaming**: cycling low-value players through a roster spot to maximize games played in a week.
 - **as_of_date**: the snapshot date a fact row was collected. Nearly every query filters on it.

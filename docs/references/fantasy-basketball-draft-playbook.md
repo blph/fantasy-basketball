@@ -389,7 +389,9 @@ This is the mechanic that makes section 10 usable. Without it, punting is a phil
 
 ### The idea
 
-When you commit to punting a category, you **recompute the board with that category removed**. Nine per-category scores become eight, and you re-sort. The reordering is dramatic, not marginal.
+When you commit to punting a category, you **recompute the board with that category heavily discounted**. The reordering is dramatic, not marginal.
+
+Discounted rather than removed. A category you have conceded is still won in some weeks by accident, and those weeks are free — so a build that deletes the term rates a player who is actively terrible there identically to one who is merely neutral, and those are not the same bet. Keep a fraction of it. See [ADR-0009](../decisions/ADR-0009-soft-punt-weighting.md); the board's `PUNT_WEIGHT` ships at 0.25, and setting it to 0 gives the hard punt described in older versions of this section.
 
 Giannis is roughly 25th on a standard 9-cat board. On a punt-FT% board he is 2nd. That is not a note in a comments column. That is a different board.
 
@@ -397,17 +399,19 @@ Everything in section 10 depends on having these numbers. "Value only exists at 
 
 ### Building it
 
-Cheap, because you already have the per-category scores. A punt column is your existing sum with terms dropped.
+Cheap, because you already have the per-category scores. A punt column is your existing sum with terms discounted by `(1 - w)`, where `w` is what the punted category still counts for.
 
 If your nine per-category G-score columns sit in K through S:
 
 ```
 Standard:      =SUM(K2:S2)
-Punt FT%:      =SUM(K2:S2) - FT_column
-Punt FG%+REB:  =SUM(K2:S2) - FG_column - REB_column
+Punt FT%:      =SUM(K2:S2) - (1-w)*FT_column
+Punt FG%+REB:  =SUM(K2:S2) - (1-w)*FG_column - (1-w)*REB_column
 ```
 
-Build four to six of these, covering the pairings in section 10 plus the single punts you are most likely to land in. Then for each, a rank column and a Punt Gap column:
+Two things this is not. It is not a re-standardisation: the pool means and standard deviations stay exactly as they are, which is also how the public tools behave, and matching them matters because a build rank is partly a prediction of what your leaguemates will do. And a punt column is not yet a *value* — subtract that build's own replacement level and apply the same games-played discount as the main board, or the build list ends up ordered partly by who misses games.
+
+Build six to eight of these, covering the pairings in section 10 plus the single punts you are most likely to land in. Four is too few: it leaves out builds you can fall into without planning them, which is the situation the columns exist for. Then for each, a rank column and a Punt Gap column:
 
 ```
 Punt Gap = Yahoo ADP - rank in that build
@@ -448,7 +452,7 @@ Two guardrails:
 
 4. **Set your Yahoo pre-rank list from your board.** It protects you if you lose connection, and it makes your queue surface the right names at the right moment.
 
-5. **Build your punt columns and learn the risers.** See section 6b. Four to six builds, and the ten biggest movers in each. This is the highest-value prep work after the board itself.
+5. **Build your punt columns and learn the risers.** See section 6b. Six to eight builds, and the ten biggest movers in each. This is the highest-value prep work after the board itself.
 
 6. **Pull the fantasy playoff schedule.** Note which NBA teams play the most games in your league's playoff weeks. This becomes a tiebreaker in the late rounds.
 

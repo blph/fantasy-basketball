@@ -11,7 +11,7 @@ Tools for a Yahoo 9-category head-to-head NBA fantasy league: a draft assistant,
 | Path | What |
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Agent and contributor context: commands, conventions, boundaries |
-| [docs/roadmap.md](docs/roadmap.md) | The five phases and what blocks what |
+| [docs/roadmap.md](docs/roadmap.md) | The phases and what blocks what |
 | [docs/api/data-providers.md](docs/api/data-providers.md) | Provider comparison and the choice of ESPN |
 | [docs/api/fantasypros-endpoints.md](docs/api/fantasypros-endpoints.md) | FantasyPros reference (optional provider) |
 | [docs/database/schema.md](docs/database/schema.md) | Planned DuckDB schema and performance rationale |
@@ -19,8 +19,10 @@ Tools for a Yahoo 9-category head-to-head NBA fantasy league: a draft assistant,
 | [docs/preseason/](docs/preseason/) | Pre-season research (Phase 1) |
 | [docs/references/](docs/references/) | The 9-cat draft playbook: the valuation method, with sources |
 | [docs/draft-board/](docs/draft-board/) | How the draft board was built and maintained, and what every number on it means |
+| [docs/reviews/](docs/reviews/) | Methodology reviews of the valuation, with sources |
 | [scripts/draft-board/](scripts/draft-board/) | Builds the draft board as a Google Sheet |
-| [config/league.yaml](config/league.yaml) | League settings — **has TODOs to fill in** |
+| [tests/](tests/) | The valuation math, checked against synthetic players |
+| [config/league.yaml](config/league.yaml) | League settings, transcribed from Yahoo |
 | `src/fantasy_bb/` | Python: ingestion, database, analytics, digests |
 | `apps/` | Static HTML apps |
 | `data/` | Local database and snapshots (gitignored, rebuilt from the API) |
@@ -46,12 +48,19 @@ cp .env.example .env                  # ESPN and Sleeper need no key; Yahoo need
 git config core.hooksPath .githooks   # blocks committing data or keys
 ```
 
-Nothing to run yet. The daily refresh and the apps arrive in Phase 2 and Phase 3.
+The pipeline has nothing to run yet — the daily refresh and the apps arrive in Phase 2 and
+Phase 3. The draft board does:
+
+```bash
+pytest                                    # the valuation math
+cd scripts/draft-board && node harness.js # dry-run the board build
+python3 scripts/draft-board/verify.py     # recompute it and diff the constants
+```
 
 ## Next steps
 
-1. Fill in the `TODO` fields in [config/league.yaml](config/league.yaml).
-2. Review [docs/api/data-providers.md](docs/api/data-providers.md) — no API key needed to start.
-3. Start Phase 1 pre-season research in [docs/preseason/](docs/preseason/).
+1. Review [docs/api/data-providers.md](docs/api/data-providers.md) — no API key needed to start.
+2. Start Phase 1 pre-season research in [docs/preseason/](docs/preseason/).
+3. Fill in `draft_date` in [config/league.yaml](config/league.yaml); everything else is recorded.
 
-Two known gaps to resolve before Phase 2 can be fully specified: FantasyPros has no confirmed NBA box-score endpoint, and it holds no league state (that needs the Yahoo API). Both are documented in [ADR-0003](docs/decisions/ADR-0003-fantasypros-primary-data-source.md).
+One gap remains before Phase 2 can be fully specified: ESPN and Yahoo share no player identifier, so the join between them needs name-and-team matching, which fails silently on suffixes, accents and traded players. See [ADR-0007](docs/decisions/ADR-0007-espn-primary-data-source.md).
