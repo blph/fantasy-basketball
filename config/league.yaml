@@ -1,17 +1,26 @@
 # League configuration.
 #
-# Consumed by valuation and roster logic. Replacement level and category
-# targets cannot be computed until the TODO fields are filled in.
+# Consumed by valuation and roster logic. Values below are transcribed from the
+# Yahoo "Scoring & Settings" page; anything still TODO is genuinely unknown, not
+# merely unfilled.
 
 league:
-  name: TODO # league name
+  name: Mandem Fantasy League
   platform: yahoo
-  league_id: TODO # Yahoo league ID, needed for the Yahoo API integration
+  league_id: 13239
   season: "2026-27"
+  # Yahoo's own name for this format is "Head-to-Head - Categories": each of the
+  # 9 categories is a separate W/L/T, so a week ends 6-3-0. This is NOT Yahoo's
+  # "Head-to-Head One Win" (one W/L for the week), which ESPN calls "Most
+  # Categories". The distinction decides how much punting is worth: conceding a
+  # category costs you a loss every single week here, so soft-punt at most.
   scoring_type: head_to_head_categories
-  team_count: TODO # drives replacement level and roster-pool size
+  # Yahoo's settings page reports "Max Teams: 14" — that is league capacity.
+  # Twelve managers actually play, and 12 is the number that sets Q. Do not
+  # "correct" this to 14 from the settings page.
+  team_count: 12
   draft_date: TODO # YYYY-MM-DD
-  draft_type: TODO # snake | auction | linear
+  draft_type: offline_snake # drafted off-platform; ordinal board, not an auction
 
 # The 9 categories. `direction: lower_is_better` inverts the z-score.
 # `volume_weighted: true` means the category must be valued using makes and
@@ -51,13 +60,23 @@ categories:
 
 # Roster slots. Total rostered players across the league sets the pool that
 # z-scores are computed against, so these numbers change every valuation.
+#
+# Q = team_count x (starters + bench) = 12 x 13 = 156. Injured-list slots are
+# deliberately excluded: an IL player is not competing for a draftable roster
+# spot, so counting them would inflate the pool and drag every mean down.
 roster:
-  starters: TODO # e.g. {PG: 1, SG: 1, G: 1, SF: 1, PF: 1, F: 1, C: 2, UTIL: 2}
-  bench: TODO # bench slot count
-  injured_reserve: TODO # IL slot count
+  starters: {PG: 1, SG: 1, G: 1, SF: 1, PF: 1, F: 1, C: 2, UTIL: 2} # 10
+  bench: 3
+  injured_reserve: 3 # IL, IL, IL+ — outside the 13 that sets Q
 
 # Weekly settings. Yahoo weeks run Monday to Sunday by default.
 schedule:
   week_start_day: monday
-  max_acquisitions_per_week: TODO # caps streaming; null if unlimited
-  playoff_start_week: TODO
+  # Four pickups a week is a hard cap on streaming. It raises the value of
+  # durable players and shrinks the case for carrying churn slots, which the
+  # playbook's section 8a assumes but could not size without this number.
+  max_acquisitions_per_week: 4
+  playoff_start_week: 19 # weeks 19-21, top 8 of 12 qualify
+  # Lineups lock daily, not weekly. This is the condition under which
+  # multi-position eligibility actually pays.
+  lineup_change_frequency: daily
