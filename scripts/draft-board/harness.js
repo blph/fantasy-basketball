@@ -22,8 +22,17 @@ function Range(sheet, row, col, nr, nc, label) {
 const chain = ['setBackground','setFontColor','setFontWeight','setFontSize','setFontStyle',
   'setHorizontalAlignment','setVerticalAlignment','setWrap','setNumberFormat','setFontFamily',
   'setBorder','setDataValidation','insertCheckboxes','clearDataValidations','merge',
-  'shiftColumnGroupDepth','setValue','setFormula','applyRowBanding'];
+  'shiftColumnGroupDepth','applyRowBanding'];
 chain.forEach(m => { Range.prototype[m] = function(){ return this; }; });
+// Single-cell writes have to be recorded too, not just grid writes. Whole tabs
+// — Settings, the Category Tracker — are built one setValue at a time, and
+// while these were no-ops nothing on them could be asserted at all.
+['setValue','setFormula'].forEach(m => {
+  Range.prototype[m] = function (v) {
+    this.sheet.cells[`${this.row},${this.col}`] = v;
+    return this;
+  };
+});
 // Google refuses a frozen boundary that splits a merged cell. Model it.
 Range.prototype.merge = function () {
   (this.sheet.merges = this.sheet.merges || []).push([this.col, this.col + this.nc - 1, this.row]);
@@ -195,34 +204,73 @@ function expect(what, got, want) {
   if (String(got) !== String(want)) fails.push(`${what}\n     got  ${got}\n     want ${want}`);
 }
 console.log('\n=== Board row 3 (first player) ===');
-[['A seed',1],['B player',2],['F GP',6],['I FGA',9],['J FG%',10],['AZ ADP',52]].forEach(([n,c])=>
-  console.log(`  ${n.padEnd(10)} ${L(c)}3 = ${cell('Board',3,c)}`));
-[[5,'In Pool'],[21,'FG impact'],[23,'z FG%'],[31,'z TO'],[32,'Z total'],[36,'g PTS'],
- [42,'G total'],[43,'VOR'],[48,'My GP'],[50,'Adj value'],[54,'Gap'],[55,'Punt FT%'],[60,'Punt triple']]
- .forEach(([c,n])=> console.log(`  ${n.padEnd(12)} ${L(c)}3 = ${cell('Board',3,c)}`));
+// Every expectation below is BUILT FROM THE COLUMN MAP, never pinned as a
+// literal. Pinning both sides as strings made this file blind to the failure it
+// exists to catch: insert a column into B and each hardcoded source letter in
+// writeBoardFormulas shifts against the data while the assertion still passes.
+const C = n => '$' + L(n);
+const r3 = 3;
 
-expect('In Pool',   cell('Board',3,5),  '=IF(AND($A3<=Q,$F3>=MIN_GP),1,0)');
-expect('FG impact', cell('Board',3,21), '=($I3/POOL_AVG_FGA)*($J3-POOL_FG_PCT)');
-expect('z FG%',     cell('Board',3,23), '=$U3/SD_FG_IMPACT');
-expect('z TO flip', cell('Board',3,31), '=(MEAN_TO-$T3)/SD_TO');
-expect('Z total',   cell('Board',3,32), '=SUM($W3:$AE3)');
-expect('g PTS',     cell('Board',3,36), '=$Z3*MULT_PTS');
-expect('G total',   cell('Board',3,42), '=SUM($AG3:$AO3)');
-expect('VOR',       cell('Board',3,43), '=$AP3-REPLACEMENT');
-expect('Adj value', cell('Board',3,50), '=IF($AV3="","",$AQ3*$AV3/GP_DIVISOR)');
-expect('Gap blank', cell('Board',3,54), '=IF($AZ3="","",$AZ3-$AY3)');
-expect('Punt FT%',  cell('Board',3,55), '=$AP3-$AH3');
-expect('Punt triple',cell('Board',3,60),'=$AP3-$AG3-$AH3-$AO3');
+[['seed',B.seed],['player',B.player],['GP',B.gp],['FGA',B.fga],['FG%',B.fgp],['ADP',B.adp]]
+  .forEach(([n,c]) => console.log(`  ${n.padEnd(10)} ${L(c)}3 = ${cell('Board',3,c)}`));
+[[B.inPool,'In Pool'],[B.ifg,'FG impact'],[B.zfg,'z FG%'],[B.zto,'z TO'],[B.ztot,'Z total'],
+ [B.gpts,'g PTS'],[B.gtot,'G total'],[B.vor,'VOR'],[B.myGp,'My GP'],[B.adj,'Adj value'],
+ [B.gap,'Gap'],[B.pFt,'Punt FT%'],[B.pTriple,'Punt triple']]
+ .forEach(([c,n]) => console.log(`  ${n.padEnd(12)} ${L(c)}3 = ${cell('Board',3,c)}`));
 
-// The nine z-scores summed by Z total must be exactly the nine z columns.
-const zc = [23,24,25,26,27,28,29,30,31];
+expect('In Pool',   cell('Board',3,B.inPool),
+  `=IF(AND(${C(B.seed)}3<=Q,${C(B.gp)}3>=MIN_GP),1,0)`);
+expect('FG impact', cell('Board',3,B.ifg),
+  `=(${C(B.fga)}3/POOL_AVG_FGA)*(${C(B.fgp)}3-POOL_FG_PCT)`);
+expect('FT impact', cell('Board',3,B.ift),
+  `=(${C(B.fta)}3/POOL_AVG_FTA)*(${C(B.ftp)}3-POOL_FT_PCT)`);
+expect('z FG%',     cell('Board',3,B.zfg),  `=${C(B.ifg)}3/SD_FG_IMPACT`);
+expect('z TO flip', cell('Board',3,B.zto),  `=(MEAN_TO-${C(B.to)}3)/SD_TO`);
+expect('Z total',   cell('Board',3,B.ztot), `=SUM(${C(B.zfg)}3:${C(B.zto)}3)`);
+expect('g PTS',     cell('Board',3,B.gpts), `=${C(B.zpts)}3*MULT_PTS`);
+expect('G total',   cell('Board',3,B.gtot), `=SUM(${C(B.gfg)}3:${C(B.gto)}3)`);
+expect('VOR',       cell('Board',3,B.vor),  `=${C(B.gtot)}3-REPLACEMENT`);
+expect('Gap blank', cell('Board',3,B.gap),
+  `=IF(${C(B.adp)}3="","",${C(B.adp)}3-${C(B.adjRank)}3)`);
+
+// Availability discounts, never rewards. A negative value must keep its
+// magnitude, or the less available of two equal players sorts higher.
+expect('Adj value', cell('Board',3,B.adj),
+  `=IF(${C(B.myGp)}3="","",LET(v,${C(B.vor)}3,v*IF(v<0,1,${C(B.myGp)}3/GP_DIVISOR)))`);
+
+// Each punt column must be a value over ITS OWN replacement level, then
+// GP-adjusted with the same floor — not a raw G-score.
+PUNTS.forEach(p => {
+  let want = `=IF(${C(B.myGp)}3="","",LET(v,${C(B.gtot)}3`;
+  p.drop.forEach(d => { want += `-(1-PUNT_WEIGHT)*${C(B[d])}3`; });
+  want += `-${replName(p.key)},v*IF(v<0,1,${C(B.myGp)}3/GP_DIVISOR)))`;
+  expect(p.label, cell('Board',3,B[p.key]), want);
+  if (String(cell('Board',3,B[p.rank])).indexOf('=RANK(') !== 0)
+    fails.push(`${p.label} rank is not a RANK()`);
+  if (!seen.namedRanges[replName(p.key)])
+    fails.push(`${p.label} has no ${replName(p.key)} named range`);
+});
+
+// The z and g blocks must stay contiguous, since Z total and G total sum a span.
+const zc = [B.zfg,B.zft,B.z3,B.zpts,B.zreb,B.zast,B.zstl,B.zblk,B.zto];
+const gc = [B.gfg,B.gft,B.g3,B.gpts,B.greb,B.gast,B.gstl,B.gblk,B.gto];
 zc.forEach(c => { if (String(cell('Board',3,c)).charAt(0) !== '=') fails.push(`z col ${L(c)} is not a formula`); });
-if (L(zc[0]) !== 'W' || L(zc[8]) !== 'AE') fails.push('z block is not W:AE');
-if (L(33) !== 'AG' || L(41) !== 'AO') fails.push('g block is not AG:AO');
+zc.forEach((c,i) => { if (i && c !== zc[i-1]+1) fails.push('z block is not contiguous'); });
+gc.forEach((c,i) => { if (i && c !== gc[i-1]+1) fails.push('g block is not contiguous'); });
+if (B.ztot !== zc[8]+1) fails.push('Z total does not sit immediately after the z block');
+if (B.gtot !== gc[8]+1) fails.push('G total does not sit immediately after the g block');
+
+// Punt score and rank columns must each be contiguous, in the same build order:
+// the Draft Board's "Best build" MATCHes across the rank span as one range.
+PUNTS.forEach((p,i) => {
+  if (i && B[p.key]  !== B[PUNTS[i-1].key]  + 1) fails.push(`punt score block breaks at ${p.label}`);
+  if (i && B[p.rank] !== B[PUNTS[i-1].rank] + 1) fails.push(`punt rank block breaks at ${p.label}`);
+});
 
 console.log('\n=== named ranges the formulas depend on ===');
-['Q','MIN_GP','GP_DIVISOR','TIER_MULT','MULT_PTS','MULT_STL','MEAN_TO','SD_TO',
- 'POOL_FG_PCT','POOL_AVG_FGA','SD_FG_IMPACT','REPLACEMENT','B_POOL','B_GTOT','B_ADJ']
+['Q','MIN_GP','GP_DIVISOR','TIER_MULT','PUNT_WEIGHT','MULT_PTS','MULT_STL','MEAN_TO','SD_TO',
+ 'POOL_FG_PCT','POOL_AVG_FGA','SD_FG_IMPACT','SD_FG_RATE','REPLACEMENT','TRACK_FG_BAND',
+ 'B_POOL','B_GTOT','B_ADJ','B_ADJRANK','B_GFT','REPL_PFT']
  .forEach(n => { const r = seen.namedRanges[n];
    console.log(`  ${n.padEnd(14)} -> ${r.sheet.name}!${L(r.col)}${r.row}${r.nr>1?':'+L(r.col+r.nc-1)+(r.row+r.nr-1):''}`); });
 
@@ -238,12 +286,41 @@ expect('MULT_PTS label',   labelFor('MULT_PTS'),   'PTS');
 expect('MEAN_TO label',    labelFor('MEAN_TO'),    'TO');
 expect('REPLACEMENT lbl',  labelFor('REPLACEMENT'),'Replacement G-score');
 expect('POOL_FG_PCT lbl',  labelFor('POOL_FG_PCT'),'Aggregate FG%');
+expect('PUNT_WEIGHT lbl',  labelFor('PUNT_WEIGHT'), 'Punt weight');
+expect('SD_FG_RATE lbl',   labelFor('SD_FG_RATE'),  'SD of FG% rate');
+expect('TRACK_FG_BAND lbl',labelFor('TRACK_FG_BAND'),'FG% band');
+// Each build's replacement cell must sit beside that build's own label.
+PUNTS.forEach(p => expect(`${p.label} repl label`, labelFor(replName(p.key)), p.label));
+
+// The Category Tracker reads the Draft Board by column letter. Those letters
+// have to come from the D map: inserting one column upstream once repointed
+// "Mine" at "Gone", and every roster total silently counted the wrong players.
+const mineL = L(D.mine);
+expect('tracker counts Mine', cell('Category Tracker',4,2),
+  `=COUNTIF('Draft Board'!$${mineL}$3:$${mineL}$202,TRUE)`);
+['FG%','FT%','3PM','PTS','REB','AST','STL','BLK','TO'].forEach((cat,i) => {
+  const row = 7 + i;
+  if (cell('Category Tracker',row,1) !== cat)
+    fails.push(`tracker row ${row} is not ${cat}`);
+  const bench = String(cell('Category Tracker',row,3));
+  if (bench.indexOf('B_ADJRANK<=TEAMS*') < 0)
+    fails.push(`${cat} benchmark is not scaled to the drafted field: ${bench}`);
+  const read = String(cell('Category Tracker',row,5));
+  const wantBand = (cat === 'FG%') ? 'TRACK_FG_BAND'
+                 : (cat === 'FT%') ? 'TRACK_FT_BAND' : 'TRACK_COUNT_BAND';
+  if (read.indexOf(wantBand) < 0) fails.push(`${cat} read does not use ${wantBand}`);
+  if (read.indexOf('"PUNTED"') < 0) fails.push(`${cat} read cannot be marked punted`);
+});
 
 // Draft Board must be sorted by the mocked Adjusted Value, descending.
 const d3 = cell('Draft Board',3,3), d4 = cell('Draft Board',4,3);
 console.log(`\n=== Draft Board ===\n  C3 = ${d3}\n  C4 = ${d4}\n  I4 (drop) = ${cell('Draft Board',4,9)}\n  J4 (local median) = ${cell('Draft Board',4,10)}\n  K4 (break) = ${cell('Draft Board',4,11)}\n  B4 (tier) = ${cell('Draft Board',4,2)}\n  B3 (tier 1, by hand) = ${cell('Draft Board',3,2)}`);
 expect('tier 1 literal', cell('Draft Board',3,2), 1);
-expect('drop', cell('Draft Board',4,9), '=$F3-$F4');
+expect('drop', cell('Draft Board',4,D.drop), `=${C(D.adj)}3-${C(D.adj)}4`);
+// The tier window must be centred: INDEX(range,k) is sheet row k+HDR, so these
+// offsets have to resolve to r-7 .. r+7, not the r-9 .. r+5 it shipped with.
+expect('tier window', cell('Draft Board',4,D.med),
+  '=MEDIAN(INDEX($I$3:$I$202,MAX(1,ROW()-9)):INDEX($I$3:$I$202,MIN(200,ROW()+5)))');
 expect('break', cell('Draft Board',4,11), '=IF(N($J4)<=0,"",IF($I4>TIER_MULT*$J4,"BREAK",""))');
 expect('tier roll', cell('Draft Board',4,2), '=IF($K4="BREAK",$B3+1,$B3)');
 

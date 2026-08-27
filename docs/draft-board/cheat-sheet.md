@@ -13,7 +13,7 @@ Built from docs/references/fantasy-basketball-draft-playbook.md. Every number is
 |---|---|
 | **Draft Board** | The tab you use on the clock. Sorted by Adjusted Value. Tick Gone as players come off the board, Mine for your own picks. |
 | **Board** | The audit. One row per player, every intermediate number visible. Collapse the z and g blocks with the +/− above the columns. |
-| **Punts** | Six builds, each showing who it gets at a discount. Homework before draft day, not reading material during it. |
+| **Punts** | Nine builds, each showing who it gets at a discount. Homework before draft day, not reading material during it. |
 | **Category Tracker** | Fills itself from the Mine checkboxes. |
 | **Settings** | Every constant. Change one and the whole board recalculates. |
 
@@ -51,6 +51,8 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 | **Average FGA  /  FTA** | `=AVERAGEIF(In Pool, 1, FGA)` | How many shots a typical drafted player takes. Used to work out whether a player's shooting percentage actually moves your team or barely registers. |
 | **SD of FG impact  /  FT impact** | `=STDEV(FILTER(FG impact, In Pool = 1))` | The spread of the shooting-impact numbers below, so those can be put on the same scale as every other category. |
 | **REPLACEMENT** | `=LARGE(G TOTAL, Q)` | The G-score of the 156th best player — the last man who gets drafted at all. This becomes the zero point for value: anyone below him is someone you could have off waivers for nothing. |
+| **Punt replacement levels** | `=LARGE(that build's scores, Q)` | The same zero point, worked out again inside each punt build. A build changes who the last drafted player is, so it needs its own line. Without these a punt column would be a raw score rather than a value, and the games-played step below would run backwards on it. |
+| **Pool shortfall** | `=Q − COUNTIF(In Pool, 1)` | How many of the top 156 seeds fell below MIN_GP and sat out the averages. Normally 0. If it is not, the pool is smaller than Q and this tells you by how much — the count is legitimately below 156, not broken. |
 
 ### STEP 1 — SCORE EVERY CATEGORY  (z)
 
@@ -84,7 +86,7 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 |---|---|---|
 | **My GP Est** | `=Projected GP    (then edited by hand)` | How many games you personally expect him to play. Starts as a copy of the projection. Change it where you know something the projection does not — a player back from injury, an ageing star on load management. Edit the fifteen or thirty you have a real opinion about, not all 200. |
 | **GP Flag** | `=IF(ABS(Projected GP − My GP Est) > 10, "CHECK", "")` | Says CHECK when your estimate disagrees with the projection by more than ten games. Not an error — just a nudge to confirm you meant it. |
-| **ADJUSTED VALUE** | `=VOR × My GP Est / GP_DIVISOR` | The column the board is actually sorted by, and the closest thing here to a final answer. It is VOR scaled by how much the player is available. A brilliant player who suits up 55 times contributes less across a season than a merely good one who plays 78, and the draft room is consistently bad at pricing that. Note it scales VOR and never the G-score: multiplying a negative score by a fraction would push a bad player up the board, which is backwards. |
+| **ADJUSTED VALUE** | `=VOR × My GP Est / GP_DIVISOR   (never scaled up when VOR is negative)` | The column the board is actually sorted by, and the closest thing here to a final answer. It is VOR scaled by how much the player is available. A brilliant player who suits up 55 times contributes less across a season than a merely good one who plays 78, and the draft room is consistently bad at pricing that. Two guards on it. It scales VOR and never the G-score, because multiplying a negative score by a fraction would push a bad player up the board. And below replacement, where VOR is already negative, the scaling is switched off entirely — otherwise the same thing happens again among the last forty names, ranking the player who misses more games higher. Availability may discount a player; it may never promote one. Worth knowing why the shape is a straight line: if you replace an injured player with someone off waivers, his value over replacement for the games he misses is exactly zero, so the expected season total really is VOR × games ÷ 72. It is not an approximation. |
 | **Adj Rank** | `=RANK(Adjusted Value, all Adjusted Value)` | Your final ranking, 1 to 200. This is the number the Draft Board is ordered by. |
 
 ### STEP 5 — COMPARE AGAINST THE ROOM
@@ -99,7 +101,7 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 | | Formula | What it means |
 |---|---|---|
 | **Drop** | `=Adjusted Value above − Adjusted Value here` | How much value you give up by taking this player instead of the one directly above him. |
-| **Local median** | `=MEDIAN(the fifteen drops centred on this row)` | The normal size of a drop around here. This matters because drops shrink as you go down the board: a gap that is a canyon at pick 120 is completely routine at pick 5. Judging every drop against a single fixed number would give you five tiers at the top and one enormous blob at the bottom. |
+| **Local median** | `=MEDIAN(the fifteen drops centred on this row — seven above, seven below)` | The normal size of a drop around here. This matters because drops shrink as you go down the board: a gap that is a canyon at pick 120 is completely routine at pick 5. Judging every drop against a single fixed number would give you five tiers at the top and one enormous blob at the bottom. |
 | **Break** | `=IF(Drop > TIER_MULT × Local median, "BREAK", "")` | Fires when the drop into this player is much bigger than what is normal for that part of the board. That is a real cliff, and it is where a tier line gets drawn. |
 | **Tier** | `=IF(Break = "BREAK", Tier above + 1, Tier above)` | A group of players you would be roughly equally happy with. Inside a tier you can afford to wait, because the next name down is just as good. Between tiers waiting costs you something real. This is what turns 200 names into about a dozen actual decisions. |
 
@@ -107,9 +109,9 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 
 | | Formula | What it means |
 |---|---|---|
-| **Punt FT%   (and the other five)** | `=G TOTAL − g FT%` | The entire board recalculated as if that category did not exist. If you decide you are not competing in free throw percentage, terrible free throw shooters stop being penalised for it and immediately get cheap. The reordering is dramatic rather than marginal — Giannis is around 25th on a normal board and 2nd on a punt-FT% board. |
+| **Punt FT%   (and the other eight)** | `=(G TOTAL − 75% of g FT% − that build's replacement) × availability` | The entire board re-valued as if you are barely competing in that category. If you decide you are not chasing free throw percentage, terrible free throw shooters stop being penalised for it and immediately get cheap. The reordering is dramatic rather than marginal — Giannis is around 25th on a normal board and 2nd on a punt-FT% board. Two things this does that a plain subtraction does not. It keeps a quarter of the punted category rather than deleting it, because you will still win that category in some weeks by accident and those weeks are free — which also stops the build rating a genuinely awful free throw shooter identically to a merely neutral one. And it goes through the build's own replacement level and the same games-played discount as the main board, so a punt list is not quietly sorted by who misses games. Set Punt weight to 0 on Settings to get the old hard-punt behaviour back. |
 | **Punt rank** | `=RANK(that punt column)` | Where the player sits inside that build. |
-| **Punt Gap** | `=ADP − rank inside that build` | The bargain measure for a build. A big positive number means the room prices him normally while this particular build values him far higher. The top of each list on the Punts tab is who that build gets at a discount. |
+| **Punt Gap** | `=ADP − rank inside that build` | The bargain measure for a build. A big positive number means the room prices him normally while this particular build values him far higher. The top of each list on the Punts tab is who that build gets at a discount. Players with no ADP have no Gap and sit at the bottom of each list rather than being hidden — an unpriced player is often exactly the one a build wants cheap. |
 | **Best build** | `=the punt column that ranks him highest, and by how much` | A shortcut. Reads "AST+STL +21", meaning a punt assists-and-steals build rates him 21 places higher than the standard board does. A dash means no build helps him — he is simply good everywhere. |
 
 ### THE CATEGORY TRACKER
@@ -118,9 +120,9 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 |---|---|---|
 | **My team   (counting stats)** | `=SUMIF(Mine, TRUE, that stat)` | Adds up the category across every player you have ticked as Mine. |
 | **My team   (FG% and FT%)** | `=SUMIF(Mine,TRUE,FGM) / SUMIF(Mine,TRUE,FGA)` | Your roster's real shooting percentage — total makes over total attempts again, never the average of the individual percentages. |
-| **Average team** | `=pool mean × players on my roster` | What a completely average team would post with the same number of players drafted. The benchmark, built so the comparison stays fair whether you have 3 players or 13. |
+| **Average team** | `=mean of the top (Teams × my player count) by Adj Rank, × my player count` | What an average team actually holds right now. After five rounds every manager has five players and those sixty are the best sixty on the board, not sixty players drawn at random from all 156 — so the benchmark has to move with the draft. Measuring against the whole pool instead makes the target far too low early and reads STRONG on everything through about round ten, which is precisely when you need it to tell you something. |
 | **Edge** | `=My team − Average team` | How far ahead or behind average you are in that category. Reversed on the turnovers row, because there fewer is better. |
-| **Read** | `=STRONG / EVEN / WEAK, at a threshold of 8%` | The quick verdict. Aim for roughly 60% win rate in the categories you are contesting, not 90% — winning a category 60–30 pays exactly the same as winning it 46–45, so margin beyond a win is wasted. Spend your next pick on an EVEN category, not a STRONG one. |
+| **Read** | `=STRONG / EVEN / WEAK, or PUNTED if you tick the box` | The quick verdict. Each row has its own threshold, on Settings: FG% and FT% in rate points, the seven counting categories as a share of the benchmark. They used to share one 8%-of-benchmark rule, which on a percentage means about four points of team FG% — a margin no team ever posts, so those two rows read EVEN no matter what you drafted. Aim for roughly 60% win rate in the categories you are contesting, not 90% — winning a category 60–30 pays exactly the same as winning it 46–45, so margin beyond a win is wasted. Spend your next pick on an EVEN category, not a STRONG one. |
 
 ## THINGS WORTH KNOWING
 
@@ -129,6 +131,10 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 | **Steals** | Worth about half what the raw z-score claims. The week-to-week noise swamps the edge. |
 | **Games played** | The most under-priced variable on the board. Kept in its own column on purpose — never folded into the projection, so you can see talent and availability separately. |
 | **Tier 1** | Set by hand. The fifteen-row window is truncated at the very top of the board, so the formula has nothing useful to say there. |
-| **Tier multiplier** | Ships at 4.0, which gives 14 tiers. The playbook suggests 2 as a starting point; on this data that produces 46, which is useless. Tune it on Settings. |
-| **Blank GAP** | 38 players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely. |
-| **ADP source** | Hashtag's, not confirmed Yahoo. Yahoo ADP is the room you are actually drafting in; worth replacing if you can get it. |
+| **Tier multiplier** | Ships at 4.0, which gives 14 tiers. The playbook suggests 2 as a starting point; on this data that produces 46, which is useless. Worth re-checking now the window is genuinely centred — it used to lean nine rows up the board and five down, which inflated the median and made breaks fire late. Tune it on Settings. |
+| **Blank GAP** | Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely. |
+| **ADP source** | Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as "cheap somewhere", not "cheap in my league". |
+| **Scoring format** | Head-to-Head Categories: all nine categories are settled separately every week, so a week ends 6-3. That is Yahoo's name for it; ESPN calls the same thing Each Category. It is not the format where the week resolves to a single win, which Yahoo calls One Win. The difference decides how hard to punt — conceding a category here costs a loss every single week, so soft-punt at most and stay broad. |
+| **Left @pos** | How many players at his primary position are still un-Gone in his tier. The scarcity tiebreak: between two players you rate the same, take the one whose position is running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left. |
+| **Punt weight** | What a punted category still counts for, on Settings. Ships at 0.25. Set it to 0 for a hard punt, which is what this board did before and what most public tools still do. |
+| **G-score multipliers** | From Rosenof (arXiv 2307.02188, Table 8), computed on the 2022-23 season. The ordering is solid and the steals discount is robust; the second decimal is not, least of all on FG% and FT%. |

@@ -57,22 +57,48 @@ var B = {
   vor: 43, vorRank: 44,
   gp1: 45, gp2: 46, gp3: 47, myGp: 48, gpCheck: 49, adj: 50, adjRank: 51,
   adp: 52, xrank: 53, gap: 54,
-  pFt: 55, pFg: 56, pFgReb: 57, pAstStl: 58, pPtsFt: 59, pTriple: 60,
-  rFt: 61, rFg: 62, rFgReb: 63, rAstStl: 64, rPtsFt: 65, rTriple: 66,
-  notes: 67
+  pFt: 55, pFg: 56, pAst: 57, p3: 58, pBlk: 59,
+  pFgReb: 60, pAstStl: 61, pPtsFt: 62, pTriple: 63,
+  rFt: 64, rFg: 65, rAst: 66, r3: 67, rBlk: 68,
+  rFgReb: 69, rAstStl: 70, rPtsFt: 71, rTriple: 72,
+  notes: 73
 };
 var B_LAST = B.notes;
 
-// The six builds from playbook section 10. Each is the G-score sum with terms
-// dropped — the pool means and SDs are deliberately NOT recomputed (section 6b).
+// Nine builds: the five canonical single punts, then four named groupings.
+// Published guides converge on FT%, FG%, AST and 3PM as the four most common
+// single punts, with BLK a well-documented mid-draft pivot; the board carried
+// only two of the four before. BLK+FG% is deliberately absent — the punt-blocks
+// literature treats FG% as a category that build must PROTECT, so pairing them
+// is self-defeating. See ADR-0010.
+//
+// Pool means and SDs are deliberately NOT recomputed for a build (playbook 6b).
+// That matches how Basketball Monster and Hashtag Basketball behave, which
+// matters: a build ranking is only useful if it predicts what your leaguemates
+// see on their own screens.
 var PUNTS = [
   { key: 'pFt',     rank: 'rFt',     label: 'Punt FT%',       drop: ['gft'] },
   { key: 'pFg',     rank: 'rFg',     label: 'Punt FG%',       drop: ['gfg'] },
+  { key: 'pAst',    rank: 'rAst',    label: 'Punt AST',       drop: ['gast'] },
+  { key: 'p3',      rank: 'r3',      label: 'Punt 3PM',       drop: ['g3'] },
+  { key: 'pBlk',    rank: 'rBlk',    label: 'Punt BLK',       drop: ['gblk'] },
   { key: 'pFgReb',  rank: 'rFgReb',  label: 'Punt FG%+REB',   drop: ['gfg', 'greb'] },
   { key: 'pAstStl', rank: 'rAstStl', label: 'Punt AST+STL',   drop: ['gast', 'gstl'] },
   { key: 'pPtsFt',  rank: 'rPtsFt',  label: 'Punt PTS+FT%',   drop: ['gpts', 'gft'] },
   { key: 'pTriple', rank: 'rTriple', label: 'Punt FG/FT/TO',  drop: ['gfg', 'gft', 'gto'] }
 ];
+
+/** Settings named range holding a build's replacement level. */
+function replName(key) { return 'REPL_' + key.toUpperCase(); }
+
+/** A build's raw punt G-score for row r: G total, less the discounted drops. */
+function puntScoreExpr(punt, r) {
+  var e = '$' + a1col(B.gtot) + r;
+  for (var d = 0; d < punt.drop.length; d++) {
+    e += '-(1-PUNT_WEIGHT)*$' + a1col(B[punt.drop[d]]) + r;
+  }
+  return e;
+}
 
 // ------------------------------------------------------------------ helpers
 
@@ -152,7 +178,7 @@ function buildDraftBoard() {
   }
 
   var board    = sheetByName(ss, 'Board', B_LAST, RN);
-  var settings = sheetByName(ss, 'Settings', 10, 60);
+  var settings = sheetByName(ss, 'Settings', 10, 75);
   var draft    = sheetByName(ss, 'Draft Board', D_LAST, RN);
   var punts    = sheetByName(ss, 'Punts', PUNTS.length * 6, 60);
   var tracker  = sheetByName(ss, 'Category Tracker', 8, 60);
@@ -203,7 +229,7 @@ function dumpFormulas() {
     ['DB Tier',      d.getRange(4, D.tier).getFormula()]
   ];
   var txt = picks.map(function (p) { return p[0] + ' -> ' + p[1]; }).join('  ;;  ');
-  ss.getSheetByName('Settings').getRange(43, 1).setNumberFormat('@').setValue(txt);
+  ss.getSheetByName('Settings').getRange(63, 1).setNumberFormat('@').setValue(txt);
   SpreadsheetApp.flush();
   return txt;
 }
@@ -212,8 +238,8 @@ function dumpFormulas() {
 function _note(msg) {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Settings');
   if (!sh) return;
-  sh.getRange(40, 1).setNumberFormat('@').setValue('BUILD LOG');
-  sh.getRange(41, 1).setNumberFormat('@').setValue(String(msg).slice(0, 480));
+  sh.getRange(60, 1).setNumberFormat('@').setValue('BUILD LOG');
+  sh.getRange(61, 1).setNumberFormat('@').setValue(String(msg).slice(0, 480));
   SpreadsheetApp.flush();
 }
 function _guard(label, fn) {
@@ -403,9 +429,9 @@ function refreshWithReorder(ss, board, oldNames, newNames) {
 
   var settings = ss.getSheetByName('Settings');
   if (settings) {
-    settings.getRange(44, 1).setNumberFormat('@')
+    settings.getRange(64, 1).setNumberFormat('@')
       .setValue(added.length ? 'Added: ' + added.join(', ') : 'Added: none');
-    settings.getRange(45, 1).setNumberFormat('@')
+    settings.getRange(65, 1).setNumberFormat('@')
       .setValue(dropped.length ? 'Dropped: ' + dropped.join(', ') : 'Dropped: none');
   }
 
@@ -418,7 +444,7 @@ function refreshWithReorder(ss, board, oldNames, newNames) {
 function step1_Settings() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   _guard('Settings', function () {
-    var sh = sheetByName(ss, 'Settings', 10, 60);
+    var sh = sheetByName(ss, 'Settings', 10, 75);
     writeSettingsSkeleton(sh);
     writeSettingsFormulas(sh);
     formatSettings(sh);
@@ -556,18 +582,27 @@ function writeBoardFormulas(sh) {
     row[B.myGp] = '=$F' + r;
     row[B.gpCheck] = '=IF($AV' + r + '="","",IF(ABS($F' + r + '-$AV' + r + ')>10,"CHECK",""))';
     // Scales VOR, never the G-score: a negative score times a fraction rises.
-    row[B.adj] = '=IF($AV' + r + '="","",$AQ' + r + '*$AV' + r + '/GP_DIVISOR)';
+    // Availability may only ever discount. Below replacement VOR is negative,
+    // and a negative times GP/72 moves TOWARD zero — i.e. up the board — which
+    // would rank the less available of two equal players higher. The board
+    // carries 200 rows against a pool of 156, so those rows exist.
+    row[B.adj] = '=IF($AV' + r + '="","",LET(v,$AQ' + r +
+                 ',v*IF(v<0,1,$AV' + r + '/GP_DIVISOR)))';
     row[B.adjRank] = '=RANK($AX' + r + ',B_ADJ)';
 
     // Blank ADP means no market read. Zero would read as "fairly priced".
     row[B.gap] = '=IF($AZ' + r + '="","",$AZ' + r + '-$AY' + r + ')';
 
+    // A punt column is the same quantity as ADJUSTED VALUE, computed inside the
+    // build: value over that build's own replacement level, then discounted for
+    // availability with the same floor. Ranking a raw G-score would reintroduce
+    // both defects the main board avoids — a fragile player would outrank a
+    // durable one below replacement, and the punt lists would be ordered partly
+    // by who misses games.
     for (var q = 0; q < PUNTS.length; q++) {
-      var terms = '=$AP' + r;
-      for (var d = 0; d < PUNTS[q].drop.length; d++) {
-        terms += '-$' + a1col(B[PUNTS[q].drop[d]]) + r;
-      }
-      row[B[PUNTS[q].key]] = terms;
+      row[B[PUNTS[q].key]] =
+        '=IF($AV' + r + '="","",LET(v,' + puntScoreExpr(PUNTS[q], r) + '-' +
+        replName(PUNTS[q].key) + ',v*IF(v<0,1,$AV' + r + '/GP_DIVISOR)))';
       var pc = a1col(B[PUNTS[q].key]);
       row[B[PUNTS[q].rank]] = '=RANK($' + pc + r + ',$' + pc + '$' + R0 + ':$' + pc + '$' + RN + ')';
     }
@@ -608,10 +643,11 @@ function writeSettingsSkeleton(sh) {
     ['GP divisor', 72],
     ['Min GP for pool', 25],
     ['Tier multiplier', 4],
-    ['Scoring format', 'Most Categories']
+    ['Scoring format', 'Head-to-Head Categories'],
+    ['Punt weight', 0.25]
   ];
   // Only the label columns need forcing to text ('3PM' would become 3:00 PM).
-  sh.getRange(1, 1, 60, 1).setNumberFormat('@');   // column A labels
+  sh.getRange(1, 1, 75, 1).setNumberFormat('@');   // column A labels
   sh.getRange(1, 4, 20, 1).setNumberFormat('@');   // column D multiplier labels
   sh.getRange(3, 1, league.length, 2).setValues(league);
 
@@ -623,6 +659,11 @@ function writeSettingsSkeleton(sh) {
   sh.getRange(3, 4, mult.length, 2).setValues(mult);
   sh.getRange(13, 4).setValue('Steals are the headline: half-weight, because the week-to-week noise swamps the edge.')
     .setFontSize(8).setFontColor(COLOR.muted).setFontStyle('italic');
+  sh.getRange(14, 4).setValue(
+    'Source: Rosenof, arXiv 2307.02188 Table 8, 2022-23 season, normalised to AST = 1.00. ' +
+    'The ordering is reliable; the second decimal is not, least of all on FG% and FT%, whose ' +
+    'reported variances carry one significant figure. Re-derive from weekly logs in Phase 4.')
+    .setFontSize(8).setFontColor(COLOR.muted).setFontStyle('italic').setWrap(true);
 
   sh.getRange(12, 1).setValue('POOL STATISTICS').setFontWeight('bold');
   sh.getRange(13, 1, 1, 3).setValues([['Category', 'Mean', 'SD']]);
@@ -635,10 +676,51 @@ function writeSettingsSkeleton(sh) {
   ]);
 
   sh.getRange(32, 1).setValue('SANITY CHECKS').setFontWeight('bold');
-  sh.getRange(33, 1, 5, 1).setValues([
-    ['Players in pool'], ['Z-total across pool'], ['Per-game check'],
+  sh.getRange(33, 1, 6, 1).setValues([
+    ['Players in pool'], ['Pool shortfall'], ['Z-total across pool'], ['Per-game check'],
     ['GP spread test'], ['ADP coverage']
   ]);
+
+  // Diagnostic only. The board standardises the percentage categories by the SD
+  // of the volume-weighted impact column; Rosenof's Table 5(b) defines its sigma
+  // over the raw rate instead. Which is intended is unresolved, so both are
+  // printed and neither is acted on. Do not change SD_FG_IMPACT without reading
+  // the ratio here first.
+  sh.getRange(40, 1).setValue('PERCENTAGE DIAGNOSTICS').setFontWeight('bold');
+  sh.getRange(41, 1, 4, 1).setValues([
+    ['SD of FG% rate'], ['SD of FT% rate'], ['FG ratio impact/rate'], ['FT ratio impact/rate']
+  ]);
+
+  // One replacement level per build, so a punt column can be a value over
+  // replacement rather than a raw score. Without these the GP adjustment would
+  // rank a fragile player above a durable one below replacement.
+  sh.getRange(46, 1).setValue('PUNT REPLACEMENT LEVELS').setFontWeight('bold');
+  var pr = [];
+  for (var pi = 0; pi < PUNTS.length; pi++) pr.push([PUNTS[pi].label]);
+  sh.getRange(47, 1, pr.length, 1).setValues(pr);
+
+  sh.getRange(67, 1).setValue('TRACKER THRESHOLDS').setFontWeight('bold');
+  sh.getRange(68, 1, 3, 1).setValues([
+    ['FG% band'], ['FT% band'], ['Counting band']
+  ]);
+  sh.getRange(68, 2, 3, 1).setValues([[0.005], [0.010], [0.08]]);
+  sh.getRange(68, 2, 2, 1).setNumberFormat('0.0000');
+  sh.getRange(70, 2).setNumberFormat('0%');
+  sh.getRange(68, 2, 3, 1).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText);
+  sh.getRange(71, 1).setValue(
+    'The rate bands are in rate units, the counting band is a share of the benchmark. They were ' +
+    'one number, 8% of the benchmark, applied to all nine rows — which on a rate means ~3.8 points ' +
+    'of FG%, a margin no team ever posts, so those two rows read EVEN forever. These three are ' +
+    'starting guesses and want calibrating against a season of real standings.')
+    .setFontSize(8).setFontColor(COLOR.muted).setWrap(true);
+
+  sh.getRange(57, 1).setValue('ADP source').setFontWeight('bold');
+  sh.getRange(57, 2).setValue('Hashtag Basketball export — NOT Yahoo')
+    .setBackground(COLOR.flagBg).setFontColor(COLOR.flagText);
+  sh.getRange(58, 1).setValue(
+    'The playbook wants Yahoo ADP, because that is the room you are drafting in. This is the ' +
+    'export provider\'s own aggregate. Read GAP as "cheap somewhere", not "cheap in my league".')
+    .setFontSize(8).setFontColor(COLOR.muted).setWrap(true);
 
   sh.getRange(3, 7).setValue('LEGEND').setFontWeight('bold');
   sh.getRange(4, 7).setValue('You edit this').setBackground(COLOR.inputBg).setFontColor(COLOR.inputText);
@@ -669,8 +751,10 @@ function writeSettingsFormulas(sh) {
     ['=AVERAGEIF(B_POOL,1,B_GP)']
   ]);
 
-  sh.getRange(33, 2, 5, 1).setFormulas([
+  sh.getRange(33, 2, 6, 1).setFormulas([
     ['=COUNTIF(B_POOL,1)'],
+    ['=LET(short,Q-COUNTIF(B_POOL,1),IF(short=0,"0 — pool is exactly Q",' +
+      'short&" seeded players fall below MIN_GP and sit out the means"))'],
     ['=ROUND(SUMPRODUCT(B_ZTOT,B_POOL),3)'],
     ['=IF(AVERAGEIF(B_POOL,1,B_PTS)>100,"SEASON TOTALS — the GP adjustment would double-count. Stop.","Per-game. Safe to apply the GP ratio.")'],
     ['=LET(inband,COUNTIFS(B_GP,">=68",B_GP,"<=74",B_POOL,1)/COUNTIF(B_POOL,1),' +
@@ -678,6 +762,27 @@ function writeSettingsFormulas(sh) {
       '"Modelled per player ("&TEXT(inband,"0%")&" in 68-74). Lean on it."))'],
     ['=COUNT(B_ADP)&" of "&COUNTA(B_PLAYER)&" have ADP — the rest show a blank Gap, not a zero"']
   ]);
+
+  sh.getRange(41, 2, 4, 1).setFormulas([
+    ['=STDEV(FILTER(B_FGP,B_POOL=1))'],
+    ['=STDEV(FILTER(B_FTP,B_POOL=1))'],
+    ['=SD_FG_IMPACT/B41'],
+    ['=SD_FT_IMPACT/B42']
+  ]);
+  sh.getRange(41, 2, 2, 1).setNumberFormat('0.0000');
+  sh.getRange(43, 2, 2, 1).setNumberFormat('0.000');
+
+  // LARGE over an array expression, so no materialised column is needed.
+  var repl = [];
+  for (var pi = 0; pi < PUNTS.length; pi++) {
+    var e = 'B_GTOT';
+    for (var d = 0; d < PUNTS[pi].drop.length; d++) {
+      e += '-(1-PUNT_WEIGHT)*B_' + PUNTS[pi].drop[d].toUpperCase();
+    }
+    repl.push(['=LARGE(' + e + ',Q)']);
+  }
+  sh.getRange(47, 2, repl.length, 1).setFormulas(repl);
+  sh.getRange(47, 2, repl.length, 1).setNumberFormat('0.0000');
 }
 
 function formatSettings(sh) {
@@ -691,7 +796,7 @@ function formatSettings(sh) {
   });
 
   // B6 is =B4*B5, so it is deliberately not tinted: yellow means you may type here.
-  [4, 5, 7, 8, 9, 10].forEach(function (r) {
+  [4, 5, 7, 8, 9, 10, 11].forEach(function (r) {
     sh.getRange(r, 2).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText);
   });
   sh.getRange(4, 5, 9, 1).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText)
@@ -700,7 +805,8 @@ function formatSettings(sh) {
   sh.getRange(9, 2).setNumberFormat('0.0');     // tier multiplier
 
   sh.getRange(10, 2).setDataValidation(SpreadsheetApp.newDataValidation()
-    .requireValueInList(['Most Categories', 'Each Category'], true).build());
+    .requireValueInList(['Head-to-Head Categories', 'Head-to-Head One Win'], true).build());
+  sh.getRange(11, 2).setNumberFormat('0.00');
 
   sh.getRange(14, 2, 7, 2).setNumberFormat('0.000');
   sh.getRange(23, 2, 2, 1).setNumberFormat('0.0000');
@@ -735,6 +841,7 @@ function defineNames(ss) {
   var names = {
     TEAMS: s + '!$B$4', ROSTER: s + '!$B$5', Q: s + '!$B$6',
     GP_DIVISOR: s + '!$B$7', MIN_GP: s + '!$B$8', TIER_MULT: s + '!$B$9', SCORING: s + '!$B$10',
+    PUNT_WEIGHT: s + '!$B$11',
     MULT_FG: s + '!$E$4', MULT_FT: s + '!$E$5', MULT_3PM: s + '!$E$6', MULT_PTS: s + '!$E$7',
     MULT_REB: s + '!$E$8', MULT_AST: s + '!$E$9', MULT_STL: s + '!$E$10',
     MULT_BLK: s + '!$E$11', MULT_TO: s + '!$E$12',
@@ -746,6 +853,8 @@ function defineNames(ss) {
     POOL_AVG_FGA: s + '!$B$25', POOL_AVG_FTA: s + '!$B$26',
     SD_FG_IMPACT: s + '!$B$27', SD_FT_IMPACT: s + '!$B$28',
     REPLACEMENT: s + '!$B$29', POOL_AVG_GP: s + '!$B$30',
+    SD_FG_RATE: s + '!$B$41', SD_FT_RATE: s + '!$B$42',
+    TRACK_FG_BAND: s + '!$B$68', TRACK_FT_BAND: s + '!$B$69', TRACK_COUNT_BAND: s + '!$B$70',
 
     B_POOL: colRange('Board', B.inPool), B_PLAYER: colRange('Board', B.player),
     B_GP: colRange('Board', B.gp),
@@ -758,8 +867,21 @@ function defineNames(ss) {
     B_IFG: colRange('Board', B.ifg), B_IFT: colRange('Board', B.ift),
     B_ZTOT: colRange('Board', B.ztot), B_GTOT: colRange('Board', B.gtot),
     B_VOR: colRange('Board', B.vor), B_ADJ: colRange('Board', B.adj),
+    B_ADJRANK: colRange('Board', B.adjRank),
+    B_FGP: colRange('Board', B.fgp), B_FTP: colRange('Board', B.ftp),
     B_ADP: colRange('Board', B.adp)
   };
+
+  // The nine g-score columns, so a punt replacement level can be computed as
+  // LARGE() over an array expression instead of a materialised column.
+  var gcols = ['gfg', 'gft', 'g3', 'gpts', 'greb', 'gast', 'gstl', 'gblk', 'gto'];
+  for (var gi = 0; gi < gcols.length; gi++) {
+    names['B_' + gcols[gi].toUpperCase()] = colRange('Board', B[gcols[gi]]);
+  }
+  // One replacement level per build, laid out from row 47 down.
+  for (var qi = 0; qi < PUNTS.length; qi++) {
+    names[replName(PUNTS[qi].key)] = s + '!$B$' + (47 + qi);
+  }
   var existing = ss.getNamedRanges();
   for (var i = 0; i < existing.length; i++) {
     if (names[existing[i].getName()]) existing[i].remove();
@@ -830,8 +952,8 @@ function formatBoard(sh) {
   sh.getRange(R0, B.adp, POOL_ROWS, 1).setNumberFormat('0.0');
   sh.getRange(R0, B.xrank, POOL_ROWS, 1).setNumberFormat('0');
   sh.getRange(R0, B.gap, POOL_ROWS, 1).setNumberFormat('+0;−0;0').setFontWeight('bold');
-  sh.getRange(R0, B.pFt, POOL_ROWS, 6).setNumberFormat('+0.00;−0.00;0.00');
-  sh.getRange(R0, B.rFt, POOL_ROWS, 6).setNumberFormat('0');
+  sh.getRange(R0, B.pFt, POOL_ROWS, PUNTS.length).setNumberFormat('+0.00;−0.00;0.00');
+  sh.getRange(R0, B.rFt, POOL_ROWS, PUNTS.length).setNumberFormat('0');
 
   // Hand-edited columns
   [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank, B.notes].forEach(function (c) { markInput(sh, c); });
@@ -907,9 +1029,9 @@ function groupAndCollapse(sh, c1, c2) {
 var D = {
   rank: 1, tier: 2, player: 3, team: 4, pos: 5, adj: 6, vor: 7, gtot: 8,
   drop: 9, med: 10, brk: 11, projGp: 12, myGp: 13, adp: 14, xrank: 15, gap: 16,
-  best: 17, drafted: 18, mine: 19, notes: 20,
-  hFgm: 21, hFga: 22, hFtm: 23, hFta: 24, h3: 25, hPts: 26, hReb: 27, hAst: 28,
-  hStl: 29, hBlk: 30, hTo: 31
+  best: 17, posLeft: 18, drafted: 19, mine: 20, notes: 21,
+  hFgm: 22, hFga: 23, hFtm: 24, hFta: 25, h3: 26, hPts: 27, hReb: 28, hAst: 29,
+  hStl: 30, hBlk: 31, hTo: 32
 };
 var D_LAST = D.hTo;
 
@@ -936,7 +1058,8 @@ function buildDraftTab(ss, sh, board) {
   head[D.drop] = 'Drop'; head[D.med] = 'Local\nmed'; head[D.brk] = 'Break';
   head[D.projGp] = 'Proj\nGP'; head[D.myGp] = 'My\nGP';
   head[D.adp] = 'ADP'; head[D.xrank] = 'XRank'; head[D.gap] = 'GAP';
-  head[D.best] = 'Best build'; head[D.drafted] = 'Gone'; head[D.mine] = 'Mine';
+  head[D.best] = 'Best build'; head[D.posLeft] = 'Left\n@pos';
+  head[D.drafted] = 'Gone'; head[D.mine] = 'Mine';
   head[D.notes] = 'Notes';
   head[D.hFgm] = 'FGM'; head[D.hFga] = 'FGA'; head[D.hFtm] = 'FTM'; head[D.hFta] = 'FTA';
   head[D.h3] = '3PM'; head[D.hPts] = 'PTS'; head[D.hReb] = 'REB'; head[D.hAst] = 'AST';
@@ -964,7 +1087,11 @@ function buildDraftTab(ss, sh, board) {
     } else {
       row[D.drop] = '=$F' + (r - 1) + '-$F' + r;
       // Fifteen drops centred here, clamped at both ends of the board.
-      var back = 'ROW()-' + (HDR + 9), fwd = 'ROW()+' + (5 - HDR);
+      // INDEX(range,k) resolves to sheet row k+HDR, so these offsets give rows
+      // r-7 through r+7. They were r-9 to r+5, which skewed the window up the
+      // board where drops are larger, inflating the median and firing breaks
+      // late — exactly where the curve steepens and a tier matters most.
+      var back = 'ROW()-' + (HDR + 7), fwd = 'ROW()+' + (7 - HDR);
       row[D.med]  = '=MEDIAN(INDEX($I$' + R0 + ':$I$' + RN + ',MAX(1,' + back + '))' +
                     ':INDEX($I$' + R0 + ':$I$' + RN + ',MIN(' + POOL_ROWS + ',' + fwd + ')))';
       row[D.brk]  = '=IF(N($J' + r + ')<=0,"",IF($I' + r + '>TIER_MULT*$J' + r + ',"BREAK",""))';
@@ -972,9 +1099,26 @@ function buildDraftTab(ss, sh, board) {
     }
 
     var pr = 'Board!$' + a1col(B.rFt) + '$' + n + ':$' + a1col(B.rTriple) + '$' + n;
+    // Labels come from PUNTS so they cannot drift out of step with the columns.
+    var labels = [];
+    for (var pb = 0; pb < PUNTS.length; pb++) {
+      labels.push('"' + PUNTS[pb].label.replace('Punt ', '') + '"');
+    }
     row[D.best] = '=IF(MIN(' + pr + ')>=Board!$' + a1col(B.adjRank) + '$' + n + ',"—",' +
-      'INDEX({"FT%";"FG%";"FG%+REB";"AST+STL";"PTS+FT%";"FG/FT/TO"},MATCH(MIN(' + pr + '),' + pr + ',0))' +
+      'INDEX({' + labels.join(';') + '},MATCH(MIN(' + pr + '),' + pr + ',0))' +
       '&"  "&TEXT(Board!$' + a1col(B.adjRank) + '$' + n + '-MIN(' + pr + '),"+0"))';
+
+    // Playbook step 3 is a scarcity tiebreak — "how many at his position are
+    // still in my live tier" — and it had no instrument. Position stays out of
+    // the valuation entirely (Rosenof §4.1.3: positional z-scores are a known
+    // mistake); this only counts what is left, which is a different question.
+    // Yahoo locks lineups daily here, which is the condition that makes
+    // eligibility actually pay.
+    var tC = a1col(D.tier), pC = a1col(D.pos), gC = a1col(D.drafted);
+    function dcol(c) { return '$' + c + '$' + R0 + ':$' + c + '$' + RN; }
+    row[D.posLeft] = '=IF($' + tC + r + '="","",COUNTIFS(' + dcol(tC) + ',$' + tC + r +
+      ',' + dcol(pC) + ',"*"&INDEX(SPLIT($' + pC + r + ',","),1)&"*"' +
+      ',' + dcol(gC) + ',FALSE))';
 
     row[D.hFgm] = ref(B.fgm); row[D.hFga] = ref(B.fga);
     row[D.hFtm] = ref(B.ftm); row[D.hFta] = ref(B.fta);
@@ -990,7 +1134,7 @@ function buildDraftTab(ss, sh, board) {
 
   writeGrid(sh, f, 1, D.gtot);
   writeGrid(sh, f, D.drop, D.gap);
-  writeGrid(sh, f, D.best, D.best);
+  writeGrid(sh, f, D.best, D.posLeft);
   writeGrid(sh, f, D.hFgm, D.hTo);
 
   sh.getRange(R0, D.drafted, POOL_ROWS, 2).insertCheckboxes();
@@ -1064,7 +1208,7 @@ function formatDraftTab(sh) {
     [D.projGp, D.myGp, 'GP', COLOR.avail],
     [D.adp, D.gap, 'MARKET', COLOR.market],
     [D.best, D.best, 'BUILD', COLOR.punt],
-    [D.drafted, D.notes, 'DRAFT DAY', COLOR.identity],
+    [D.posLeft, D.notes, 'DRAFT DAY', COLOR.identity],
     [D.hFgm, D.hTo, 'CATEGORY FEED (hidden helper)', COLOR.notes]
   ];
   blocks.forEach(function (b) {
@@ -1171,16 +1315,18 @@ function buildPuntsTab(sh) {
       .setBackground(COLOR.punt).setFontColor(COLOR.headerText)
       .setFontWeight('bold').setFontSize(9).setHorizontalAlignment('center');
 
-    // Rows without ADP are excluded: there is no market read to compare against.
-    var arr = '{Board!$' + rc + '$' + R0 + ':$' + rc + '$' + RN + ',' +
-              'Board!$B$' + R0 + ':$B$' + RN + ',' +
-              'Board!$' + pc + '$' + R0 + ':$' + pc + '$' + RN + ',' +
-              'Board!$' + adpc + '$' + R0 + ':$' + adpc + '$' + RN + ',' +
-              'Board!$' + adpc + '$' + R0 + ':$' + adpc + '$' + RN + '-' +
-              'Board!$' + rc + '$' + R0 + ':$' + rc + '$' + RN + '}';
+    // A player with no ADP is one the market has not priced — a role change, a
+    // returning injury, a rookie whose situation just moved. Those are exactly
+    // the names a build most wants cheap, and they used to be FILTERed off the
+    // tab entirely. They have no Gap, so they sort last on a sentinel rather
+    // than being deleted; the Gap cell stays blank, never zero.
+    function bcol(c) { return 'Board!$' + c + '$' + R0 + ':$' + c + '$' + RN; }
+    var gapExpr = 'IF(' + bcol(adpc) + '="","",' + bcol(adpc) + '-' + bcol(rc) + ')';
+    var sortKey = 'IF(' + bcol(adpc) + '="",-1E9,' + bcol(adpc) + '-' + bcol(rc) + ')';
+    var arr = '{' + bcol(rc) + ',' + bcol('B') + ',' + bcol(pc) + ',' +
+              bcol(adpc) + ',' + gapExpr + ',' + sortKey + '}';
     sh.getRange(6, c0).setFormula(
-      '=ARRAY_CONSTRAIN(SORT(FILTER(' + arr + ',Board!$' + adpc + '$' + R0 + ':$' + adpc + '$' + RN +
-      '<>""),5,FALSE),' + top + ',5)');
+      '=ARRAY_CONSTRAIN(SORT(FILTER(' + arr + ',' + bcol(rc) + '<>""),6,FALSE),' + top + ',5)');
 
     sh.setColumnWidth(c0, 34);
     sh.setColumnWidth(c0 + 1, 150);
@@ -1221,29 +1367,51 @@ function buildTrackerTab(sh) {
   sh.setRowHeight(2, 28);
 
   var DB = "'Draft Board'!";
-  function sumMine(col) {
-    return 'SUMIF(' + DB + '$S$' + R0 + ':$S$' + RN + ',TRUE,' + DB + '$' +
-      a1col(col) + '$' + R0 + ':$' + a1col(col) + '$' + RN + ')';
+  /** A Draft Board column as an absolute A1 range, keyed off the D map. */
+  function dbCol(col) {
+    var L = a1col(col);
+    return DB + '$' + L + '$' + R0 + ':$' + L + '$' + RN;
   }
-  var count = 'COUNTIF(' + DB + '$S$' + R0 + ':$S$' + RN + ',TRUE)';
+  function sumMine(col) {
+    return 'SUMIF(' + dbCol(D.mine) + ',TRUE,' + dbCol(col) + ')';
+  }
+  var count = 'COUNTIF(' + dbCol(D.mine) + ',TRUE)';
 
   sh.getRange(4, 1).setValue('Players on my roster').setFontWeight('bold');
   sh.getRange(4, 2).setFormula('=' + count).setNumberFormat('0');
 
-  sh.getRange(6, 1, 1, 5).setValues([['Category', 'My team', 'Average team', 'Edge', 'Read']])
+  sh.getRange(6, 1, 1, 6).setValues([['Category', 'My team', 'Average team', 'Edge', 'Read', 'Punted']])
     .setBackground(COLOR.value).setFontColor(COLOR.headerText).setFontWeight('bold').setFontSize(9);
+
+  // The benchmark is what an average team holds RIGHT NOW, not what an average
+  // pool member is worth. After round k every manager holds k players and those
+  // 12k are the top 12k of the pool, not a random sample of it. Benchmarking
+  // against all 156 makes the target far too low early — every counting row
+  // reads STRONG through round 10 — and only becomes correct at a full roster.
+  // Basketball Monster ships both and says its drafted-so-far summary "carries
+  // the more weight throughout the draft"; this is that one.
+  var drafted = 'B_ADJRANK<=TEAMS*' + count;
+  function benchCount(range) {
+    return '=IF(' + count + '=0,"",AVERAGE(FILTER(' + range + ',' + drafted + '))*' + count + ')';
+  }
+  function benchRate(makes, atts) {
+    return '=IF(' + count + '=0,"",SUM(FILTER(' + makes + ',' + drafted + '))' +
+           '/SUM(FILTER(' + atts + ',' + drafted + ')))';
+  }
 
   // FG% and FT% are aggregates of makes over attempts, never an average of rates.
   var rows = [
-    ['FG%', '=IF(' + count + '=0,"",' + sumMine(D.hFgm) + '/' + sumMine(D.hFga) + ')', '=POOL_FG_PCT', '0.000'],
-    ['FT%', '=IF(' + count + '=0,"",' + sumMine(D.hFtm) + '/' + sumMine(D.hFta) + ')', '=POOL_FT_PCT', '0.000'],
-    ['3PM', '=IF(' + count + '=0,"",' + sumMine(D.h3) + ')', '=MEAN_3PM*' + count, '0.0'],
-    ['PTS', '=IF(' + count + '=0,"",' + sumMine(D.hPts) + ')', '=MEAN_PTS*' + count, '0.0'],
-    ['REB', '=IF(' + count + '=0,"",' + sumMine(D.hReb) + ')', '=MEAN_REB*' + count, '0.0'],
-    ['AST', '=IF(' + count + '=0,"",' + sumMine(D.hAst) + ')', '=MEAN_AST*' + count, '0.0'],
-    ['STL', '=IF(' + count + '=0,"",' + sumMine(D.hStl) + ')', '=MEAN_STL*' + count, '0.0'],
-    ['BLK', '=IF(' + count + '=0,"",' + sumMine(D.hBlk) + ')', '=MEAN_BLK*' + count, '0.0'],
-    ['TO',  '=IF(' + count + '=0,"",' + sumMine(D.hTo) + ')',  '=MEAN_TO*' + count,  '0.0']
+    ['FG%', '=IF(' + count + '=0,"",' + sumMine(D.hFgm) + '/' + sumMine(D.hFga) + ')',
+      benchRate('B_FGM', 'B_FGA'), '0.000'],
+    ['FT%', '=IF(' + count + '=0,"",' + sumMine(D.hFtm) + '/' + sumMine(D.hFta) + ')',
+      benchRate('B_FTM', 'B_FTA'), '0.000'],
+    ['3PM', '=IF(' + count + '=0,"",' + sumMine(D.h3) + ')', benchCount('B_3PM'), '0.0'],
+    ['PTS', '=IF(' + count + '=0,"",' + sumMine(D.hPts) + ')', benchCount('B_PTS'), '0.0'],
+    ['REB', '=IF(' + count + '=0,"",' + sumMine(D.hReb) + ')', benchCount('B_REB'), '0.0'],
+    ['AST', '=IF(' + count + '=0,"",' + sumMine(D.hAst) + ')', benchCount('B_AST'), '0.0'],
+    ['STL', '=IF(' + count + '=0,"",' + sumMine(D.hStl) + ')', benchCount('B_STL'), '0.0'],
+    ['BLK', '=IF(' + count + '=0,"",' + sumMine(D.hBlk) + ')', benchCount('B_BLK'), '0.0'],
+    ['TO',  '=IF(' + count + '=0,"",' + sumMine(D.hTo) + ')',  benchCount('B_TO'),  '0.0']
   ];
 
   for (var i = 0; i < rows.length; i++) {
@@ -1259,10 +1427,27 @@ function buildTrackerTab(sh) {
     var isRate = (rows[i][0] === 'FG%' || rows[i][0] === 'FT%');
     sh.getRange(r, 4).setFormula(edge)
       .setNumberFormat(isRate ? '+0.000;−0.000;0.000' : '+0.0;−0.0;0.0');
+    // A rate row's band is an absolute margin in rate units; a counting row's is
+    // a share of its benchmark. One shared 8%-of-benchmark rule made STRONG and
+    // WEAK unreachable on FG% and FT%, so the two categories where a 9-cat
+    // roster most often quietly falls apart were the two it could not see.
+    var band = (rows[i][0] === 'FG%') ? 'TRACK_FG_BAND'
+             : (rows[i][0] === 'FT%') ? 'TRACK_FT_BAND'
+             : 'ABS($C' + r + ')*TRACK_COUNT_BAND';
     sh.getRange(r, 5).setFormula(
-      '=IF($B' + r + '="","",IF($D' + r + '>ABS($C' + r + ')*0.08,"STRONG",' +
-      'IF($D' + r + '<-ABS($C' + r + ')*0.08,"WEAK","EVEN")))');
+      '=IF($F' + r + '=TRUE,"PUNTED",IF($B' + r + '="","",' +
+      'IF($D' + r + '>' + band + ',"STRONG",IF($D' + r + '<-' + band + ',"WEAK","EVEN"))))');
   }
+
+  // A punted category is conceded on purpose. Without a way to say so the tab
+  // keeps reporting it live and keeps advising you to spend a pick fixing it.
+  sh.getRange(7, 6, 9, 1).insertCheckboxes();
+  sh.getRange(16, 1).setValue(
+    'Tick Punted to concede a category: it stops counting toward what you still need. Read the ' +
+    'rest as a steer on where the next pick goes — spend it on an EVEN category, not a STRONG one.')
+    .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
+  sh.getRange(16, 1, 1, 6).merge();
+  sh.setRowHeight(16, 30);
 
   sh.getRange(17, 1).setValue(
     'Aim for roughly 60% in your live categories, not 90%. Winning a category 60–30 pays the same as ' +
@@ -1277,13 +1462,12 @@ function buildTrackerTab(sh) {
   sh.getRange(20, 1, 1, 3).setValues([['#', 'Player', 'Pos']])
     .setFontWeight('bold').setBackground(COLOR.band);
   sh.getRange(21, 1).setFormula(
-    '=IFERROR(SORT(FILTER({' + DB + '$A$' + R0 + ':$A$' + RN + ',' +
-    DB + '$C$' + R0 + ':$C$' + RN + ',' + DB + '$E$' + R0 + ':$E$' + RN + '},' +
-    DB + '$S$' + R0 + ':$S$' + RN + '=TRUE),1,TRUE),"Nothing ticked yet")');
+    '=IFERROR(SORT(FILTER({' + dbCol(D.rank) + ',' + dbCol(D.player) + ',' +
+    dbCol(D.pos) + '},' + dbCol(D.mine) + '=TRUE),1,TRUE),"Nothing ticked yet")');
 
   sh.setColumnWidth(1, 120); sh.setColumnWidth(2, 110); sh.setColumnWidth(3, 120);
-  sh.setColumnWidth(4, 80); sh.setColumnWidth(5, 90);
-  sh.getRange(6, 1, 11, 5).setFontSize(10);
+  sh.setColumnWidth(4, 80); sh.setColumnWidth(5, 90); sh.setColumnWidth(6, 64);
+  sh.getRange(6, 1, 11, 6).setFontSize(10);
 
   addRule(sh, SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('STRONG')
     .setBackground('#E6F4EA').setFontColor('#137333').setBold(true)
@@ -1334,7 +1518,7 @@ var README_ROWS = [
   ['HOW TO USE IT', '', ''],
   ['Draft Board', '', 'The tab you use on the clock. Sorted by Adjusted Value. Tick Gone as players come off the board, Mine for your own picks.'],
   ['Board', '', 'The audit. One row per player, every intermediate number visible. Collapse the z and g blocks with the +/− above the columns.'],
-  ['Punts', '', 'Six builds, each showing who it gets at a discount. Homework before draft day, not reading material during it.'],
+  ['Punts', '', 'Nine builds, each showing who it gets at a discount. Homework before draft day, not reading material during it.'],
   ['Category Tracker', '', 'Fills itself from the Mine checkboxes.'],
   ['Settings', '', 'Every constant. Change one and the whole board recalculates.'],
   ['', '', ''],
@@ -1366,6 +1550,8 @@ var README_ROWS = [
   ['Average FGA  /  FTA', ' =AVERAGEIF(In Pool, 1, FGA)', 'How many shots a typical drafted player takes. Used to work out whether a player\'s shooting percentage actually moves your team or barely registers.'],
   ['SD of FG impact  /  FT impact', ' =STDEV(FILTER(FG impact, In Pool = 1))', 'The spread of the shooting-impact numbers below, so those can be put on the same scale as every other category.'],
   ['REPLACEMENT', ' =LARGE(G TOTAL, Q)', 'The G-score of the 156th best player — the last man who gets drafted at all. This becomes the zero point for value: anyone below him is someone you could have off waivers for nothing.'],
+  ['Punt replacement levels', ' =LARGE(that build\'s scores, Q)', 'The same zero point, worked out again inside each punt build. A build changes who the last drafted player is, so it needs its own line. Without these a punt column would be a raw score rather than a value, and the games-played step below would run backwards on it.'],
+  ['Pool shortfall', ' =Q − COUNTIF(In Pool, 1)', 'How many of the top 156 seeds fell below MIN_GP and sat out the averages. Normally 0. If it is not, the pool is smaller than Q and this tells you by how much — the count is legitimately below 156, not broken.'],
   ['', '', ''],
 
   ['STEP 1 — SCORE EVERY CATEGORY  (z)', '', ''],
@@ -1391,7 +1577,7 @@ var README_ROWS = [
   ['STEP 4 — ADJUST FOR GAMES PLAYED', '', ''],
   ['My GP Est', ' =Projected GP    (then edited by hand)', 'How many games you personally expect him to play. Starts as a copy of the projection. Change it where you know something the projection does not — a player back from injury, an ageing star on load management. Edit the fifteen or thirty you have a real opinion about, not all 200.'],
   ['GP Flag', ' =IF(ABS(Projected GP − My GP Est) > 10, "CHECK", "")', 'Says CHECK when your estimate disagrees with the projection by more than ten games. Not an error — just a nudge to confirm you meant it.'],
-  ['ADJUSTED VALUE', ' =VOR × My GP Est / GP_DIVISOR', 'The column the board is actually sorted by, and the closest thing here to a final answer. It is VOR scaled by how much the player is available. A brilliant player who suits up 55 times contributes less across a season than a merely good one who plays 78, and the draft room is consistently bad at pricing that. Note it scales VOR and never the G-score: multiplying a negative score by a fraction would push a bad player up the board, which is backwards.'],
+  ['ADJUSTED VALUE', ' =VOR × My GP Est / GP_DIVISOR   (never scaled up when VOR is negative)', 'The column the board is actually sorted by, and the closest thing here to a final answer. It is VOR scaled by how much the player is available. A brilliant player who suits up 55 times contributes less across a season than a merely good one who plays 78, and the draft room is consistently bad at pricing that. Two guards on it. It scales VOR and never the G-score, because multiplying a negative score by a fraction would push a bad player up the board. And below replacement, where VOR is already negative, the scaling is switched off entirely — otherwise the same thing happens again among the last forty names, ranking the player who misses more games higher. Availability may discount a player; it may never promote one. Worth knowing why the shape is a straight line: if you replace an injured player with someone off waivers, his value over replacement for the games he misses is exactly zero, so the expected season total really is VOR × games ÷ 72. It is not an approximation.'],
   ['Adj Rank', ' =RANK(Adjusted Value, all Adjusted Value)', 'Your final ranking, 1 to 200. This is the number the Draft Board is ordered by.'],
   ['', '', ''],
 
@@ -1402,33 +1588,37 @@ var README_ROWS = [
 
   ['STEP 6 — CUT THE TIERS', '', ''],
   ['Drop', ' =Adjusted Value above − Adjusted Value here', 'How much value you give up by taking this player instead of the one directly above him.'],
-  ['Local median', ' =MEDIAN(the fifteen drops centred on this row)', 'The normal size of a drop around here. This matters because drops shrink as you go down the board: a gap that is a canyon at pick 120 is completely routine at pick 5. Judging every drop against a single fixed number would give you five tiers at the top and one enormous blob at the bottom.'],
+  ['Local median', ' =MEDIAN(the fifteen drops centred on this row — seven above, seven below)', 'The normal size of a drop around here. This matters because drops shrink as you go down the board: a gap that is a canyon at pick 120 is completely routine at pick 5. Judging every drop against a single fixed number would give you five tiers at the top and one enormous blob at the bottom.'],
   ['Break', ' =IF(Drop > TIER_MULT × Local median, "BREAK", "")', 'Fires when the drop into this player is much bigger than what is normal for that part of the board. That is a real cliff, and it is where a tier line gets drawn.'],
   ['Tier', ' =IF(Break = "BREAK", Tier above + 1, Tier above)', 'A group of players you would be roughly equally happy with. Inside a tier you can afford to wait, because the next name down is just as good. Between tiers waiting costs you something real. This is what turns 200 names into about a dozen actual decisions.'],
   ['', '', ''],
 
   ['STEP 7 — PUNT BUILDS', '', ''],
-  ['Punt FT%   (and the other five)', ' =G TOTAL − g FT%', 'The entire board recalculated as if that category did not exist. If you decide you are not competing in free throw percentage, terrible free throw shooters stop being penalised for it and immediately get cheap. The reordering is dramatic rather than marginal — Giannis is around 25th on a normal board and 2nd on a punt-FT% board.'],
+  ['Punt FT%   (and the other eight)', ' =(G TOTAL − 75% of g FT% − that build\'s replacement) × availability', 'The entire board re-valued as if you are barely competing in that category. If you decide you are not chasing free throw percentage, terrible free throw shooters stop being penalised for it and immediately get cheap. The reordering is dramatic rather than marginal — Giannis is around 25th on a normal board and 2nd on a punt-FT% board. Two things this does that a plain subtraction does not. It keeps a quarter of the punted category rather than deleting it, because you will still win that category in some weeks by accident and those weeks are free — which also stops the build rating a genuinely awful free throw shooter identically to a merely neutral one. And it goes through the build\'s own replacement level and the same games-played discount as the main board, so a punt list is not quietly sorted by who misses games. Set Punt weight to 0 on Settings to get the old hard-punt behaviour back.'],
   ['Punt rank', ' =RANK(that punt column)', 'Where the player sits inside that build.'],
-  ['Punt Gap', ' =ADP − rank inside that build', 'The bargain measure for a build. A big positive number means the room prices him normally while this particular build values him far higher. The top of each list on the Punts tab is who that build gets at a discount.'],
+  ['Punt Gap', ' =ADP − rank inside that build', 'The bargain measure for a build. A big positive number means the room prices him normally while this particular build values him far higher. The top of each list on the Punts tab is who that build gets at a discount. Players with no ADP have no Gap and sit at the bottom of each list rather than being hidden — an unpriced player is often exactly the one a build wants cheap.'],
   ['Best build', ' =the punt column that ranks him highest, and by how much', 'A shortcut. Reads "AST+STL +21", meaning a punt assists-and-steals build rates him 21 places higher than the standard board does. A dash means no build helps him — he is simply good everywhere.'],
   ['', '', ''],
 
   ['THE CATEGORY TRACKER', '', ''],
   ['My team   (counting stats)', ' =SUMIF(Mine, TRUE, that stat)', 'Adds up the category across every player you have ticked as Mine.'],
   ['My team   (FG% and FT%)', ' =SUMIF(Mine,TRUE,FGM) / SUMIF(Mine,TRUE,FGA)', 'Your roster\'s real shooting percentage — total makes over total attempts again, never the average of the individual percentages.'],
-  ['Average team', ' =pool mean × players on my roster', 'What a completely average team would post with the same number of players drafted. The benchmark, built so the comparison stays fair whether you have 3 players or 13.'],
+  ['Average team', ' =mean of the top (Teams × my player count) by Adj Rank, × my player count', 'What an average team actually holds right now. After five rounds every manager has five players and those sixty are the best sixty on the board, not sixty players drawn at random from all 156 — so the benchmark has to move with the draft. Measuring against the whole pool instead makes the target far too low early and reads STRONG on everything through about round ten, which is precisely when you need it to tell you something.'],
   ['Edge', ' =My team − Average team', 'How far ahead or behind average you are in that category. Reversed on the turnovers row, because there fewer is better.'],
-  ['Read', ' =STRONG / EVEN / WEAK, at a threshold of 8%', 'The quick verdict. Aim for roughly 60% win rate in the categories you are contesting, not 90% — winning a category 60–30 pays exactly the same as winning it 46–45, so margin beyond a win is wasted. Spend your next pick on an EVEN category, not a STRONG one.'],
+  ['Read', ' =STRONG / EVEN / WEAK, or PUNTED if you tick the box', 'The quick verdict. Each row has its own threshold, on Settings: FG% and FT% in rate points, the seven counting categories as a share of the benchmark. They used to share one 8%-of-benchmark rule, which on a percentage means about four points of team FG% — a margin no team ever posts, so those two rows read EVEN no matter what you drafted. Aim for roughly 60% win rate in the categories you are contesting, not 90% — winning a category 60–30 pays exactly the same as winning it 46–45, so margin beyond a win is wasted. Spend your next pick on an EVEN category, not a STRONG one.'],
   ['', '', ''],
 
   ['THINGS WORTH KNOWING', '', ''],
   ['Steals', '', 'Worth about half what the raw z-score claims. The week-to-week noise swamps the edge.'],
   ['Games played', '', 'The most under-priced variable on the board. Kept in its own column on purpose — never folded into the projection, so you can see talent and availability separately.'],
   ['Tier 1', '', 'Set by hand. The fifteen-row window is truncated at the very top of the board, so the formula has nothing useful to say there.'],
-  ['Tier multiplier', '', 'Ships at 4.0, which gives 14 tiers. The playbook suggests 2 as a starting point; on this data that produces 46, which is useless. Tune it on Settings.'],
-  ['Blank GAP', '', '38 players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely.'],
-  ['ADP source', '', "Hashtag's, not confirmed Yahoo. Yahoo ADP is the room you are actually drafting in; worth replacing if you can get it."]
+  ['Tier multiplier', '', 'Ships at 4.0, which gives 14 tiers. The playbook suggests 2 as a starting point; on this data that produces 46, which is useless. Worth re-checking now the window is genuinely centred — it used to lean nine rows up the board and five down, which inflated the median and made breaks fire late. Tune it on Settings.'],
+  ['Blank GAP', '', 'Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely.'],
+  ['ADP source', '', "Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as \"cheap somewhere\", not \"cheap in my league\"."],
+  ['Scoring format', '', 'Head-to-Head Categories: all nine categories are settled separately every week, so a week ends 6-3. That is Yahoo\'s name for it; ESPN calls the same thing Each Category. It is not the format where the week resolves to a single win, which Yahoo calls One Win. The difference decides how hard to punt — conceding a category here costs a loss every single week, so soft-punt at most and stay broad.'],
+  ['Left @pos', '', 'How many players at his primary position are still un-Gone in his tier. The scarcity tiebreak: between two players you rate the same, take the one whose position is running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left.'],
+  ['Punt weight', '', 'What a punted category still counts for, on Settings. Ships at 0.25. Set it to 0 for a hard punt, which is what this board did before and what most public tools still do.'],
+  ['G-score multipliers', '', 'From Rosenof (arXiv 2307.02188, Table 8), computed on the 2022-23 season. The ordering is solid and the steals discount is robust; the second decimal is not, least of all on FG% and FT%.']
 ];
 
 function buildReadme(sh) {

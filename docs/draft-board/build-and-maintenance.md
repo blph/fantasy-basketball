@@ -38,7 +38,7 @@ can be retuned without touching code.
 |---|---|
 | `Draft Board` | The one you use on the clock. Sorted by Adjusted Value, static row order, Gone/Mine checkboxes. |
 | `Board` | The audit. One row per player, every intermediate number visible. |
-| `Punts` | Six builds, each listing who it gets at a discount. |
+| `Punts` | Nine builds, each listing who it gets at a discount. |
 | `Category Tracker` | Sums live from the Mine checkboxes. |
 | `Settings` | Every constant, plus the pool statistics and sanity checks. |
 | `README` | The cheat sheet, mirrored to [cheat-sheet.md](cheat-sheet.md). |
@@ -51,6 +51,9 @@ can be retuned without touching code.
 | `scripts/draft-board/gen_data.py` | Parses a provider export into `Data.gs` | yes |
 | `scripts/draft-board/harness.js` | Mocks the Sheets API and dry-runs the build | yes |
 | `scripts/draft-board/export_readme.js` | Regenerates `cheat-sheet.md` | yes |
+| `scripts/draft-board/export_yahoo_rankings.py` | Turns the board into a Yahoo rankings CSV | yes |
+| `scripts/draft-board/valuation.py` | The playbook's math in Python, independent of the sheet | yes |
+| `scripts/draft-board/verify.py` | Recomputes the board and diffs it against the sheet | yes |
 | `scripts/draft-board/Data.gs` | The players. Provider data — **gitignored** | no |
 
 ---
@@ -77,24 +80,40 @@ actually moved, running it often costs nothing.
    ```bash
    cd scripts/draft-board && node harness.js
    ```
+   The harness builds every formula the real script would and asserts them
+   against expectations derived from the column map, so a column inserted in
+   `B` or `D` fails here rather than silently repointing a formula at the wrong
+   data. It synthesises its own players if `Data.gs` is absent.
 
-4. **Paste `Data.gs`** into the bound Apps Script project, then run
+4. **Check the numbers independently.**
+   ```bash
+   python3 scripts/draft-board/verify.py
+   ```
+   Recomputes the pool constants, Z and G totals, VOR and Adjusted Value from
+   `valuation.py` — written from the playbook, not from the sheet — and prints
+   the constants to compare against the Settings tab. Two implementations that
+   agree are evidence; one checking itself is not. Pass `--sheet` a JSON dump of
+   the Settings values to have it do the diff for you.
+
+5. **Paste `Data.gs`** into the bound Apps Script project, then run
    **`Draft Board ▸ Refresh data`**. Not a full rebuild — see the table below
    for why.
 
-5. **Read the change report.** It lands in a toast and in `Settings!A41`, and
+6. **Read the change report.** It lands in a toast and in `Settings!A61`, and
    says how many cells moved in which columns, or which players were added and
-   dropped. `Settings!A44` and `A45` list the names when the roster changed.
+   dropped. `Settings!A64` and `A65` list the names when the roster changed.
 
-6. **Check the sanity block** on Settings: the per-game gate, the GP spread
-   test, pool count 156, Z-total ≈ 0, and ADP coverage. If the per-game check
+7. **Check the sanity block** on Settings: the per-game gate, the GP spread
+   test, pool shortfall, Z-total ≈ 0, and ADP coverage. Pool count is Q minus
+   the shortfall, not necessarily 156 — a seeded player below `MIN_GP` sits out
+   the averages, and the shortfall cell says how many did. If the per-game check
    ever says *season totals*, stop — the games-played adjustment would
    double-count and the whole board would be wrong.
 
-7. **Re-do games-played overrides for new arrivals only.** Existing ones survive
+8. **Re-do games-played overrides for new arrivals only.** Existing ones survive
    the refresh untouched.
 
-8. **Re-sort the Draft Board** when you want the new order:
+9. **Re-sort the Draft Board** when you want the new order:
    `Draft Board ▸ Rebuild & re-sort`. Deliberately manual, so nothing shifts
    under you mid-draft. Your checkboxes survive it.
 
@@ -105,6 +124,24 @@ actually moved, running it often costs nothing.
 | **Updated, where the value changed** | Seed rank, player, team, position, GP, MPG, FGM/FGA/FG%, FTM/FTA/FT%, 3PM, PTS, REB, AST, STL, BLK, TO, ADP |
 | **Never touched** | `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Notes` — every yellow input column |
 | **Never touched** | All formulas, all formatting, column widths, named ranges, conditional formatting |
+
+**One exception, and it is a hard one.** `Refresh data` writes into a fixed
+column layout. Adding or removing a punt build changes that layout, so a build
+set change needs a **full rebuild**, not a refresh — and a full rebuild does not
+preserve `Notes`. Copy that column out first if it holds anything.
+
+### Where the league settings come from
+
+Settings `B4` (Teams), `B5` (Roster spots) and `B10` (Scoring format) are
+transcribed from [config/league.yaml](../../config/league.yaml), which is in turn
+transcribed from Yahoo's own Scoring & Settings page. Change them there first.
+
+Two traps worth knowing. Yahoo reports **Max Teams**, which is league capacity
+and not necessarily how many managers play — the number that sets `Q` is how
+many actually drafted. And Yahoo's format here is **Head-to-Head Categories**,
+where all nine categories settle separately every week; that is not the same as
+Yahoo's *One Win*, which ESPN confusingly calls *Most Categories*. The board used
+to ship the ESPN wording, which pointed the Punts tab at the wrong advice.
 | **Never touched** | Punts, Category Tracker, Settings, README |
 | **Rebuilt only if row positions moved** | Draft Board |
 
@@ -178,8 +215,69 @@ steps that each finish well under it:
 | `Step 2 — Draft Board only` | the draft-day tab |
 | `Step 3 — Punts, Tracker, README` | the rest, then tab order |
 
-Each step writes its outcome to `Settings!A41`, which survives a thrown
+Each step writes its outcome to `Settings!A61`, which survives a thrown
 exception. The Apps Script execution log does not.
+
+---
+
+## Exporting the rankings to Yahoo
+
+Yahoo's **Import Rankings** box takes `rank,name,team,position`, one player per
+line, and matches on the name column; team and position are cosmetic. Getting
+the board into it is two steps: pull the tab out of Google, then convert it.
+
+1. **Fetch the tab.** The board is read through the browser, not the Sheets API
+   — `playwright-cli` drives a persistent Chrome profile that is already signed
+   in to the Google account that owns the sheet, so no service account and no
+   sharing change is needed.
+
+   ```bash
+   playwright-cli -s=fantasy open --persistent \
+     'https://docs.google.com/spreadsheets/d/<SHEET_ID>/edit'
+   ```
+
+   Once the page title resolves to the sheet's name rather than a sign-in page,
+   the session is authenticated and stays that way. Then fetch the range from
+   inside that page, so the request carries its cookies:
+
+   ```bash
+   playwright-cli -s=fantasy eval \
+     "() => fetch('https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:csv&sheet=Draft%20Board&range=A3:E202&headers=0', {credentials:'include'}).then(r => r.text())"
+   ```
+
+   `gviz/tq?tqx=out:csv` returns the range as CSV directly. Rows 3–202 are the
+   data rows — row 1 is merged block headers and row 2 is column headers
+   (`HDR = 2` in `Build.gs`), and `headers=0` stops gviz guessing. Columns come
+   back as `#`, `TIER`, `Player`, `Team`, `Pos`. Save the result somewhere
+   outside the repo; it is provider data.
+
+   Do **not** use Drive's file-content reader for this. It renders the sheet as
+   prose and truncates the tab at about rank 77 of 200, silently.
+
+2. **Convert it.**
+   ```bash
+   python3 scripts/draft-board/export_yahoo_rankings.py raw.csv \
+           -o ~/Desktop/yahoo-rankings-2026-27.csv
+   ```
+
+Three things the converter reconciles, each of which is a wrong file if skipped:
+
+| | |
+|---|---|
+| **Team codes** | The provider's, not Yahoo's. Four differ: `GS→GSW`, `NO→NOP`, `NY→NYK`, `SA→SAS`. An unrecognised code is an error, not a pass-through. |
+| **Position** | `Pos` holds comma-separated multi-eligibility (`SG,SF,PF`), which collides with the CSV delimiter. Only the primary position is written. |
+| **Depth** | Stops at 156 — teams × roster spots. Below replacement, Adjusted Value **inverts**: VOR goes negative, and scaling a negative by `GP/72 < 1` moves it toward zero, i.e. *up*. Ranks 1–156 are unaffected, but the tail is ordered by fragility rather than value. `--limit` overrides it if you want the tail anyway. |
+
+Rank is renumbered from row order rather than copied from column `A`. Row order
+*is* the Adjusted Value order, so re-deriving it means a blank or an `#N/A` in
+`A` cannot punch a hole in the sequence.
+
+Export **after** `Rebuild & re-sort`, never between a refresh and a re-sort —
+in that window the row order is still the previous board's.
+
+The output is provider-derived, so it goes to the Desktop and never into the
+repo. `*.csv` is gitignored and `check-no-data.sh` blocks it from both the
+pre-commit hook and CI.
 
 ---
 
