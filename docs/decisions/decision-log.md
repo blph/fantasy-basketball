@@ -1,6 +1,6 @@
 # Decision Log
 
-One record per significant decision, MADR-style. Records are **immutable**: when a decision changes, write a new ADR and mark the old one `Superseded by ADR-0YYY` rather than editing it.
+One record per significant decision, MADR-style. Records are **immutable**: when a decision changes, write a new ADR and mark the old one `Superseded by ADR-0YYY` rather than editing it. A record can also be superseded **in part** — one bullet overturned while the rest stands. In that case the old record keeps its `Accepted` status, gains a pointer above the affected passage, and the new one lists it as `ADR-000N (in part)`.
 
 Write an ADR when architecture, data model, dependencies, external integrations, core strategy, security posture, or a committed workflow changes in a way that is hard to reverse or likely to be questioned later. Skip it for formatting, renames, and refactors with no behavioral change. When unsure, the test is reversibility, not size.
 
@@ -19,7 +19,7 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0009](ADR-0009-soft-punt-weighting.md) | Punted categories keep a fraction of their weight, not zero | Accepted | 2026-08-27 | Bryan | |
 | [ADR-0010](ADR-0010-punt-build-set.md) | Which punt builds the board ships | Accepted | 2026-08-27 | Bryan | |
 | [ADR-0011](ADR-0011-min-gp-pool-gate.md) | Pool membership also requires a minimum projected games played | Accepted | 2026-08-27 | Bryan | |
-| [ADR-0012](ADR-0012-tier-multiplier-and-percentage-denominator.md) | Tier multiplier of 2.0, and closing the percentage-denominator question | Accepted | 2026-08-28 | Bryan | |
+| [ADR-0012](ADR-0012-tier-multiplier-and-percentage-denominator.md) | Tier multiplier of 2.0, and closing the percentage-denominator question | Accepted | 2026-08-28 | Bryan | ADR-0008 (in part) |
 
 ## Decisions expected next
 

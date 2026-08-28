@@ -156,7 +156,9 @@ Three things the naive version gets wrong:
 - **The pool rate is the aggregate**, `SUM(fgm) / SUM(fga)` across the pool — not the average of the individual percentages, which would count a 3-shot night the same as an 18-shot one. This is load-bearing beyond correctness of the mean: using the aggregate makes the impact column sum to exactly zero across the pool, which is why no mean subtraction is needed before dividing by its SD.
 - **Turnovers invert.** Negative weight, not positive.
 
-The choice of that SD is a known open question: Rosenof's Table 5(b) defines it over the raw rate rather than the impact column. The spreadsheet prints both and their ratio. **Whatever Phase 2 does here, it must match whatever the sheet is doing at the time, and say so in this file** — a silent divergence between the two implementations is exactly the failure ADR-0008's cross-check exists to catch.
+**Divide by the SD of the impact column, not of the raw rate.** Rosenof's Table 5(b) defines its sigma over the rate, and which he intends is ambiguous in the paper, so it was measured instead of argued: the alternative moves the mean player 4.5 places and touches the top 50 four times. Settled in [ADR-0012](../decisions/ADR-0012-tier-multiplier-and-percentage-denominator.md), which carries the numbers. The spreadsheet still prints both SDs and their ratio, so the choice stays visible.
+
+**Phase 2 must match whatever the sheet is doing at the time, and say so in this file** — a silent divergence between the two implementations is exactly the failure ADR-0008's cross-check exists to catch.
 
 Z-scores are computed against the **rostered player pool** — `team_count × (starters + bench)` from `config/league.yaml`, which is 156 for this league — not the full league. A replacement-level player should sit near zero, and including 500 deep-bench players drags the mean down and inflates everyone's value. Injured-list slots are excluded from that product.
 

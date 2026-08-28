@@ -17,7 +17,7 @@ description: |
   </example>
   <example>
   Context: The user is considering changing a constant.
-  user: "Should the tier multiplier really be 4.0 instead of the 2 the playbook suggests?"
+  user: "Is the tier multiplier producing tiers I can actually act on?"
   assistant: "Let me bring in the nba-9cat-analyst agent to evaluate that against how
   tiering is actually used in category drafts."
   <commentary>A question about whether a valuation constant is correct fantasy strategy,
@@ -125,10 +125,13 @@ and whether the difference survives normalization.
 ADR-0011 and surfaced by a pool-shortfall cell — check the reasoning still holds, and that
 the pool and `REPLACEMENT` being drawn from marginally different sets stays bounded and
 visible. Replacement is the Qth-best G-total globally, deliberately not per-position, with
-positional scarcity handled instead as a Draft Board tiebreak (`Left @pos`). Judge whether
-that split is right for a Yahoo league with daily lineups, and whether the tiebreak counts
-what it should — it matches on primary position only, which undercounts multi-eligibility.
-Assess the Seed Rank circularity break and whether two re-seed passes actually converge.
+positional scarcity handled instead as a Draft Board tiebreak (`Left @pos`), which counts
+every slot a player is eligible for. Judge whether that split is right for a Yahoo league
+with daily lineups, and whether a tier-scoped count is the right scope at all — it says
+nothing about scarcity one tier down.
+The pool converges rather than being assumed to: `converge_pool()` in `valuation.py`
+iterates and raises rather than capping, and it settles in three passes on the current
+export. Check that the sheet and the Python still agree after a re-seed.
 `config/league.yaml` now records the real settings; confirm the sheet's Teams, Roster spots
 and Scoring format still agree with it, because nothing enforces that they do.
 
@@ -163,17 +166,17 @@ strength it thinks it is diversifying.
 
 **F. Market, tiering, and data.** ADP is the export provider's, not Yahoo's, against a
 playbook that insists Yahoo's is the only one that matters, and a meaningful number of
-players carry none — cost the error and propose the fix. Judge the tier multiplier shipping
-at 4.0 against the playbook's suggested 2 — the window it was tuned against was skewed and
-has since been centred, so 4.0 may no longer be the right number. Assess the cost of
+players carry none — cost the error and propose the fix. The tier multiplier ships at 2.0 per ADR-0012, chosen on the size of a tier where you are
+actually picking rather than the total count. Check the consequence rather than the choice:
+48 tiers is a lot, and some breaks will be noise rather than cliffs. Assess the cost of
 single-source projections with no consensus dispersion, which ADR-0007 already names as a
 known negative.
 
 **G. Docs, ADRs, and operational integrity.** ADR-0008's verification claim is now backed by
 a committed `verify.py` — run it rather than trusting it. `schema.md` now specifies G-score
-as the valuation; check Phase 2 would actually inherit the right thing, including which
-standard deviation the percentage categories are divided by, which is still an open question
-the Settings tab prints diagnostics for. On the operational side, examine the refresh path:
+as the valuation; check Phase 2 would actually inherit the right thing. The percentage
+denominator is settled (ADR-0012, the impact SD) — do not re-open it without a reason the
+measurements there do not already answer. On the operational side, examine the refresh path:
 the formula-versus-value trick that protects a hand-edited GP estimate, hand-column
 preservation across a roster reorder, and whether any A1 column letter is still hardcoded
 rather than derived from the `B` or `D` map — the harness asserts this now, so check its

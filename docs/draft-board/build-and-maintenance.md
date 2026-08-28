@@ -83,7 +83,10 @@ actually moved, running it often costs nothing.
    The harness builds every formula the real script would and asserts them
    against expectations derived from the column map, so a column inserted in
    `B` or `D` fails here rather than silently repointing a formula at the wrong
-   data. It synthesises its own players if `Data.gs` is absent.
+   data. It synthesises its own players if `Data.gs` is absent. CI runs it on
+   every push too, along with `ruff` and `pytest`
+   ([checks.yml](../../.github/workflows/checks.yml)) — but locally is where you
+   want the failure, before anything reaches Google.
 
 4. **Check the numbers independently.**
    ```bash
@@ -94,6 +97,12 @@ actually moved, running it often costs nothing.
    the constants to compare against the Settings tab. Two implementations that
    agree are evidence; one checking itself is not. Pass `--sheet` a JSON dump of
    the Settings values to have it do the diff for you.
+
+   It **iterates the pool to convergence** by default, the same thing
+   `Re-seed pool from current ranks` does on the sheet, and prints the pass count.
+   That matters because a converged board and a single pass legitimately disagree:
+   compare a re-seeded sheet against one pass and you will read a difference that
+   is not an error. `--no-converge` gives the single pass if you want it.
 
 5. **Paste `Data.gs`** into the bound Apps Script project, then run
    **`Draft Board ▸ Refresh data`**. Not a full rebuild — see the table below
@@ -115,7 +124,9 @@ actually moved, running it often costs nothing.
 
 9. **Re-sort the Draft Board** when you want the new order:
    `Draft Board ▸ Rebuild & re-sort`. Deliberately manual, so nothing shifts
-   under you mid-draft. Your checkboxes survive it.
+   under you mid-draft. Your checkboxes and your notes survive it — both are
+   re-attached by player name, so they follow the player rather than staying on
+   the row he left. A full rebuild keeps neither.
 
 ### What a refresh touches, and what it never touches
 
@@ -207,7 +218,7 @@ steps that each finish well under it:
 | Menu item | Rebuilds |
 |---|---|
 | `Refresh data` | only the cells that changed — the normal path |
-| `Rebuild & re-sort` | Draft Board order, keeping checkboxes |
+| `Rebuild & re-sort` | Draft Board order, keeping checkboxes and notes |
 | `Re-seed pool from current ranks` | one pool iteration |
 | `Full rebuild (from Data.gs)` | everything, destroying hand edits |
 | `Step 1 — Settings only` | Settings |

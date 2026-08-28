@@ -12,6 +12,14 @@
 - Constraint honoured: no player row, projection, ADP value, or export figure from
   `data/` or `Data.gs` appears below. Worked examples use invented players.
 
+> **Status: acted on.** Every finding below is either fixed, declared in an ADR, or
+> recorded as a deliberate non-goal. F7 and F13 in particular are **closed** — see
+> [ADR-0012](../decisions/ADR-0012-tier-multiplier-and-percentage-denominator.md),
+> and ADR-0009/0010/0011 for the punt weight, the build set and the pool gate.
+> This document is a dated record of what was true on 2026-08-27 and is left
+> unedited on purpose; its line anchors into `Build.gs` have since drifted. Read
+> it as history, not as a task list.
+
 ---
 
 ## Verdict

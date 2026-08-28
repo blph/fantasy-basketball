@@ -36,6 +36,26 @@ three to six, which is exactly the window playbook section 9 calls the one where
 your build reveals itself. That is not a conservative tier, it is a wrong one:
 it says "you can wait" through the entire middle of the draft.
 
+**Correction, same day.** This record originally led with the stale measurement,
+which reads as though centring the window created the problem. It did not. Both
+windows, both multipliers, against the same converged values:
+
+| Window | Multiplier | Tiers | Largest tier inside the top 100 |
+|---|---|---|---|
+| Skewed `r−9..r+5` — as originally shipped | 4.0 | 15 | **picks 25–63, 39 players** |
+| Centred `r−7..r+7` | 4.0 | 20 | picks 25–70, 46 players |
+| Skewed | 2.0 | 48 | picks 30–42, 13 players |
+| Centred | 2.0 | 48 | picks 52–63, 12 players |
+
+The blob was there from the start: 39 players under the original board. Centring
+made it worse — 39 to 46 — but did not cause it, and the board shipped for weeks
+with a 39-player tier across rounds three to six.
+
+Two things follow. The root cause is the criterion, not the window: measuring
+count instead of size hid a defect that existed under either. And **2.0 was the
+right value under both windows**, so this ADR does not correct a calibration that
+drifted — it corrects a choice that was wrong when it was made.
+
 2.0 gives 48 tiers, more than ADR-0008 rejected. That is accepted deliberately.
 Twenty-six of them fall inside the top 100, averaging about four players each,
 and none exceeds twelve. A decision every four picks is a usable instrument; one

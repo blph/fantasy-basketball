@@ -1559,7 +1559,7 @@ var README_ROWS = [
 
   ['THE TWO THINGS THAT ARE NOT AUTOMATIC', '', ''],
   ['Re-seed the pool', '', 'The pool is "the top 156 by value", but you need values to know who those are. Seed Rank breaks that circle. Once the board settles, run  Draft Board ▸ Re-seed pool from current ranks,  then rebuild. Twice is enough — the set stops changing.'],
-  ['Re-sort the board', '', 'Row order is deliberately static so nothing moves under you mid-draft. After editing GP estimates, run  Draft Board ▸ Rebuild & re-sort.  Your checkboxes survive it.'],
+  ['Re-sort the board', '', 'Row order is deliberately static so nothing moves under you mid-draft. After editing GP estimates, run  Draft Board ▸ Rebuild & re-sort.  Your checkboxes and your notes survive it — both are re-attached by player name, so they follow the player rather than staying on the row he left. A full rebuild is different: that one starts from scratch and keeps nothing.'],
   ['', '', ''],
 
   ['COLOURS', '', ''],
@@ -1631,6 +1631,7 @@ var README_ROWS = [
   ['Punt FT%   (and the other eight)', ' =(G TOTAL − 75% of g FT% − that build\'s replacement) × availability', 'The entire board re-valued as if you are barely competing in that category. If you decide you are not chasing free throw percentage, terrible free throw shooters stop being penalised for it and immediately get cheap. The reordering is dramatic rather than marginal — Giannis is around 25th on a normal board and 2nd on a punt-FT% board. Two things this does that a plain subtraction does not. It keeps a quarter of the punted category rather than deleting it, because you will still win that category in some weeks by accident and those weeks are free — which also stops the build rating a genuinely awful free throw shooter identically to a merely neutral one. And it goes through the build\'s own replacement level and the same games-played discount as the main board, so a punt list is not quietly sorted by who misses games. Set Punt weight to 0 on Settings to get the old hard-punt behaviour back.'],
   ['Punt rank', ' =RANK(that punt column)', 'Where the player sits inside that build.'],
   ['Punt Gap', ' =ADP − rank inside that build', 'The bargain measure for a build. A big positive number means the room prices him normally while this particular build values him far higher. The top of each list on the Punts tab is who that build gets at a discount. Players with no ADP have no Gap and sit at the bottom of each list rather than being hidden — an unpriced player is often exactly the one a build wants cheap.'],
+  ['Notes', ' (typed in)', 'Yours. Survives a re-sort attached to the player, not the row. Wiped by a full rebuild, so copy the column out first if it holds anything you want.'],
   ['Best build', ' =the punt column that ranks him highest, and by how much', 'A shortcut. Reads "AST+STL +21", meaning a punt assists-and-steals build rates him 21 places higher than the standard board does. A dash means no build helps him — he is simply good everywhere.'],
   ['', '', ''],
 
@@ -1651,7 +1652,7 @@ var README_ROWS = [
   ['Blank GAP', '', 'Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely.'],
   ['ADP source', '', "Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as \"cheap somewhere\", not \"cheap in my league\"."],
   ['Scoring format', '', 'Head-to-Head Categories: all nine categories are settled separately every week, so a week ends 6-3. That is Yahoo\'s name for it; ESPN calls the same thing Each Category. It is not the format where the week resolves to a single win, which Yahoo calls One Win. The difference decides how hard to punt — conceding a category here costs a loss every single week, so soft-punt at most and stay broad.'],
-  ['Left @pos', '', 'How many players at his primary position are still un-Gone in his tier. The scarcity tiebreak: between two players you rate the same, take the one whose position is running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left.'],
+  ['Left @pos', '', 'How many players still un-Gone in his tier could fill a slot he is eligible for — any of them, not just his first-listed position, so a PF/C is measured against both. The scarcity tiebreak: between two players you rate the same, take the one whose slots are running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left.'],
   ['Punt weight', '', 'What a punted category still counts for, on Settings. Ships at 0.25. Set it to 0 for a hard punt, which is what this board did before and what most public tools still do.'],
   ['G-score multipliers', '', 'From Rosenof (arXiv 2307.02188, Table 8), computed on the 2022-23 season. The ordering is solid and the steals discount is robust; the second decimal is not, least of all on FG% and FT%.']
 ];
@@ -1713,7 +1714,7 @@ function onOpen() {
     .addToUi();
 }
 
-/** Re-sort the draft board against current Adjusted Values, keeping checkboxes. */
+/** Re-sort against current Adjusted Values, keeping checkboxes and notes. */
 function rebuildAndResort() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   SpreadsheetApp.flush();
@@ -1722,7 +1723,7 @@ function rebuildAndResort() {
   detachBandings(draft);
   buildDraftTab(ss, ensureGrid(draft, D_LAST, RN), ss.getSheetByName('Board'));
   SpreadsheetApp.flush();
-  ss.toast('Re-sorted. Checkbox state kept.', 'Draft Board', 5);
+  ss.toast('Re-sorted. Checkboxes and notes kept.', 'Draft Board', 5);
 }
 
 /**

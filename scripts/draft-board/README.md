@@ -20,7 +20,7 @@ Builds the 9-cat draft board as a Google Sheet, implementing
 | `harness.js` | Mocks the Sheets API and dry-runs the build in Node |
 | `export_readme.js` | Regenerates `docs/draft-board/cheat-sheet.md` |
 | `valuation.py` | The playbook's math in Python, written from the spec rather than from the sheet |
-| `verify.py` | Recomputes the board with it and diffs against the sheet's own constants |
+| `verify.py` | Recomputes the board with it, iterating the pool to convergence, and diffs against the sheet's own constants |
 | `export_yahoo_rankings.py` | Turns the finished board into a CSV Yahoo will import |
 | `Data.gs` | The players. Provider data — **gitignored, never commit** |
 
@@ -34,7 +34,10 @@ python3 scripts/draft-board/verify.py     # 3. check the numbers independently
 Then paste into the bound Apps Script project and run **`Draft Board ▸ Refresh
 data`**, which updates only what changed and leaves your hand edits alone.
 
-`pytest` covers the valuation itself — `tests/test_valuation.py` pins the
-properties that are easy to break and hard to notice, among them that pool rates
-are aggregates rather than averages of rates, and that availability can discount
-a player but never promote one.
+`pytest` covers this directory. `tests/test_valuation.py` pins the properties
+that are easy to break and hard to notice: pool rates are aggregates rather than
+averages of rates, availability can discount a player but never promote one, the
+pool converges rather than trusting the provider's seed order, and a category
+with no spread fails by name instead of dividing by zero.
+`tests/test_export_yahoo_rankings.py` covers the Yahoo CSV converter. CI runs
+both, plus `ruff` and the harness, on every push.

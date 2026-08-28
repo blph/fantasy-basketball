@@ -21,7 +21,7 @@ Tools for a Yahoo 9-category head-to-head NBA fantasy league: a draft assistant,
 | [docs/draft-board/](docs/draft-board/) | How the draft board was built and maintained, and what every number on it means |
 | [docs/reviews/](docs/reviews/) | Methodology reviews of the valuation, with sources |
 | [scripts/draft-board/](scripts/draft-board/) | Builds the draft board as a Google Sheet |
-| [tests/](tests/) | The valuation math, checked against synthetic players |
+| [tests/](tests/) | The valuation math and the Yahoo export, checked against synthetic players |
 | [config/league.yaml](config/league.yaml) | League settings, transcribed from Yahoo |
 | `src/fantasy_bb/` | Python: ingestion, database, analytics, digests |
 | `apps/` | Static HTML apps |
@@ -37,7 +37,7 @@ Python for the data pipeline; plain static HTML/CSS/JS for the apps. DuckDB with
 
 The primary providers (ESPN, Sleeper) need no key. Yahoo needs your own OAuth credentials, kept in your own `.env`. Test fixtures are synthetic — hand-written JSON shaped like a real response, never a captured one ([ADR-0006](docs/decisions/ADR-0006-no-provider-data-redistribution.md)).
 
-A [pre-commit hook](.githooks/pre-commit) and a [CI check](.github/workflows/data-guard.yml) both refuse anything under `data/`, any `.env`, and any credential-shaped string, so this holds by construction rather than by memory.
+A [pre-commit hook](.githooks/pre-commit) and a [CI check](.github/workflows/data-guard.yml) both refuse anything under `data/`, any `.env`, and any credential-shaped string, so this holds by construction rather than by memory. A second workflow, [checks.yml](.github/workflows/checks.yml), runs `ruff`, `pytest` and the draft-board harness on every push — kept separate because the data guard is a policy gate that must pass whether or not the code works.
 
 ## Getting started
 

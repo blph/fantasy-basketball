@@ -65,6 +65,11 @@ operating manual is [docs/draft-board/](../draft-board/build-and-maintenance.md)
 
 Recorded because they are judgment calls, not oversights:
 
+> **The tier-multiplier bullet below is superseded by
+> [ADR-0012](ADR-0012-tier-multiplier-and-percentage-denominator.md).** It ships at
+> 2.0 now. The reasoning here measured tier *count* and never tier *size*, and at
+> 4.0 one tier ran from pick 25 to pick 70. The rest of this record stands.
+
 - **Tier multiplier defaults to 4.0, not 2.** Section 7a targets 12 to 15 tiers
   across 200 players and offers 2 as a starting point. On this data 2 produces
   46 tiers, which is unusable; 4.0 produces 14. The playbook calls the 2 "a
