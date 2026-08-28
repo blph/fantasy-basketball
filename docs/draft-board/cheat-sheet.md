@@ -130,7 +130,7 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 |---|---|
 | **Steals** | Worth about half what the raw z-score claims. The week-to-week noise swamps the edge. |
 | **Games played** | The most under-priced variable on the board. Kept in its own column on purpose — never folded into the projection, so you can see talent and availability separately. |
-| **Tier 1** | Set by hand. The fifteen-row window is truncated at the very top of the board, so the formula has nothing useful to say there. |
+| **Tier 1** | Written as a literal rather than computed. The fifteen-row window is truncated at the very top of the board, so the formula has nothing useful to say there. |
 | **Tier multiplier** | Ships at 4.0, which gives 14 tiers. The playbook suggests 2 as a starting point; on this data that produces 46, which is useless. Worth re-checking now the window is genuinely centred — it used to lean nine rows up the board and five down, which inflated the median and made breaks fire late. Tune it on Settings. |
 | **Blank GAP** | Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely. |
 | **ADP source** | Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as "cheap somewhere", not "cheap in my league". |

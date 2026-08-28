@@ -141,13 +141,19 @@ const ss = {
   }
 };
 
+// Rules were chainable no-ops, so nothing about them could be asserted. They
+// carry hardcoded column letters, which is exactly the thing that drifts when a
+// column is inserted -- and did, twice, before this recorded anything.
 function ruleBuilder() {
-  const b = {};
-  ['whenFormulaSatisfied','whenTextEqualTo','whenTextContains','setBackground','setFontColor',
-   'setBold','setItalic','setStrikethrough','setUnderline','setRanges',
+  const b = {}, spec = { formula: null, text: null, ranges: [] };
+  ['setBackground','setFontColor','setBold','setItalic','setStrikethrough','setUnderline',
    'setGradientMinpointWithValue','setGradientMidpointWithValue','setGradientMaxpointWithValue']
    .forEach(m => { b[m] = () => b; });
-  b.build = () => ({});
+  b.whenFormulaSatisfied = f => { spec.formula = f; return b; };
+  b.whenTextEqualTo      = t => { spec.text = t; return b; };
+  b.whenTextContains     = t => { spec.text = t; return b; };
+  b.setRanges = rs => { spec.ranges = rs.map(r => ({ col: r.col, nc: r.nc })); return b; };
+  b.build = () => spec;
   return b;
 }
 global.SpreadsheetApp = {
@@ -312,9 +318,40 @@ expect('tracker counts Mine', cell('Category Tracker',4,2),
   if (read.indexOf('"PUNTED"') < 0) fails.push(`${cat} read cannot be marked punted`);
 });
 
+// The two controls used on the clock. Gone must strike a row through and Mine
+// must green it; both rules key off a column letter, and inserting `posLeft`
+// once left them pointing one column short -- Gone turned rows green and Mine
+// did nothing at all.
+{
+  const rules = seen.sheets['Draft Board'].rules || [];
+  const formulas = rules.map(r => r && r.formula).filter(Boolean);
+  const want = { Gone: L(D.drafted), Mine: L(D.mine) };
+  Object.entries(want).forEach(([label, col]) => {
+    const wanted = `=$${col}${R0}=TRUE`;
+    if (!formulas.includes(wanted))
+      fails.push(`Draft Board "${label}" rule should test ${wanted}\n     saw  ${formulas.join('  ')}`);
+  });
+  // And nothing may point at a column that is not a checkbox.
+  formulas.filter(f => /=TRUE$/.test(f)).forEach(f => {
+    const col = f.match(/^=\$([A-Z]+)/)[1];
+    if (col !== want.Gone && col !== want.Mine)
+      fails.push(`Draft Board rule ${f} tests ${col}, which is not Gone or Mine`);
+  });
+}
+
+// Board-tab rules key off columns too: In Pool and projected GP.
+{
+  const rules = seen.sheets['Board'].rules || [];
+  const formulas = rules.map(r => r && r.formula).filter(Boolean);
+  if (!formulas.some(f => f === `=$${L(B.inPool)}${R0}=0`))
+    fails.push(`Board "out of pool" rule should test =$${L(B.inPool)}${R0}=0\n     saw  ${formulas.join('  ')}`);
+  if (!formulas.some(f => f.includes(`$${L(B.gp)}${R0}>=68`)))
+    fails.push(`Board "generic GP haircut" rule should test column ${L(B.gp)}`);
+}
+
 // Draft Board must be sorted by the mocked Adjusted Value, descending.
 const d3 = cell('Draft Board',3,3), d4 = cell('Draft Board',4,3);
-console.log(`\n=== Draft Board ===\n  C3 = ${d3}\n  C4 = ${d4}\n  I4 (drop) = ${cell('Draft Board',4,9)}\n  J4 (local median) = ${cell('Draft Board',4,10)}\n  K4 (break) = ${cell('Draft Board',4,11)}\n  B4 (tier) = ${cell('Draft Board',4,2)}\n  B3 (tier 1, by hand) = ${cell('Draft Board',3,2)}`);
+console.log(`\n=== Draft Board ===\n  C3 = ${d3}\n  C4 = ${d4}\n  I4 (drop) = ${cell('Draft Board',4,9)}\n  J4 (local median) = ${cell('Draft Board',4,10)}\n  K4 (break) = ${cell('Draft Board',4,11)}\n  B4 (tier) = ${cell('Draft Board',4,2)}\n  B3 (tier 1, literal) = ${cell('Draft Board',3,2)}`);
 expect('tier 1 literal', cell('Draft Board',3,2), 1);
 expect('drop', cell('Draft Board',4,D.drop), `=${C(D.adj)}3-${C(D.adj)}4`);
 // The tier window must be centred: INDEX(range,k) is sheet row k+HDR, so these

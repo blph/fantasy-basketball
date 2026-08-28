@@ -970,13 +970,14 @@ function formatBoard(sh) {
 
   // Non-pool rows: muted, so the replacement-level line is visible
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied('=$E' + R0 + '=0')
+    .whenFormulaSatisfied('=$' + a1col(B.inPool) + R0 + '=0')
     .setFontColor(COLOR.muted)
     .setRanges([sh.getRange(R0, B.seed, POOL_ROWS, B.pos)]).build());
 
   // The projection has no player-level opinion inside the generic band
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied('=AND($F' + R0 + '>=68,$F' + R0 + '<=74)')
+    .whenFormulaSatisfied('=AND($' + a1col(B.gp) + R0 + '>=68,$' +
+                          a1col(B.gp) + R0 + '<=74)')
     .setBackground(COLOR.haircut)
     .setRanges([sh.getRange(R0, B.gp, POOL_ROWS, 1)]).build());
 
@@ -1261,14 +1262,17 @@ function formatDraftTab(sh) {
     .setFontColor(COLOR.flagText).setBold(true)
     .setRanges([sh.getRange(R0, D.brk, POOL_ROWS, 1)]).build());
 
+  // Both key off the D map. Written as literal letters these pointed one column
+  // short the moment a column was inserted ahead of them, which turned Gone
+  // green and left Mine doing nothing — on the two controls used on the clock.
   // Drafted players fall away without being deleted.
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied('=$R' + R0 + '=TRUE')
+    .whenFormulaSatisfied('=$' + a1col(D.drafted) + R0 + '=TRUE')
     .setBackground(COLOR.drafted).setFontColor(COLOR.muted).setStrikethrough(true)
     .setRanges([sh.getRange(R0, 1, POOL_ROWS, D.notes)]).build());
 
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied('=$S' + R0 + '=TRUE')
+    .whenFormulaSatisfied('=$' + a1col(D.mine) + R0 + '=TRUE')
     .setBackground('#E6F4EA').setFontColor('#137333').setStrikethrough(false)
     .setRanges([sh.getRange(R0, 1, POOL_ROWS, D.notes)]).build());
 
@@ -1290,10 +1294,13 @@ function formatDraftTab(sh) {
 function buildPuntsTab(sh) {
   sh.getRange('A1').setValue('Punt builds — who each build gets at a discount')
     .setFontSize(14).setFontWeight('bold').setFontColor(COLOR.punt);
+  // Yahoo's own names. The old test read "Most Categories", which is ESPN's word
+  // for what Yahoo calls One Win — and once the dropdown was corrected to Yahoo's
+  // wording that branch could never fire, so the tab always gave the same advice.
   sh.getRange('A2').setFormula(
-    '=IF(SCORING="Most Categories",' +
-    '"Most Categories: once you have won five, a sixth adds nothing — punting pays. Aim to win six or seven, not exactly five.",' +
-    '"Each Category: every category counts every week. Abandoning three is expensive — soft-punt at most, and stay balanced.")')
+    '=IF(SCORING="Head-to-Head One Win",' +
+    '"One Win: the week resolves to a single result, so once you have won five categories a sixth adds nothing — punting pays. Aim to win six or seven, not exactly five.",' +
+    '"Head-to-Head Categories: every category is settled separately every week, so abandoning three is expensive — soft-punt at most, and stay balanced.")')
     .setFontColor(COLOR.muted).setFontSize(10);
   sh.getRange('A3').setValue(
     'Sorted by Punt Gap = ADP − rank inside that build. A big positive number means the room prices him ' +
@@ -1611,7 +1618,7 @@ var README_ROWS = [
   ['THINGS WORTH KNOWING', '', ''],
   ['Steals', '', 'Worth about half what the raw z-score claims. The week-to-week noise swamps the edge.'],
   ['Games played', '', 'The most under-priced variable on the board. Kept in its own column on purpose — never folded into the projection, so you can see talent and availability separately.'],
-  ['Tier 1', '', 'Set by hand. The fifteen-row window is truncated at the very top of the board, so the formula has nothing useful to say there.'],
+  ['Tier 1', '', 'Written as a literal rather than computed. The fifteen-row window is truncated at the very top of the board, so the formula has nothing useful to say there.'],
   ['Tier multiplier', '', 'Ships at 4.0, which gives 14 tiers. The playbook suggests 2 as a starting point; on this data that produces 46, which is useless. Worth re-checking now the window is genuinely centred — it used to lean nine rows up the board and five down, which inflated the median and made breaks fire late. Tune it on Settings.'],
   ['Blank GAP', '', 'Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely.'],
   ['ADP source', '', "Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as \"cheap somewhere\", not \"cheap in my league\"."],
