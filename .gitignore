@@ -30,3 +30,9 @@ scripts/draft-board/Data.gs
 # Browser-automation artifacts. Page snapshots capture account details, and
 # this repo is public.
 .playwright-cli/
+
+# Mock draft reviews quote provider ADP and projected GP, and GAP + Adj Rank
+# recovers ADP exactly (ADR-0006). check-no-data.sh does not scan .md under
+# docs/, so this entry is the guard. The procedure that generates them carries
+# no numbers and is committed: docs/draft-board/mock-draft-review.md
+docs/reviews/mock-drafts/

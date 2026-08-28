@@ -12,6 +12,9 @@
 
 // ---------------------------------------------------------------- constants
 
+var TRACKER_TAB = 'Category Tracker';
+var TRACKER_R0 = 7;    // first category row on the tracker, in CAT_LABELS order
+
 var POOL_ROWS = 200;   // players carried on the board
 var HDR = 2;           // rows 1-2 are the block header and the column header
 var R0 = HDR + 1;      // first data row
@@ -87,6 +90,13 @@ var PUNTS = [
   { key: 'pPtsFt',  rank: 'rPtsFt',  label: 'Punt PTS+FT%',   drop: ['gpts', 'gft'] },
   { key: 'pTriple', rank: 'rTriple', label: 'Punt FG/FT/TO',  drop: ['gfg', 'gft', 'gto'] }
 ];
+
+// The nine category labels, in B.zfg..B.zto order. The Draft Board's Category
+// profile column MATCHes an array of these against that z block as one range, so
+// the order here is load-bearing: a label out of step relabels every player's
+// strengths silently. Hoisted for the same reason PUNTS is — one source, and the
+// harness asserts it against the z block.
+var CAT_LABELS = ['FG%', 'FT%', '3PM', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'TO'];
 
 /** Settings named range holding a build's replacement level. */
 function replName(key) { return 'REPL_' + key.toUpperCase(); }
@@ -181,7 +191,7 @@ function buildDraftBoard() {
   var settings = sheetByName(ss, 'Settings', 10, 75);
   var draft    = sheetByName(ss, 'Draft Board', D_LAST, RN);
   var punts    = sheetByName(ss, 'Punts', PUNTS.length * 6, 60);
-  var tracker  = sheetByName(ss, 'Category Tracker', 8, 60);
+  var tracker  = sheetByName(ss, TRACKER_TAB, 8, 60);
   var readme   = sheetByName(ss, 'README', 2, 60);
 
   writeBoardData(board);
@@ -199,7 +209,7 @@ function buildDraftBoard() {
   buildReadme(readme);
 
   ss.setActiveSheet(draft);
-  reorderTabs(ss, ['Draft Board', 'Board', 'Punts', 'Category Tracker', 'Settings', 'README']);
+  reorderTabs(ss, ['Draft Board', 'Board', 'Punts', TRACKER_TAB, 'Settings', 'README']);
 
   var extra = ss.getSheetByName('Sheet1');
   if (extra) ss.deleteSheet(extra);
@@ -474,10 +484,10 @@ function step2_DraftBoard() {
 function step3_Rest() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   _guard('Punts',   function () { buildPuntsTab(sheetByName(ss, 'Punts', PUNTS.length * 6, 60)); });
-  _guard('Tracker', function () { buildTrackerTab(sheetByName(ss, 'Category Tracker', 8, 60)); });
+  _guard('Tracker', function () { buildTrackerTab(sheetByName(ss, TRACKER_TAB, 8, 60)); });
   _guard('README',  function () { buildReadme(sheetByName(ss, 'README', 2, 60)); });
   _guard('Tidy', function () {
-    reorderTabs(ss, ['Draft Board', 'Board', 'Punts', 'Category Tracker', 'Settings', 'README']);
+    reorderTabs(ss, ['Draft Board', 'Board', 'Punts', TRACKER_TAB, 'Settings', 'README']);
     var extra = ss.getSheetByName('Sheet1');
     if (extra) ss.deleteSheet(extra);
   });
@@ -709,18 +719,27 @@ function writeSettingsSkeleton(sh) {
   sh.getRange(47, 1, pr.length, 1).setValues(pr);
 
   sh.getRange(67, 1).setValue('TRACKER THRESHOLDS').setFontWeight('bold');
-  sh.getRange(68, 1, 3, 1).setValues([
-    ['FG% band'], ['FT% band'], ['Counting band']
+  sh.getRange(68, 1, 4, 1).setValues([
+    ['FG% band'], ['FT% band'], ['Counting band'], ['Category band']
   ]);
-  sh.getRange(68, 2, 3, 1).setValues([[0.005], [0.010], [0.08]]);
+  sh.getRange(68, 2, 4, 1).setValues([[0.005], [0.010], [0.08], [1.00]]);
   sh.getRange(68, 2, 2, 1).setNumberFormat('0.0000');
   sh.getRange(70, 2).setNumberFormat('0%');
-  sh.getRange(68, 2, 3, 1).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText);
-  sh.getRange(71, 1).setValue(
+  sh.getRange(71, 2).setNumberFormat('0.00');
+  sh.getRange(68, 2, 4, 1).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText);
+  sh.getRange(72, 1).setValue(
     'The rate bands are in rate units, the counting band is a share of the benchmark. They were ' +
     'one number, 8% of the benchmark, applied to all nine rows — which on a rate means ~3.8 points ' +
     'of FG%, a margin no team ever posts, so those two rows read EVEN forever. These three are ' +
     'starting guesses and want calibrating against a season of real standings.')
+    .setFontSize(8).setFontColor(COLOR.muted).setWrap(true);
+  sh.getRange(73, 1).setValue(
+    'Category band is the Draft Board\'s Category profile column: how many SDs above or below the ' +
+    'pool mean counts as strong or weak in one category. One number serves all nine because a ' +
+    'z-score is already unit-free — unlike the three above it, which compare raw units. Unlike ' +
+    'them it is also calibrated rather than guessed: at 1.00 every category names 20-27 ' +
+    'specialists across the pool and 91% of the top 156 get at least one label. Lower it to 0.75 ' +
+    'and the column roughly doubles in length. See ADR-0013.')
     .setFontSize(8).setFontColor(COLOR.muted).setWrap(true);
 
   sh.getRange(57, 1).setValue('ADP source').setFontWeight('bold');
@@ -868,6 +887,7 @@ function defineNames(ss) {
     REPLACEMENT: s + '!$B$29', POOL_AVG_GP: s + '!$B$30',
     SD_FG_RATE: s + '!$B$41', SD_FT_RATE: s + '!$B$42',
     TRACK_FG_BAND: s + '!$B$68', TRACK_FT_BAND: s + '!$B$69', TRACK_COUNT_BAND: s + '!$B$70',
+    CAT_BAND: s + '!$B$71',
 
     B_POOL: colRange('Board', B.inPool), B_PLAYER: colRange('Board', B.player),
     B_GP: colRange('Board', B.gp),
@@ -1043,9 +1063,9 @@ function groupAndCollapse(sh, c1, c2) {
 var D = {
   rank: 1, tier: 2, player: 3, team: 4, pos: 5, adj: 6, vor: 7, gtot: 8,
   drop: 9, med: 10, brk: 11, projGp: 12, myGp: 13, adp: 14, xrank: 15, gap: 16,
-  best: 17, posLeft: 18, drafted: 19, mine: 20, notes: 21,
-  hFgm: 22, hFga: 23, hFtm: 24, hFta: 25, h3: 26, hPts: 27, hReb: 28, hAst: 29,
-  hStl: 30, hBlk: 31, hTo: 32
+  best: 17, profile: 18, posLeft: 19, drafted: 20, mine: 21, notes: 22,
+  hFgm: 23, hFga: 24, hFtm: 25, hFta: 26, h3: 27, hPts: 28, hReb: 29, hAst: 30,
+  hStl: 31, hBlk: 32, hTo: 33
 };
 var D_LAST = D.hTo;
 
@@ -1065,6 +1085,12 @@ function buildDraftTab(ss, sh, board) {
   var order = boardOrder(board);
   var prior = readCheckState(sh);
 
+  // Category profile reads the tracker's Punted checkboxes. A formula naming a
+  // sheet that does not exist yet is a PERMANENT #REF! — it does not heal when
+  // the sheet is created later. buildDraftBoard() makes all six tabs up front,
+  // but step2_DraftBoard() and rebuildAndResort() do not.
+  if (!ss.getSheetByName(TRACKER_TAB)) ss.insertSheet(TRACKER_TAB);
+
   var head = [];
   head[D.rank] = '#'; head[D.tier] = 'TIER'; head[D.player] = 'Player';
   head[D.team] = 'Team'; head[D.pos] = 'Pos';
@@ -1072,7 +1098,8 @@ function buildDraftTab(ss, sh, board) {
   head[D.drop] = 'Drop'; head[D.med] = 'Local\nmed'; head[D.brk] = 'Break';
   head[D.projGp] = 'Proj\nGP'; head[D.myGp] = 'My\nGP';
   head[D.adp] = 'ADP'; head[D.xrank] = 'XRank'; head[D.gap] = 'GAP';
-  head[D.best] = 'Best build'; head[D.posLeft] = 'Left\n@pos';
+  head[D.best] = 'Best build'; head[D.profile] = 'Category\nprofile';
+  head[D.posLeft] = 'Left\n@pos';
   head[D.drafted] = 'Gone'; head[D.mine] = 'Mine';
   head[D.notes] = 'Notes';
   head[D.hFgm] = 'FGM'; head[D.hFga] = 'FGA'; head[D.hFtm] = 'FTM'; head[D.hFta] = 'FTA';
@@ -1126,6 +1153,53 @@ function buildDraftTab(ss, sh, board) {
       'INDEX({' + labels.join(';') + '},MATCH(MIN(' + pr + '),' + pr + ',0))' +
       '&"  "&TEXT(Board!$' + a1col(B.adjRank) + '$' + n + '-MIN(' + pr + '),"+0"))';
 
+    // Which categories this player actually moves, named. A descriptor, not a
+    // second valuation — ADJ VALUE already prices him; this only says what for.
+    //
+    // Built on the z block, NOT the g block, and that is the whole design. g
+    // discounts each category by its weekly volatility, which answers "how much
+    // is this edge worth"; ADJ VALUE has already applied it. The question here is
+    // "does he have the edge at all", which is a counting question, and it is the
+    // same quantity the Category Tracker measures — raw totals against an average
+    // team. On the g basis a 0.59 steals multiplier leaves 9 strong / 3 weak in
+    // STL across the whole pool, so when the tracker reads STL WEAK this column
+    // could name almost nobody who fixes it. On z at +-1.00 SD every category
+    // names 20-27 specialists. See ADR-0013 for the calibration.
+    //
+    // One band serves all nine because a z-score is already unit-free. The
+    // tracker needed three bands only because it compares raw units — a rate
+    // margin against a share of a total (see its own note below).
+    //
+    // ARRAYFORMULA is load-bearing, the same way it is on the punt replacement
+    // levels in writeSettingsFormulas. Sheets does not array-evaluate an IF
+    // handed to another function as an argument: without it TEXTJOIN receives a
+    // single value and every one of the 200 rows returns #VALUE!. The harness
+    // cannot catch this — it compares formula strings and never evaluates one.
+    //
+    // The same trap a second time, and quieter. A LET binding is evaluated
+    // OUTSIDE the ARRAYFORMULA below, so a comparison bound there collapses to
+    // its first element: binding `TRANSPOSE(punted)<>TRUE` gave a 1x1 FALSE the
+    // moment FG% was ticked, and every row went to the em-dash. So bind the raw
+    // TRANSPOSE — a native array function, which survives — and do the <>TRUE
+    // inside the ARRAYFORMULA. Verified against the live sheet; nothing offline
+    // distinguishes the two forms.
+    var zr = 'Board!$' + a1col(B.zfg) + '$' + n + ':$' + a1col(B.zto) + '$' + n;
+    var cats = [];
+    for (var ci = 0; ci < CAT_LABELS.length; ci++) cats.push('"' + CAT_LABELS[ci] + '"');
+    // A category ticked Punted on the tracker drops out of both lists, so the
+    // column only ever names categories still being contested. Safe from
+    // circularity ONLY because those cells are literal checkboxes, never formulas.
+    var punted = '\'' + TRACKER_TAB + '\'!$F$' + TRACKER_R0 +
+                 ':$F$' + (TRACKER_R0 + CAT_LABELS.length - 1);
+    row[D.profile] =
+      '=IF(Board!$' + a1col(B.player) + '$' + n + '="","",' +
+      'LET(z,' + zr + ',' +
+          'L,{' + cats.join(',') + '},' +
+          'punt,TRANSPOSE(' + punted + '),' +
+          's,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((z>=CAT_BAND)*(punt<>TRUE),L,""))),' +
+          'w,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((z<=-CAT_BAND)*(punt<>TRUE),L,""))),' +
+          'IF(s&w="","—",TRIM(IF(s="","","▲ "&s)&IF(w="",""," ▼ "&w)))))';
+
     // Playbook step 3 is a scarcity tiebreak — "how many at his position are
     // still in my live tier" — and it had no instrument. Position stays out of
     // the valuation entirely (Rosenof §4.1.3: positional z-scores are a known
@@ -1177,20 +1251,51 @@ function writeGrid(sh, grid, c1, c2) {
   if (hasLiteral) rng.setValues(out); else rng.setFormulas(out);
 }
 
+/**
+ * Where Player / Gone / Mine / Notes sit on the sheet AS IT CURRENTLY STANDS,
+ * read from its own header row rather than from the D map.
+ *
+ * This is the whole point: readCheckState runs against the OLD sheet while the
+ * rest of the build uses the NEW map. Insert a column ahead of Gone and the two
+ * disagree by one, so the old Mine column is read as Gone and the old FGM column
+ * as Notes -- the draft state silently corrupted rather than merely wiped, on
+ * the two controls used on the clock. Keying off the header makes the pair
+ * immune to every future layout change, not just the one that exposed it.
+ *
+ * Falls back to the D map when there is no header row, i.e. the first build.
+ */
+function draftHeaderCols(sh) {
+  var want = { Player: D.player, Gone: D.drafted, Mine: D.mine, Notes: D.notes };
+  var out = { Player: D.player, Gone: D.drafted, Mine: D.mine, Notes: D.notes };
+  try {
+    var wide = Math.min(sh.getMaxColumns(), D_LAST + 8);
+    var head = sh.getRange(HDR, 1, 1, wide).getValues()[0];
+    for (var c = 0; c < head.length; c++) {
+      var label = String(head[c] === null || head[c] === undefined ? '' : head[c]).trim();
+      if (want.hasOwnProperty(label)) out[label] = c + 1;
+    }
+  } catch (e) { /* first build: no header row yet */ }
+  return out;
+}
+
 function readCheckState(sh) {
   var state = {};
   try {
     if (sh.getLastRow() < R0) return state;
     var n = Math.min(POOL_ROWS, sh.getLastRow() - HDR);
-    var names = sh.getRange(R0, D.player, n, 1).getValues();
-    // Notes sits beside the two checkboxes and is captured with them. A re-sort
-    // moves every player's row; without this the note stays put and ends up
-    // beside whoever landed on that row instead.
-    var span = D.notes - D.drafted + 1;
-    var flags = sh.getRange(R0, D.drafted, n, span).getValues();
+    var at = draftHeaderCols(sh);
+    var names = sh.getRange(R0, at.Player, n, 1).getValues();
+    // Read each column on its own. Gone/Mine/Notes are adjacent today, but a
+    // span would reintroduce exactly the positional assumption this removes.
+    // Notes is captured with the checkboxes because a re-sort moves every
+    // player's row; without it the note stays put and ends up beside whoever
+    // landed on that row instead.
+    var gone  = sh.getRange(R0, at.Gone,  n, 1).getValues();
+    var mine  = sh.getRange(R0, at.Mine,  n, 1).getValues();
+    var notes = sh.getRange(R0, at.Notes, n, 1).getValues();
     for (var i = 0; i < n; i++) {
       if (names[i][0]) {
-        state[names[i][0]] = [flags[i][0] === true, flags[i][1] === true, flags[i][2] || ''];
+        state[names[i][0]] = [gone[i][0] === true, mine[i][0] === true, notes[i][0] || ''];
       }
     }
   } catch (e) { /* first build */ }
@@ -1204,6 +1309,8 @@ function restoreCheckState(sh, names, prior) {
     if (p && (p[0] || p[1] || p[2])) any = true;
     out.push(p || [false, false, '']);
   }
+  // Writes against the NEW layout, which is the D map by definition -- the sheet
+  // has just been rebuilt from it. Only the read side needs the header lookup.
   if (any) sh.getRange(R0, D.drafted, out.length, D.notes - D.drafted + 1).setValues(out);
 }
 
@@ -1236,6 +1343,9 @@ function formatDraftTab(sh) {
     [D.projGp, D.myGp, 'GP', COLOR.avail],
     [D.adp, D.gap, 'MARKET', COLOR.market],
     [D.best, D.best, 'BUILD', COLOR.punt],
+    // Coloured as the z block it is computed from, so the provenance reads off
+    // the header: this is STEP 1, not a second valuation.
+    [D.profile, D.profile, 'PROFILE', COLOR.z],
     [D.posLeft, D.notes, 'DRAFT DAY', COLOR.identity],
     [D.hFgm, D.hTo, 'CATEGORY FEED (hidden helper)', COLOR.notes]
   ];
@@ -1258,6 +1368,10 @@ function formatDraftTab(sh) {
   sh.setColumnWidth(D.projGp, 44); sh.setColumnWidth(D.myGp, 44);
   sh.setColumnWidth(D.adp, 50); sh.setColumnWidth(D.xrank, 50); sh.setColumnWidth(D.gap, 52);
   sh.setColumnWidth(D.best, 110);
+  // Wide enough for the common case (median 2 categories flagged). The rare
+  // eight-flag big man clips rather than wrapping: wrapping would raise every
+  // row on the tab to suit ~1% of them.
+  sh.setColumnWidth(D.profile, 240);
   sh.setColumnWidth(D.drafted, 50); sh.setColumnWidth(D.mine, 50);
   sh.setColumnWidth(D.notes, 300);
 
@@ -1307,11 +1421,19 @@ function formatDraftTab(sh) {
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied('=ISEVEN(ROW())')
     .setBackground(COLOR.band)
-    .setRanges([sh.getRange(R0, 1, POOL_ROWS, D.best)]).build());
+    .setRanges([sh.getRange(R0, 1, POOL_ROWS, D.profile)]).build());
 
   sh.getRange(R0, D.projGp, POOL_ROWS, 1).setFontColor(COLOR.muted);
   resetColumnGroups(sh, D_LAST);
   groupAndCollapse(sh, D.drop, D.med);
+  // Category profile needs real width, and the tab had about 100px spare before
+  // Gone and Mine scrolled off — which are the two controls you use on the clock.
+  // These three columns pay for it and cost nothing: VOR and G are audit numbers
+  // already visible on the Board tab, and XRank is a market column that is empty
+  // until Yahoo's is transcribed. Collapsed, not hidden: the +/- above the
+  // columns brings any of them back without a rebuild.
+  groupAndCollapse(sh, D.vor, D.gtot);
+  groupAndCollapse(sh, D.xrank, D.xrank);
   groupAndCollapse(sh, D.hFgm, D.hTo);
   sh.hideColumns(D.hFgm, D.hTo - D.hFgm + 1);
 }
@@ -1448,8 +1570,11 @@ function buildTrackerTab(sh) {
     ['TO',  '=IF(' + count + '=0,"",' + sumMine(D.hTo) + ')',  benchCount('B_TO'),  '0.0']
   ];
 
+  // Row order here IS CAT_LABELS order; the Draft Board's Category profile
+  // column lines its z block up against the Punted checkboxes on that basis.
+  // The harness asserts the two agree.
   for (var i = 0; i < rows.length; i++) {
-    var r = 7 + i;
+    var r = TRACKER_R0 + i;
     sh.getRange(r, 1).setNumberFormat('@').setValue(rows[i][0]).setFontWeight('bold');
     sh.getRange(r, 2).setFormula(rows[i][1]).setNumberFormat(rows[i][3]);
     sh.getRange(r, 3).setFormula(rows[i][2]).setNumberFormat(rows[i][3]);
@@ -1475,13 +1600,30 @@ function buildTrackerTab(sh) {
 
   // A punted category is conceded on purpose. Without a way to say so the tab
   // keeps reporting it live and keeps advising you to spend a pick fixing it.
-  sh.getRange(7, 6, 9, 1).insertCheckboxes();
+  //
+  // These cells MUST stay literal checkboxes. The Draft Board's Category profile
+  // column reads them, and the tab reads the Draft Board back — safe only while
+  // nothing here is a formula. Make Punted auto-detect a build from the roster
+  // and that closes a real circular reference across both tabs.
+  sh.getRange(TRACKER_R0, 6, CAT_LABELS.length, 1).insertCheckboxes();
   sh.getRange(16, 1).setValue(
-    'Tick Punted to concede a category: it stops counting toward what you still need. Read the ' +
-    'rest as a steer on where the next pick goes — spend it on an EVEN category, not a STRONG one.')
+    'Tick Punted to concede a category: it stops counting toward what you still need, and it drops ' +
+    'out of the Draft Board\'s Category profile column too. Read the rest as a steer on where the ' +
+    'next pick goes — spend it on an EVEN category, not a STRONG one.')
     .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
   sh.getRange(16, 1, 1, 6).merge();
   sh.setRowHeight(16, 30);
+
+  sh.getRange(18, 1).setValue(
+    'When a row here reads WEAK, the Draft Board\'s Category profile column is where you fix it: ' +
+    'scan it for ▲ in that category. ▲ and ▼ there mean the same as STRONG and WEAK here, one ' +
+    'level down — this row is your roster, that column is one player. They measure against ' +
+    'different things on purpose: this tab compares you to the teams drafting alongside you, so ' +
+    'its benchmark moves every round, while the column compares a player to the whole pool and ' +
+    'never moves. Early on this can read REB STRONG while few players show ▲ REB. Both are right.')
+    .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
+  sh.getRange(18, 1, 1, 6).merge();
+  sh.setRowHeight(18, 44);
 
   sh.getRange(17, 1).setValue(
     'Aim for roughly 60% in your live categories, not 90%. Winning a category 60–30 pays the same as ' +
@@ -1499,16 +1641,24 @@ function buildTrackerTab(sh) {
     '=IFERROR(SORT(FILTER({' + dbCol(D.rank) + ',' + dbCol(D.player) + ',' +
     dbCol(D.pos) + '},' + dbCol(D.mine) + '=TRUE),1,TRUE),"Nothing ticked yet")');
 
-  sh.setColumnWidth(1, 120); sh.setColumnWidth(2, 110); sh.setColumnWidth(3, 120);
+  sh.setColumnWidth(1, 152); sh.setColumnWidth(2, 110); sh.setColumnWidth(3, 120);
   sh.setColumnWidth(4, 80); sh.setColumnWidth(5, 90); sh.setColumnWidth(6, 64);
   sh.getRange(6, 1, 11, 6).setFontSize(10);
 
   addRule(sh, SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('STRONG')
     .setBackground('#E6F4EA').setFontColor('#137333').setBold(true)
-    .setRanges([sh.getRange(7, 5, 9, 1)]).build());
+    .setRanges([sh.getRange(TRACKER_R0, 5, CAT_LABELS.length, 1)]).build());
   addRule(sh, SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('WEAK')
     .setBackground(COLOR.flagBg).setFontColor(COLOR.flagText).setBold(true)
-    .setRanges([sh.getRange(7, 5, 9, 1)]).build());
+    .setRanges([sh.getRange(TRACKER_R0, 5, CAT_LABELS.length, 1)]).build());
+  // A conceded category read as loudly as a live one: STRONG was green, WEAK red,
+  // PUNTED plain black. The whole point of ticking it is to stop spending
+  // attention there, so it recedes -- muted and italic, across the whole row so
+  // the numbers go quiet too, not just the verdict.
+  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=$F' + TRACKER_R0 + '=TRUE')
+    .setFontColor(COLOR.muted).setItalic(true).setBold(false)
+    .setRanges([sh.getRange(TRACKER_R0, 1, CAT_LABELS.length, 5)]).build());
   sh.setHiddenGridlines(true);
 }
 
@@ -1532,6 +1682,7 @@ var README_STEPS = [
   'STEP 5 — COMPARE AGAINST THE ROOM',
   'STEP 6 — CUT THE TIERS',
   'STEP 7 — PUNT BUILDS',
+  'STEP 8 — NAME WHAT HE IS GOOD AT  (Category profile)',
   'THE CATEGORY TRACKER'
 ];
 
@@ -1550,10 +1701,10 @@ var README_ROWS = [
   ['', '', ''],
 
   ['HOW TO USE IT', '', ''],
-  ['Draft Board', '', 'The tab you use on the clock. Sorted by Adjusted Value. Tick Gone as players come off the board, Mine for your own picks.'],
+  ['Draft Board', '', 'The tab you use on the clock. Sorted by Adjusted Value. Tick Gone as players come off the board, Mine for your own picks. Best build and Category profile are the two columns that tell you what a player is FOR rather than what he is worth.'],
   ['Board', '', 'The audit. One row per player, every intermediate number visible. Collapse the z and g blocks with the +/− above the columns.'],
   ['Punts', '', 'Nine builds, each showing who it gets at a discount. Homework before draft day, not reading material during it.'],
-  ['Category Tracker', '', 'Fills itself from the Mine checkboxes.'],
+  ['Category Tracker', '', 'Fills itself from the Mine checkboxes. Ticking Punted here also strips that category out of the Draft Board\'s Category profile column.'],
   ['Settings', '', 'Every constant. Change one and the whole board recalculates.'],
   ['', '', ''],
 
@@ -1635,6 +1786,12 @@ var README_ROWS = [
   ['Best build', ' =the punt column that ranks him highest, and by how much', 'A shortcut. Reads "AST+STL +21", meaning a punt assists-and-steals build rates him 21 places higher than the standard board does. A dash means no build helps him — he is simply good everywhere.'],
   ['', '', ''],
 
+  ['STEP 8 — NAME WHAT HE IS GOOD AT  (Category profile)', '', ''],
+  ['Category profile', ' =every category where z ≥ Category band, then every category where z ≤ −Category band', 'What the player actually does, in the nine categories. Reads "▲ FG%, REB, BLK  ▼ FT%, 3PM" — strong at the first three, weak at the last two. A dash means no category is more than a standard deviation either way: he is even everywhere, which for a high pick is a compliment and for a late one means he does nothing in particular. ▲ TO means FEW turnovers, not many — the z TO column is already flipped so that better is higher, and it stays flipped here. This is a description, not a second valuation: ADJUSTED VALUE has already priced him and this only says what for. That is also why it is built on z and not on g. The g multipliers discount a category by how noisy it is week to week, which answers "how much is this edge worth" — a question ADJUSTED VALUE has answered already. Asking it twice costs you the categories you most often need to shop for: on the g scale steals are worth 0.59, so only nine players in the whole pool clear the bar and the column goes quiet on steals exactly when the tracker tells you that you need some. On z at 1.00 every one of the nine categories names between twenty and twenty-seven specialists, and nine players in ten get at least one label.'],
+  ['Category band', ' =1.00 standard deviation, on Settings', 'How far from the pool average counts as strong or weak. One number covers all nine categories, which the three tracker bands below could not do — but those compare raw units, a percentage against a per-game count, while a z-score has already been divided by its own category\'s spread. Dividing by the spread IS the per-category calibration. One SD above the average ROSTERED player is the industry reading of a strong contributor; note the reference is the 156 players in the pool, not everyone in the league, which makes it a stricter bar than the same number quoted elsewhere. Drop it to 0.75 and the lists roughly double in length. One thing it cannot see: blocks are floored at zero and skewed, so nobody sits a full SD BELOW the block average and the ▼ BLK warning almost never fires. The ▲ side still tells you who fixes it.'],
+  ['Punted categories', ' (from the Category Tracker)', 'A category you have ticked Punted on the tracker disappears from this column on every row, both sides. Once you have conceded free throws you do not need to be told which centres are bad at them, and you do not want a punt build\'s own targets flagged as damaged goods. Untick it and all 200 rows come back.'],
+  ['', '', ''],
+
   ['THE CATEGORY TRACKER', '', ''],
   ['My team   (counting stats)', ' =SUMIF(Mine, TRUE, that stat)', 'Adds up the category across every player you have ticked as Mine.'],
   ['My team   (FG% and FT%)', ' =SUMIF(Mine,TRUE,FGM) / SUMIF(Mine,TRUE,FGA)', 'Your roster\'s real shooting percentage — total makes over total attempts again, never the average of the individual percentages.'],
@@ -1652,7 +1809,7 @@ var README_ROWS = [
   ['Blank GAP', '', 'Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely.'],
   ['ADP source', '', "Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as \"cheap somewhere\", not \"cheap in my league\"."],
   ['Scoring format', '', 'Head-to-Head Categories: all nine categories are settled separately every week, so a week ends 6-3. That is Yahoo\'s name for it; ESPN calls the same thing Each Category. It is not the format where the week resolves to a single win, which Yahoo calls One Win. The difference decides how hard to punt — conceding a category here costs a loss every single week, so soft-punt at most and stay broad.'],
-  ['Left @pos', '', 'How many players still un-Gone in his tier could fill a slot he is eligible for — any of them, not just his first-listed position, so a PF/C is measured against both. The scarcity tiebreak: between two players you rate the same, take the one whose slots are running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left.'],
+  ['Left @pos', '', 'How many players still un-Gone in his tier could fill a slot he is eligible for — any of them, not just his first-listed position, so a PF/C is measured against both. The scarcity tiebreak: between two players you rate the same, take the one whose slots are running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left. This is the ONE column that needs the Gone boxes ticked for players other managers took. Track only your own and it quietly stops moving: it becomes the size of his tier at his position, the same all draft, and it will look like it is working.'],
   ['Punt weight', '', 'What a punted category still counts for, on Settings. Ships at 0.25. Set it to 0 for a hard punt, which is what this board did before and what most public tools still do.'],
   ['G-score multipliers', '', 'From Rosenof (arXiv 2307.02188, Table 8), computed on the 2022-23 season. The ordering is solid and the steals discount is robust; the second decimal is not, least of all on FG% and FT%.']
 ];

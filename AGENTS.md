@@ -29,6 +29,7 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Dry-run the draft board: `cd scripts/draft-board && node harness.js`
 - Export rankings for Yahoo: `python3 scripts/draft-board/export_yahoo_rankings.py raw.csv` (writes `data/exports/`, dated)
 - Re-verify the board's math: `python3 scripts/draft-board/verify.py`
+- Review a mock draft: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` (inputs are `playwright-cli` board pulls; see [the procedure](docs/draft-board/mock-draft-review.md))
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
 - Lint: `ruff check .`
 - Format: `ruff format .`
@@ -42,6 +43,7 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - Fixtures are **synthetic**: hand-authored JSON matching the shape of a real response, with invented player names and numbers. Never copy a file from `data/raw/` into `tests/fixtures/` — this repo is public and provider data is not ours to republish ([ADR-0006](docs/decisions/ADR-0006-no-provider-data-redistribution.md)).
 - When a live response reveals a shape a fixture gets wrong, edit the fixture to match the *shape*. Do not paste the payload.
 - Run `pytest` and `ruff check .` before finishing a task; fix failures rather than reporting them as pre-existing without checking.
+- **Definition of done for draft-board work: it is in the sheet and verified there.** `pytest`, `ruff` and `harness.js` gate the push; they do not conclude it. A change that passes every local check and has not been deployed is not finished, and must not be reported as finished.
 
 ## Boundaries (do NOT)
 
@@ -56,7 +58,11 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - DO NOT value FG%/FT% as bare rates. They are volume-weighted; without makes and attempts the math is silently wrong. See [schema.md](docs/database/schema.md#marts).
 - DO NOT let availability raise a player's value. Scaling by games played must discount and never promote; below replacement the scaling is switched off, or the less available of two equal players sorts higher.
 - DO NOT hand-edit [docs/draft-board/cheat-sheet.md](docs/draft-board/cheat-sheet.md). It is generated from `README_ROWS` in `Build.gs` — edit there and regenerate.
-- DO NOT read from or write to the draft Google Sheet by any route except **Playwright**. Not the Sheets API, not a service account, not Drive's file-content reader. `playwright-cli` drives the owner's own signed-in Chrome profile, so it needs no sharing change and no extra credential, and it sees the sheet exactly as the owner does. The alternatives are worse in ways that fail quietly: the Sheets API cannot create named ranges, conditional formats, checkboxes or data validation, so it cannot build this board at all, and Drive's reader truncates the tab around rank 77 of 200 without saying so. Commands in [build-and-maintenance.md](docs/draft-board/build-and-maintenance.md).
+- DO NOT read from or write to the draft Google Sheet by any route except **Playwright**. Not the Sheets API, not a service account, not `clasp`, not Drive's file-content reader. `playwright-cli` drives the owner's own signed-in Chrome profile, so it needs no sharing change and no extra credential, and it sees the sheet exactly as the owner does. The alternatives are worse in ways that fail quietly: the Sheets API cannot create named ranges, conditional formats, checkboxes or data validation, so it cannot build this board at all, and Drive's reader truncates the tab around rank 77 of 200 without saying so. Commands in [build-and-maintenance.md](docs/draft-board/build-and-maintenance.md).
+- DO NOT confuse `scripts/draft-board/Build.gs` with the sheet. It is **source**. The sheet runs a *separate bound Apps Script copy*, in a file named **`Code.gs`**, and editing the repo changes nothing in Google until that copy is replaced through Playwright. A green harness is not a deployed change.
+- DO NOT hand sheet operations back to Bryan. **Claude operates this sheet**: reading it, pushing `Build.gs` into `Code.gs`, running the `Draft Board` menu, and verifying the result afterwards are all Claude's to do. "Paste this in yourself" is not a plan.
+- DO NOT recommend, report on, or "review" anything about the sheet without opening it first. Its live state — column layout, hand-edited overrides, what is ticked, what is already erroring — is not derivable from the repo. Reviewing a tab means looking at the tab, not reading the function that builds it. Screenshot it: two real defects on the Category Tracker were invisible in the cell values and obvious on sight.
+- DO NOT trust the harness to prove a formula works. It compares generated formula *strings* and never evaluates one. Sheets does not array-evaluate an `IF` passed as an argument to another function, and a `LET` binding is evaluated outside any enclosing `ARRAYFORMULA` — both produce a board-wide `#VALUE!` or a silently empty column that every offline gate passes. Formula changes are verified in the sheet, on real rows.
 - DO NOT hardcode a spreadsheet column letter in `Build.gs`. Derive it from the `B` or `D` map via `a1col()`; the harness asserts this, because a shifted column repoints a formula at the wrong data and still computes.
 
 ## Architecture (non-obvious only)
@@ -69,7 +75,7 @@ API → data/raw/{endpoint}/{date}.json → data/parquet/{table}/as_of_date=… 
 
 Apps read marts only. They never call the API and never recompute valuations at load time — draft day is when latency is least acceptable.
 
-Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md) · [draft board](docs/draft-board/build-and-maintenance.md) · [board cheat sheet](docs/draft-board/cheat-sheet.md) · [draft playbook](docs/references/fantasy-basketball-draft-playbook.md)
+Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md) · [draft board](docs/draft-board/build-and-maintenance.md) · [board cheat sheet](docs/draft-board/cheat-sheet.md) · [mock draft review](docs/draft-board/mock-draft-review.md) · [draft playbook](docs/references/fantasy-basketball-draft-playbook.md)
 
 ## Security & Data Handling
 
@@ -88,6 +94,7 @@ Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](d
 
 ## When to Stop and Ask
 
+- The Playwright session will not authenticate, or the live sheet contradicts what the repo's `B`/`D` column maps assume. That is a real finding, not something to code around.
 - League rules are ambiguous, or a `TODO` in `config/league.yaml` is needed to proceed.
 - An action would spend meaningful API quota, or the rate limit is still unmeasured.
 - A schema change would affect data already collected.

@@ -20,6 +20,7 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0010](ADR-0010-punt-build-set.md) | Which punt builds the board ships | Accepted | 2026-08-27 | Bryan | |
 | [ADR-0011](ADR-0011-min-gp-pool-gate.md) | Pool membership also requires a minimum projected games played | Accepted | 2026-08-27 | Bryan | |
 | [ADR-0012](ADR-0012-tier-multiplier-and-percentage-denominator.md) | Tier multiplier of 2.0, and closing the percentage-denominator question | Accepted | 2026-08-28 | Bryan | ADR-0008 (in part) |
+| [ADR-0013](ADR-0013-category-profile-column.md) | The Category profile column names strengths from z, not G | Accepted | 2026-08-27 | Bryan | |
 
 ## Decisions expected next
 

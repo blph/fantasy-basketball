@@ -5,8 +5,11 @@ Every player here is invented. Nothing in this file comes from a provider export
 rather than to look like a real NBA season.
 """
 
+from dataclasses import replace
+
 import pytest
 from valuation import (
+    CATEGORY_BAND,
     MULTIPLIERS,
     Player,
     adjusted_value,
@@ -17,6 +20,7 @@ from valuation import (
     g_total,
     punt_total,
     replacement,
+    strength_labels,
     z_scores,
     z_total,
 )
@@ -296,3 +300,101 @@ def test_min_gp_gate_excludes_from_the_pool():
     pool = build_pool(players, Q, MIN_GP)
     assert len(pool.members) == 5
     assert all(m.name != "Quin Alvarado" for m in pool.members)
+
+
+# --------------------------------------------------- Category profile labels
+
+
+def test_strength_labels_split_at_the_band(pool_and_players):
+    """Strong and weak are the same distance out, and the band is inclusive.
+
+    A player parked exactly on the band has to land somewhere. Excluding him
+    would make the column's yield depend on floating-point noise at the boundary,
+    which is not a property worth having.
+    """
+    pool, _ = pool_and_players
+    sd = pool.sd["reb"]
+    mean = pool.mean["reb"]
+
+    on_the_line = make(1, "Lena Ostrom", reb=mean + CATEGORY_BAND * sd)
+    strong, weak = strength_labels(on_the_line, pool)
+    assert "REB" in strong
+    assert "REB" not in weak
+
+    below = make(1, "Mio Delacroix", reb=mean - CATEGORY_BAND * sd)
+    strong, weak = strength_labels(below, pool)
+    assert "REB" in weak
+    assert "REB" not in strong
+
+
+def test_a_careful_player_is_strong_at_turnovers(pool_and_players):
+    """The one category where low is good.
+
+    z_scores already flips turnovers, so this asserts the flip is not applied a
+    second time here -- which would quietly label every careless player an asset.
+    """
+    pool, _ = pool_and_players
+    careful = make(1, "Noor Bakhtiari", to=pool.mean["to"] - 2 * pool.sd["to"])
+    loose = make(1, "Ove Sandberg", to=pool.mean["to"] + 2 * pool.sd["to"])
+
+    assert "TO" in strength_labels(careful, pool)[0]
+    assert "TO" in strength_labels(loose, pool)[1]
+
+
+def test_a_punted_category_appears_in_neither_list(pool_and_players):
+    """Concede a category and the board stops discussing it, both directions."""
+    pool, _ = pool_and_players
+    sd, mean = pool.sd["ast"], pool.mean["ast"]
+    passer = make(1, "Pia Underwood", ast=mean + 3 * sd)
+    turnstile = make(2, "Quin Adeyemi", ast=mean - 3 * sd)
+
+    assert "AST" in strength_labels(passer, pool)[0]
+    assert "AST" in strength_labels(turnstile, pool)[1]
+
+    assert strength_labels(passer, pool, punted=["ast"]) == ([], [])
+    assert strength_labels(turnstile, pool, punted=["ast"]) == ([], [])
+
+
+def test_an_average_player_is_labelled_nothing(pool_and_players):
+    """The sheet's em-dash case: no edges either way, so nothing to say."""
+    pool, _ = pool_and_players
+    average = make(1, "Rae Whitfield", **{
+        c: pool.mean[c] for c in ("tpm", "pts", "reb", "ast", "stl", "blk", "to")
+    })
+    assert strength_labels(average, pool) == ([], [])
+
+
+def test_labels_come_out_in_category_order(pool_and_players):
+    """Fixed 9-cat order, so a column can be scanned for one category.
+
+    Sorting by magnitude would read better on a single row and worse down 200 of
+    them, which is how the column is actually used.
+    """
+    pool, _ = pool_and_players
+    everything = make(1, "Sol Marchetti", **{
+        c: pool.mean[c] + 3 * pool.sd[c] for c in ("tpm", "pts", "reb", "ast", "stl", "blk")
+    })
+    strong, _ = strength_labels(everything, pool)
+    assert strong == ["3PM", "PTS", "REB", "AST", "STL", "BLK"]
+
+
+def test_the_band_is_measured_against_the_pool_not_the_league(pool_and_players):
+    """Widen the pool's spread and the same raw line stops being remarkable.
+
+    This is why the band lives in Settings: 1.00 SD against the 156 rostered
+    players is a stricter bar than 1.00 SD against everyone who plays.
+    """
+    pool, players = pool_and_players
+    line = pool.mean["blk"] + 1.5 * pool.sd["blk"]
+    subject = make(1, "Tam Ekwueme", blk=line)
+    assert "BLK" in strength_labels(subject, pool)[0]
+
+    # Same players, blocks spread three times as wide about the same mean. Every
+    # other category keeps its spread, so the pool is still standardisable.
+    wider = build_pool(
+        [replace(p, blk=(p.blk - pool.mean["blk"]) * 3 + pool.mean["blk"]) for p in players],
+        Q, MIN_GP,
+    )
+    assert wider.mean["blk"] == pytest.approx(pool.mean["blk"])
+    assert wider.sd["blk"] == pytest.approx(pool.sd["blk"] * 3)
+    assert "BLK" not in strength_labels(subject, wider)[0]

@@ -37,7 +37,10 @@ data`**, which updates only what changed and leaves your hand edits alone.
 `pytest` covers this directory. `tests/test_valuation.py` pins the properties
 that are easy to break and hard to notice: pool rates are aggregates rather than
 averages of rates, availability can discount a player but never promote one, the
-pool converges rather than trusting the provider's seed order, and a category
-with no spread fails by name instead of dividing by zero.
+pool converges rather than trusting the provider's seed order, a category
+with no spread fails by name instead of dividing by zero, and the Category
+profile labels split at the band, keep turnovers flipped exactly once, drop a
+punted category from both lists, and stay measured against the pool rather than
+the league.
 `tests/test_export_yahoo_rankings.py` covers the Yahoo CSV converter. CI runs
 both, plus `ruff` and the harness, on every push.

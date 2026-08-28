@@ -303,11 +303,18 @@ Ranks are ordinal, so lower is better, and the subtraction has to run in this di
 
 - **Punt value columns**, one per plausible build. See [section 6b](#6b-punt-re-ranking).
 - **Punt Gap** per build: `Yahoo ADP - rank in that build`
+- **Category profile**: the categories where this player's z-score is a full standard deviation above the pool mean, then the ones where it is a standard deviation below. Reads `FG%, REB, BLK` / `FT%, 3PM`.
 - Notes: role change, injury history, age, contract year, whatever you actually believe
+
+On the category profile. Every other column here answers *how much is he worth*; this one answers *what is he for*, which is the question you are actually asking once the tracker below tells you a category is slipping. Build it on the z-score, not the G-score. The G multipliers discount a category by how noisy it is week to week — that prices an edge, and Adjusted Value has already applied it. Asking the same question twice quietly deletes the categories you most often need to go shopping for: steals carry a 0.59 multiplier, so on the G scale barely anyone clears the bar and the column falls silent on steals at exactly the moment the tracker says you need some.
+
+One standard deviation is the conventional reading of a strong contributor in a single category, but mind the reference population: measured against the drafted pool rather than the whole league, one SD is a stricter bar than the same number quoted by the public z-score tables. Keep it as a settable constant and check the yield rather than trusting the number — every category should end up naming a comparable handful of specialists. If one category can never reach the bar, the bar is wrong for it. Blocks are the honest exception: floored at zero and skewed, so almost nobody sits a full SD *below* the block average and the weak side rarely fires there.
 
 ### Second tab: category tracker
 
 Nine columns, one row per pick. Update after every pick so you can see at a glance where you are strong, average, and weak.
+
+This is the same strong/weak reading as the category profile column above, one level up: that column reads a player, this reads your roster. They measure against different things on purpose, and both are right. The profile column compares a player to the whole pool and never moves, because a player's production does not change as the draft empties. The tracker compares you to the managers drafting alongside you, so its benchmark has to move every round — after round five everyone holds five players and those sixty are the best sixty on the board, not sixty drawn at random. Early on the tracker can read a category STRONG while few players are flagged strong in it. Do not reconcile them.
 
 ---
 

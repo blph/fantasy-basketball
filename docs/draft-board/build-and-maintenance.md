@@ -36,10 +36,10 @@ can be retuned without touching code.
 
 | Tab | What it is |
 |---|---|
-| `Draft Board` | The one you use on the clock. Sorted by Adjusted Value, static row order, Gone/Mine checkboxes. |
+| `Draft Board` | The one you use on the clock. Sorted by Adjusted Value, static row order, Gone/Mine checkboxes. `Best build` and `Category profile` say what a player is *for*, as opposed to what he is worth. |
 | `Board` | The audit. One row per player, every intermediate number visible. |
 | `Punts` | Nine builds, each listing who it gets at a discount. |
-| `Category Tracker` | Sums live from the Mine checkboxes, against what an average team holds at your current roster size. Tick `Punted` to concede a category and drop it from the read. |
+| `Category Tracker` | Sums live from the Mine checkboxes, against what an average team holds at your current roster size. Tick `Punted` to concede a category and drop it from the read — and from the Draft Board's `Category profile` column, which reads these checkboxes. That is the one cross-tab dependency running *into* the Draft Board; keep `F7:F15` literal checkboxes or it becomes a circular reference. |
 | `Settings` | Every constant, plus the pool statistics and sanity checks. |
 | `README` | The cheat sheet, mirrored to [cheat-sheet.md](cheat-sheet.md). |
 
@@ -143,6 +143,34 @@ column layout. Adding or removing a punt build changes that layout, so a build
 set change needs a **full rebuild**, not a refresh — and a full rebuild does not
 preserve `Notes`. Copy that column out first if it holds anything.
 
+### Two different layouts, and only one of them breaks a refresh
+
+Easy to get backwards, and the failure is silent either way.
+
+- Moving a column on the **Board** tab breaks `Refresh data`, because the refresh
+  writes into fixed Board positions. A punt-build change does this
+  ([ADR-0010](../decisions/ADR-0010-punt-build-set.md)).
+- Moving a column on the **Draft Board** tab does not touch the refresh at all —
+  that tab is regenerated wholesale from the `D` map every time. Adding
+  `Category profile` did this
+  ([ADR-0013](../decisions/ADR-0013-category-profile-column.md)).
+
+But a Draft Board column move has its own casualty: the **Category Tracker**
+sums Draft Board columns through formulas that bake in A1 letters at write time.
+`Rebuild & re-sort` rebuilds only the Draft Board, so a tracker left un-rebuilt
+keeps summing the old positions and reports **wrong category totals with no
+error**. After any change that moves a Draft Board column, run a **full
+rebuild**, in this order:
+
+1. Copy the `Notes` column out — a full rebuild destroys it.
+2. Write down which categories are ticked `Punted`; the rebuild clears them.
+3. `Draft Board ▸ Full rebuild`.
+4. Re-tick `Punted`, paste `Notes` back.
+
+Do not "fix" this by making `Rebuild & re-sort` rebuild the tracker too. It
+advertises that it keeps checkboxes and notes, and rebuilding the tracker would
+silently clear the `Punted` ticks the Draft Board now depends on.
+
 ### Where the league settings come from
 
 Settings `B4` (Teams), `B5` (Roster spots) and `B10` (Scoring format) are
@@ -197,13 +225,18 @@ Percentages arrive as `0.573(10.5/18.3)`, so makes and attempts are available.
 They are required: FG% and FT% are volume-weighted, and valuing them as bare
 rates is silently wrong.
 
-**Five Apps Script constraints**, each of which broke a build during
+**Six Apps Script constraints**, each of which broke a build during
 development:
 
 - A **frozen column may not split a merged cell**. Block headers are merged
   across their columns, so `setFrozenColumns` must land on a block boundary.
-- A **new sheet is 26 columns**. The Board needs 73. `ensureGrid()` grows it
-  first; `setColumnWidth` past the last column throws.
+- A **new sheet is 26 columns**. The Board needs 73 and the Draft Board 33.
+  `ensureGrid()` grows it first; `setColumnWidth` past the last column throws.
+- A **formula naming a sheet that does not exist yet is a permanent `#REF!`**. It
+  does not heal when the sheet is created later. `Category profile` references
+  the Category Tracker, so `buildDraftTab()` creates that tab if it is missing —
+  `buildDraftBoard()` makes all six up front, but `Step 2` and
+  `Rebuild & re-sort` do not.
 - A **string starting with `=` is stored as a formula**, whatever the cell's
   number format. The README tab's formula column leads each entry with a space.
 - **Conditional format rules resolve in order.** A general row-banding rule
@@ -311,6 +344,51 @@ a clean clone.
 
 Run it before every paste into Google. It caught three real bugs that would each
 have cost a round-trip through the authorization flow.
+
+**What the harness cannot catch.** It compares generated formula *strings*; it
+never evaluates one. Two array traps got a fully green harness into the sheet as
+a board-wide failure, and both are only visible live:
+
+- Sheets does not array-evaluate an `IF` handed to another function as an
+  argument. `TEXTJOIN(…, IF(range>=x, labels, ""))` receives a single value and
+  every row returns `#VALUE!`. Wrap the `IF` in `ARRAYFORMULA`.
+- A `LET` binding is evaluated **outside** any enclosing `ARRAYFORMULA`, so a
+  comparison bound there collapses to its first element. `live,TRANSPOSE(r)<>TRUE`
+  became a 1×1 `FALSE` the moment one checkbox was ticked, and the whole column
+  went blank — no error anywhere. Bind the raw array function and do the
+  comparison inside the `ARRAYFORMULA`.
+
+Verify formula changes on real rows in the sheet, never on the harness alone.
+
+### Pushing `Build.gs` into the sheet
+
+The sheet runs a **separate bound Apps Script copy** of the builder, in a file
+named **`Code.gs`** — not `Build.gs`. Editing the repo changes nothing in Google
+until that copy is replaced. Claude does this through Playwright; there is no
+`clasp` and adding one would need an ADR.
+
+Synthetic `Cmd+V` does **not** trigger Chromium's native paste, so the clipboard
+route silently does nothing. Drive the editor's Monaco model directly instead:
+
+1. Open the project: `Extensions ▸ Apps Script`, or `script.google.com/home`.
+2. Ship the file in ~12KB chunks onto a page global, because a 104KB shell
+   argument is fragile. The page persists between `playwright-cli eval` calls:
+   ```js
+   () => { window.__buf = (window.__buf || '') + <JSON chunk>; return window.__buf.length; }
+   ```
+3. Apply it to the `Code.gs` model, identified by content rather than index:
+   ```js
+   () => { const m = monaco.editor.getModels()
+             .find(x => x.getValue().indexOf('9-Cat H2H Draft Board') !== -1);
+           m.setValue(window.__buf); return m.getLineCount(); }
+   ```
+4. **Verify before saving**, then `Cmd+S`, then reload and verify again — a
+   truncated paste that saves cleanly is worse than no deployment. Check the line
+   count and a few markers that only exist in the new file.
+
+Then run the build from the sheet's `Draft Board` menu. Note `reorderTabs` leaves
+**README** as the active tab when a full rebuild finishes, so switch back before
+reading anything positionally.
 
 If you edit the README tab's content, it lives in `README_ROWS` at the top of
 `Build.gs`. Regenerate the markdown copy afterwards:

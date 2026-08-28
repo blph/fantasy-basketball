@@ -15,6 +15,7 @@ Contains no player data and no I/O.
 from __future__ import annotations
 
 import statistics as st
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 # Rosenof, arXiv 2307.02188 Table 8, 2022-23, normalised to AST = 1.00. The
@@ -26,6 +27,18 @@ MULTIPLIERS = {
 }
 COUNTING = ["tpm", "pts", "reb", "ast", "stl", "blk", "to"]
 CATEGORIES = ["fg", "ft", *COUNTING]
+
+# Display labels, in CATEGORIES order. Mirrors CAT_LABELS in Build.gs, which the
+# sheet lines up elementwise against its z block.
+CATEGORY_LABELS = {
+    "fg": "FG%", "ft": "FT%", "tpm": "3PM", "pts": "PTS", "reb": "REB",
+    "ast": "AST", "stl": "STL", "blk": "BLK", "to": "TO",
+}
+
+# One standard deviation from the pool mean. See ADR-0013 for the calibration:
+# at 1.00 every category names 20-27 specialists and 91% of the top 156 get a
+# label, which is the yield that makes the column readable on the clock.
+CATEGORY_BAND = 1.00
 
 
 @dataclass
@@ -144,6 +157,42 @@ def g_scores(p: Player, pool: Pool) -> dict[str, float]:
     edge in a volatile one, so steals count roughly half and assists count full.
     """
     return {c: v * MULTIPLIERS[c] for c, v in z_scores(p, pool).items()}
+
+
+def strength_labels(
+    p: Player,
+    pool: Pool,
+    band: float = CATEGORY_BAND,
+    punted: Iterable[str] = (),
+) -> tuple[list[str], list[str]]:
+    """The categories this player is strong and weak in, as display labels.
+
+    The Draft Board's `Category profile` column, recomputed independently of the
+    sheet. Strong is `z >= band`, weak is `z <= -band`, both against the rostered
+    pool rather than the league at large -- a stricter reference than the same
+    number quoted by public z-score tables, which is why the sheet keeps the band
+    in Settings rather than hardcoding it.
+
+    Built on z and deliberately not on g. The g multipliers discount a category
+    by its week-to-week volatility, which prices an edge; adjusted value has
+    already applied that. This asks the prior question -- does he have an edge at
+    all -- and it is the same quantity the category tracker measures. Reusing g
+    here applies the discount twice and all but silences the volatile categories:
+    steals at 0.59 leave nine strong players in the entire pool.
+
+    Turnovers arrive already sign-flipped from `z_scores`, so a low-turnover
+    player lands in `strong` with no special case here.
+
+    `punted` names categories to omit from both lists, matching the tracker's
+    Punted checkboxes.
+    """
+    z = z_scores(p, pool)
+    skip = set(punted)
+    strong = [CATEGORY_LABELS[c] for c in CATEGORIES
+              if c not in skip and z[c] >= band]
+    weak = [CATEGORY_LABELS[c] for c in CATEGORIES
+            if c not in skip and z[c] <= -band]
+    return strong, weak
 
 
 def z_total(p: Player, pool: Pool) -> float:

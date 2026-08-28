@@ -266,6 +266,25 @@ gc.forEach((c,i) => { if (i && c !== gc[i-1]+1) fails.push('g block is not conti
 if (B.ztot !== zc[8]+1) fails.push('Z total does not sit immediately after the z block');
 if (B.gtot !== gc[8]+1) fails.push('G total does not sit immediately after the g block');
 
+// CAT_LABELS is matched elementwise against the z block as a single 1x9 range,
+// so a label out of step relabels every player's strengths and nothing errors.
+if (CAT_LABELS.length !== zc.length)
+  fails.push(`CAT_LABELS has ${CAT_LABELS.length} entries, the z block has ${zc.length}`);
+[['FG%',B.zfg],['FT%',B.zft],['3PM',B.z3],['PTS',B.zpts],['REB',B.zreb],
+ ['AST',B.zast],['STL',B.zstl],['BLK',B.zblk],['TO',B.zto]].forEach(([label,col],i) => {
+  if (CAT_LABELS[i] !== label)
+    fails.push(`CAT_LABELS[${i}] is "${CAT_LABELS[i]}", but that slot is ${label} (${L(col)})`);
+});
+
+// The tracker's Punted checkboxes are read positionally against that same array.
+// If its rows drift out of CAT_LABELS order, ticking "punt FT%" silently strips a
+// different category from all 200 rows of the Draft Board.
+CAT_LABELS.forEach((label, i) => {
+  const got = cell('Category Tracker', TRACKER_R0 + i, 1);
+  if (String(got) !== label)
+    fails.push(`Category Tracker row ${TRACKER_R0 + i} is "${got}", CAT_LABELS says ${label}`);
+});
+
 // Punt score and rank columns must each be contiguous, in the same build order:
 // the Draft Board's "Best build" MATCHes across the rank span as one range.
 PUNTS.forEach((p,i) => {
@@ -273,9 +292,32 @@ PUNTS.forEach((p,i) => {
   if (i && B[p.rank] !== B[PUNTS[i-1].rank] + 1) fails.push(`punt rank block breaks at ${p.label}`);
 });
 
+// Category profile, built from the B map on both sides. Pinning the source
+// letters as a literal would make this blind to the shift it exists to catch.
+{
+  const n = 3;
+  const zSpan = `Board!${C(B.zfg)}$${n}:${C(B.zto)}$${n}`;
+  const labels = CAT_LABELS.map(c => `"${c}"`).join(',');
+  const punted = `'Category Tracker'!$F$${TRACKER_R0}:$F$${TRACKER_R0 + CAT_LABELS.length - 1}`;
+  const want = `=IF(Board!${C(B.player)}$${n}="","",` +
+    `LET(z,${zSpan},L,{${labels}},punt,TRANSPOSE(${punted}),` +
+    `s,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((z>=CAT_BAND)*(punt<>TRUE),L,""))),` +
+    `w,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((z<=-CAT_BAND)*(punt<>TRUE),L,""))),` +
+    `IF(s&w="","\u2014",TRIM(IF(s="","","\u25b2 "&s)&IF(w="",""," \u25bc "&w)))))`;
+  // Row 3 of the Draft Board is whoever sorted first, not Board row 3, so find
+  // the row whose formula points at Board row 3.
+  let found = null;
+  for (let r = 3; r <= 202 && !found; r++) {
+    const v = String(cell('Draft Board', r, D.profile));
+    if (v.indexOf(`$${n}:`) !== -1 && v.indexOf('LET(z,') !== -1) found = v;
+  }
+  if (!found) fails.push('Category profile: no row references Board row 3');
+  else { console.log('\n  Category profile =\n    ' + found); expect('Category profile', found, want); }
+}
+
 console.log('\n=== named ranges the formulas depend on ===');
 ['Q','MIN_GP','GP_DIVISOR','TIER_MULT','PUNT_WEIGHT','MULT_PTS','MULT_STL','MEAN_TO','SD_TO',
- 'POOL_FG_PCT','POOL_AVG_FGA','SD_FG_IMPACT','SD_FG_RATE','REPLACEMENT','TRACK_FG_BAND',
+ 'POOL_FG_PCT','POOL_AVG_FGA','SD_FG_IMPACT','SD_FG_RATE','REPLACEMENT','TRACK_FG_BAND','CAT_BAND',
  'B_POOL','B_GTOT','B_ADJ','B_ADJRANK','B_GFT','REPL_PFT']
  .forEach(n => { const r = seen.namedRanges[n];
    console.log(`  ${n.padEnd(14)} -> ${r.sheet.name}!${L(r.col)}${r.row}${r.nr>1?':'+L(r.col+r.nc-1)+(r.row+r.nr-1):''}`); });
@@ -295,6 +337,7 @@ expect('POOL_FG_PCT lbl',  labelFor('POOL_FG_PCT'),'Aggregate FG%');
 expect('PUNT_WEIGHT lbl',  labelFor('PUNT_WEIGHT'), 'Punt weight');
 expect('SD_FG_RATE lbl',   labelFor('SD_FG_RATE'),  'SD of FG% rate');
 expect('TRACK_FG_BAND lbl',labelFor('TRACK_FG_BAND'),'FG% band');
+expect('CAT_BAND label',   labelFor('CAT_BAND'),      'Category band');
 // Each build's replacement cell must sit beside that build's own label.
 PUNTS.forEach(p => expect(`${p.label} repl label`, labelFor(replName(p.key)), p.label));
 

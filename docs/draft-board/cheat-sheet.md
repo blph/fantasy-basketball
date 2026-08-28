@@ -11,10 +11,10 @@ Built from docs/references/fantasy-basketball-draft-playbook.md. Every number is
 
 | | |
 |---|---|
-| **Draft Board** | The tab you use on the clock. Sorted by Adjusted Value. Tick Gone as players come off the board, Mine for your own picks. |
+| **Draft Board** | The tab you use on the clock. Sorted by Adjusted Value. Tick Gone as players come off the board, Mine for your own picks. Best build and Category profile are the two columns that tell you what a player is FOR rather than what he is worth. |
 | **Board** | The audit. One row per player, every intermediate number visible. Collapse the z and g blocks with the +/− above the columns. |
 | **Punts** | Nine builds, each showing who it gets at a discount. Homework before draft day, not reading material during it. |
-| **Category Tracker** | Fills itself from the Mine checkboxes. |
+| **Category Tracker** | Fills itself from the Mine checkboxes. Ticking Punted here also strips that category out of the Draft Board's Category profile column. |
 | **Settings** | Every constant. Change one and the whole board recalculates. |
 
 ## THE TWO THINGS THAT ARE NOT AUTOMATIC
@@ -115,6 +115,14 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 | **Notes** | `(typed in)` | Yours. Survives a re-sort attached to the player, not the row. Wiped by a full rebuild, so copy the column out first if it holds anything you want. |
 | **Best build** | `=the punt column that ranks him highest, and by how much` | A shortcut. Reads "AST+STL +21", meaning a punt assists-and-steals build rates him 21 places higher than the standard board does. A dash means no build helps him — he is simply good everywhere. |
 
+### STEP 8 — NAME WHAT HE IS GOOD AT  (Category profile)
+
+| | Formula | What it means |
+|---|---|---|
+| **Category profile** | `=every category where z ≥ Category band, then every category where z ≤ −Category band` | What the player actually does, in the nine categories. Reads "▲ FG%, REB, BLK  ▼ FT%, 3PM" — strong at the first three, weak at the last two. A dash means no category is more than a standard deviation either way: he is even everywhere, which for a high pick is a compliment and for a late one means he does nothing in particular. ▲ TO means FEW turnovers, not many — the z TO column is already flipped so that better is higher, and it stays flipped here. This is a description, not a second valuation: ADJUSTED VALUE has already priced him and this only says what for. That is also why it is built on z and not on g. The g multipliers discount a category by how noisy it is week to week, which answers "how much is this edge worth" — a question ADJUSTED VALUE has answered already. Asking it twice costs you the categories you most often need to shop for: on the g scale steals are worth 0.59, so only nine players in the whole pool clear the bar and the column goes quiet on steals exactly when the tracker tells you that you need some. On z at 1.00 every one of the nine categories names between twenty and twenty-seven specialists, and nine players in ten get at least one label. |
+| **Category band** | `=1.00 standard deviation, on Settings` | How far from the pool average counts as strong or weak. One number covers all nine categories, which the three tracker bands below could not do — but those compare raw units, a percentage against a per-game count, while a z-score has already been divided by its own category's spread. Dividing by the spread IS the per-category calibration. One SD above the average ROSTERED player is the industry reading of a strong contributor; note the reference is the 156 players in the pool, not everyone in the league, which makes it a stricter bar than the same number quoted elsewhere. Drop it to 0.75 and the lists roughly double in length. One thing it cannot see: blocks are floored at zero and skewed, so nobody sits a full SD BELOW the block average and the ▼ BLK warning almost never fires. The ▲ side still tells you who fixes it. |
+| **Punted categories** | `(from the Category Tracker)` | A category you have ticked Punted on the tracker disappears from this column on every row, both sides. Once you have conceded free throws you do not need to be told which centres are bad at them, and you do not want a punt build's own targets flagged as damaged goods. Untick it and all 200 rows come back. |
+
 ### THE CATEGORY TRACKER
 
 | | Formula | What it means |
@@ -137,6 +145,6 @@ Read top to bottom and it walks one player from his raw stat line all the way to
 | **Blank GAP** | Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely. |
 | **ADP source** | Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as "cheap somewhere", not "cheap in my league". |
 | **Scoring format** | Head-to-Head Categories: all nine categories are settled separately every week, so a week ends 6-3. That is Yahoo's name for it; ESPN calls the same thing Each Category. It is not the format where the week resolves to a single win, which Yahoo calls One Win. The difference decides how hard to punt — conceding a category here costs a loss every single week, so soft-punt at most and stay broad. |
-| **Left @pos** | How many players still un-Gone in his tier could fill a slot he is eligible for — any of them, not just his first-listed position, so a PF/C is measured against both. The scarcity tiebreak: between two players you rate the same, take the one whose slots are running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left. |
+| **Left @pos** | How many players still un-Gone in his tier could fill a slot he is eligible for — any of them, not just his first-listed position, so a PF/C is measured against both. The scarcity tiebreak: between two players you rate the same, take the one whose slots are running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left. This is the ONE column that needs the Gone boxes ticked for players other managers took. Track only your own and it quietly stops moving: it becomes the size of his tier at his position, the same all draft, and it will look like it is working. |
 | **Punt weight** | What a punted category still counts for, on Settings. Ships at 0.25. Set it to 0 for a hard punt, which is what this board did before and what most public tools still do. |
 | **G-score multipliers** | From Rosenof (arXiv 2307.02188, Table 8), computed on the 2022-23 season. The ordering is solid and the steals discount is robust; the second decimal is not, least of all on FG% and FT%. |
