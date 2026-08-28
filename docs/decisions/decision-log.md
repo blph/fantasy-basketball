@@ -19,11 +19,13 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0009](ADR-0009-soft-punt-weighting.md) | Punted categories keep a fraction of their weight, not zero | Accepted | 2026-08-27 | Bryan | |
 | [ADR-0010](ADR-0010-punt-build-set.md) | Which punt builds the board ships | Accepted | 2026-08-27 | Bryan | |
 | [ADR-0011](ADR-0011-min-gp-pool-gate.md) | Pool membership also requires a minimum projected games played | Accepted | 2026-08-27 | Bryan | |
+| [ADR-0012](ADR-0012-tier-multiplier-and-percentage-denominator.md) | Tier multiplier of 2.0, and closing the percentage-denominator question | Accepted | 2026-08-28 | Bryan | |
 
 ## Decisions expected next
 
 Known open questions that will each need a record once resolved. Listed here so they are not lost, not because they are decided.
 
+- **A second projection source.** One provider means no consensus dispersion, so "everyone agrees he is 40th" and "opinions range 22nd to 71st" look identical. Named as a known negative in ADR-0007 and unaddressed.
 - **ESPN↔Yahoo player-ID join strategy.** No shared identifier exists between them. Crosswalk table or normalized name-and-team matching. Highest-risk piece of the design; decide in Phase 2.
 - **AI digest generation approach.** Model, prompt structure, and how digests are delivered.
 - **Draft Assistant interaction model.** Live draft-day input: manual entry, import, or Yahoo sync.

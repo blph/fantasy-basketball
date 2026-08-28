@@ -272,7 +272,7 @@ Three things the converter reconciles, each of which is a wrong file if skipped:
 |---|---|
 | **Team codes** | The provider's, not Yahoo's. Four differ: `GS→GSW`, `NO→NOP`, `NY→NYK`, `SA→SAS`. An unrecognised code is an error, not a pass-through. |
 | **Position** | `Pos` holds comma-separated multi-eligibility (`SG,SF,PF`), which collides with the CSV delimiter. Only the primary position is written. |
-| **Depth** | Stops at 156 — teams × roster spots. Below replacement, Adjusted Value **inverts**: VOR goes negative, and scaling a negative by `GP/72 < 1` moves it toward zero, i.e. *up*. Ranks 1–156 are unaffected, but the tail is ordered by fragility rather than value. `--limit` overrides it if you want the tail anyway. |
+| **Depth** | Stops at 156 — teams × roster spots, the players who actually get drafted. Below that the ordering is real but the rankings are noise you would be importing into Yahoo for no reason. (This row used to say Adjusted Value *inverts* below replacement and that the tail was ordered by fragility. That was true and is not any more: the scaling is switched off where VOR is negative, so availability can only ever discount. The cap is a judgment about usefulness now, not a workaround.) `--limit` overrides it. |
 
 Rank is renumbered from row order rather than copied from column `A`. Row order
 *is* the Adjusted Value order, so re-deriving it means a blank or an `#N/A` in

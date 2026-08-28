@@ -161,7 +161,18 @@ z_FG%   = impact / STDEV(impact across pool)
 
 Use aggregate pool FG% (total makes divided by total attempts), not the average of everyone's percentage. Repeat for FT% using FTA. Using the aggregate is what makes the impact column sum to exactly zero across the pool, which is why dividing by its standard deviation gives a proper z-score with no mean to subtract.
 
-**An open question on that denominator.** Rosenof's Table 5(b) defines its sigma over the spread of players' raw success *rates*, not over the volume-weighted impact column this document divides by. The two differ by a per-category constant, and the difference is larger for FT% than FG% because free-throw attempts are more dispersed. Which he intends is unresolved, so the Settings tab prints both and their ratio and the board changes nothing until someone reads them. Do not attribute this exact formula to him; section 12E now carries it.
+**On that denominator — settled, and worth writing down.** Rosenof's Table 5(b) defines its sigma over the spread of players' raw success *rates*, not the volume-weighted impact column this document divides by. Which he intends is genuinely ambiguous in the paper, so rather than argue it we measured both. From the live pool:
+
+| | SD of impact | SD of rate | ratio |
+|---|---|---|---|
+| FG% | 0.0489 | 0.0619 | 0.789 |
+| FT% | 0.0857 | 0.0813 | 1.054 |
+
+Note the ratios sit on opposite sides of 1, which rules out the tidy story that impact SD is uniformly the larger of the two.
+
+Scoring all 200 players both ways: 24 move ten or more places, 3 move twenty or more, the mean absolute move is 4.5 places, and **only four of the ten-plus moves touch the top 50**. So the choice is real but nearly free where it matters.
+
+We keep the impact SD, for the reason in section 12E: if a team's category outcome is the mean of its members' impacts, dividing by the SD of impact puts the percentages on the same "share of a team standard deviation" footing the counting categories get. The Settings tab still prints both and their ratio, so the numbers stay visible if the pool ever shifts enough to change the answer. Recorded in [ADR-0012](../decisions/ADR-0012-tier-multiplier-and-percentage-denominator.md). Do not attribute the formula itself to Rosenof; section 12E carries it.
 
 ### Step 5: Sum all nine
 
@@ -788,7 +799,7 @@ You asked specifically about this, so here it is plainly. The following are my s
 | The GP estimation procedure (weighted 3-year, 70/30 regression, age adjustment) | Section 6a | Mine, informed by the injury literature but not a published method |
 | The spreadsheet column schema | Section 6 | Mine |
 | "The later you switch, the more you waste" | Section 6b | Mine. Previously stated as a hard "not after round 7", which read as sourced and was not. The instinct holds; the round number was invented, and published guides are more relaxed about mid-draft pivots than it implied |
-| Dividing the percentage impact by the SD of the impact column | Section 4 | Mine, or at least not Rosenof's. His Table 5(b) defines that sigma over the raw rate. My derivation favours the impact SD — if a team's category outcome is the mean of its members' impacts, dividing by SD(impact) puts the percentages on the same "share of a team standard deviation" footing the counting categories get — but that reasoning is mine and the question is open |
+| Dividing the percentage impact by the SD of the impact column | Section 4 | Mine, or at least not Rosenof's — his Table 5(b) defines that sigma over the raw rate. The reasoning is that if a team's category outcome is the mean of its members' impacts, dividing by SD(impact) puts the percentages on the same "share of a team standard deviation" footing the counting categories get. Settled in ADR-0012 after measuring the alternative: it moves the mean player 4.5 places and touches the top 50 four times |
 | The punt weight of 0.25 | Section 6b, ADR-0009 | Mine. Rosenof's soft-punting finding gives the direction; the specific retention is a tuning choice, and his ~75% figure does not transfer to a static board unmodified |
 | The rate bands on the Category Tracker (0.005 FG%, 0.010 FT%) | Category Tracker | Mine, and explicitly uncalibrated. Starting guesses pending a season of real standings |
 

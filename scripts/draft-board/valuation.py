@@ -110,6 +110,18 @@ def build_pool(players: list[Player], q: int, min_gp: float) -> Pool:
     )
     pool.sd_fg_impact = st.stdev([fg_impact(p, pool) for p in members])
     pool.sd_ft_impact = st.stdev([ft_impact(p, pool) for p in members])
+
+    # Standardising divides by each category's spread, so a zero anywhere is
+    # fatal. Say which category and why, rather than dividing by it and raising
+    # ZeroDivisionError three frames deeper with no clue which one it was.
+    flat = [c for c in COUNTING if sd[c] == 0]
+    flat += [n for n, v in (("FG% impact", pool.sd_fg_impact),
+                            ("FT% impact", pool.sd_ft_impact)) if v == 0]
+    if flat:
+        raise ValueError(
+            f"zero spread across {len(members)} pool members in: {', '.join(flat)}. "
+            "Every member is identical there, so it cannot be standardised"
+        )
     return pool
 
 
@@ -158,6 +170,47 @@ def punt_total(p: Player, pool: Pool, drop: list[str], punt_weight: float) -> fl
     """
     g = g_scores(p, pool)
     return sum(v * (punt_weight if c in drop else 1.0) for c, v in g.items())
+
+
+def converge_pool(
+    players: list[Player],
+    q: int,
+    min_gp: float,
+    gp_divisor: float = 72.0,
+    max_passes: int = 10,
+) -> tuple[Pool, int]:
+    """Iterate the pool until membership stops changing.
+
+    The pool is "the top Q by value", but you need values to know who those are.
+    Seeding from the provider's rank breaks the circle for one pass; re-seeding
+    from the resulting ranks and repeating closes it. The sheet does this as a
+    menu action (`reseedPool`), one pass per invocation.
+
+    Returns the settled pool and the number of passes it took. Raises if it does
+    not settle -- a pool that oscillates is a real finding, not something to
+    paper over with a pass limit.
+    """
+    seeds = {p.name: p.seed for p in players}
+    previous: set[str] | None = None
+
+    for pass_no in range(1, max_passes + 1):
+        for p in players:
+            p.seed = seeds[p.name]
+        pool = build_pool(players, q, min_gp)
+        members = {p.name for p in pool.members}
+        if members == previous:
+            return pool, pass_no
+        previous = members
+
+        # Re-seed from this pass's adjusted ranks, exactly as the sheet does.
+        repl = replacement(players, pool, q)
+        ranked = sorted(
+            players,
+            key=lambda p: -adjusted_value(g_total(p, pool) - repl, p.gp, gp_divisor),
+        )
+        seeds = {p.name: i + 1 for i, p in enumerate(ranked)}
+
+    raise ValueError(f"pool did not settle in {max_passes} passes")
 
 
 def adjusted_value(vor: float, my_gp: float, gp_divisor: float) -> float:

@@ -31,6 +31,7 @@ from valuation import (  # noqa: E402
     Player,
     adjusted_value,
     build_pool,
+    converge_pool,
     g_total,
     punt_total,
     replacement,
@@ -78,6 +79,8 @@ def main() -> int:
     ap.add_argument("--data", default=str(Path(__file__).parent / "Data.gs"))
     ap.add_argument("--sheet", help="JSON of the sheet's Settings values, to diff against")
     ap.add_argument("--punt-weight", type=float, default=DEFAULTS["punt_weight"])
+    ap.add_argument("--no-converge", action="store_true",
+                    help="single pass from the provider seed, without iterating the pool")
     args = ap.parse_args()
 
     path = Path(args.data)
@@ -88,9 +91,18 @@ def main() -> int:
 
     players = load_players(path)
     q = DEFAULTS["teams"] * DEFAULTS["roster"]
-    pool = build_pool(players, q, DEFAULTS["min_gp"])
+
+    # The sheet's numbers come from a converged pool -- `Re-seed pool from
+    # current ranks` run until the membership stops moving. Comparing against a
+    # single pass would report a disagreement that is not one.
+    if args.no_converge:
+        pool, passes = build_pool(players, q, DEFAULTS["min_gp"]), 1
+    else:
+        pool, passes = converge_pool(players, q, DEFAULTS["min_gp"], DEFAULTS["gp_divisor"])
 
     print(f"players parsed      {len(players)}")
+    print(f"pool passes         {passes}"
+          + ("  (single pass, --no-converge)" if args.no_converge else "  (settled)"))
     print(f"pool size (Q)       {q}  ({DEFAULTS['teams']} teams x {DEFAULTS['roster']} spots)")
     print(f"players in pool     {len(pool.members)}")
     shortfall = q - len(pool.members)

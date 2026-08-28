@@ -1,0 +1,41 @@
+# Lint, tests, and the draft-board dry run.
+#
+# The data guard lives in its own workflow because it is a policy gate, not a
+# quality one: it must pass on every push regardless of whether the code works.
+# These are the checks that say the code is right.
+name: checks
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Test
+        run: pytest -q
+
+  draft-board:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # Data.gs is gitignored, so the harness synthesises its own 200 players.
+      # It asserts every generated formula against the column map, which is the
+      # check that catches a column insertion repointing a formula at the wrong
+      # data -- silently, because the sheet would still compute.
+      - name: Dry-run the board build
+        run: node harness.js
+        working-directory: scripts/draft-board

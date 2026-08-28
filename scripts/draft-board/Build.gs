@@ -547,51 +547,60 @@ function writeBoardFormulas(sh) {
     var r = R0 + i;
     var row = {};
 
+    // Every reference below is derived from the B map. Written as literal
+    // letters they drift the moment a column is inserted, and drift silently:
+    // the formula still computes, against the wrong data. That has bitten this
+    // file twice.
+    function bc(col) { return '$' + a1col(col) + r; }
+
     // Pool membership. Seed rank breaks the circularity (see README); MIN_GP
     // keeps a small-sample line from distorting the means and SDs.
-    row[B.inPool] = '=IF(AND($A' + r + '<=Q,$F' + r + '>=MIN_GP),1,0)';
+    row[B.inPool] = '=IF(AND(' + bc(B.seed) + '<=Q,' + bc(B.gp) + '>=MIN_GP),1,0)';
 
     // Percentages are volume-weighted. A bare rate is silently wrong.
-    row[B.ifg] = '=($I' + r + '/POOL_AVG_FGA)*($J' + r + '-POOL_FG_PCT)';
-    row[B.ift] = '=($L' + r + '/POOL_AVG_FTA)*($M' + r + '-POOL_FT_PCT)';
+    row[B.ifg] = '=(' + bc(B.fga) + '/POOL_AVG_FGA)*(' + bc(B.fgp) + '-POOL_FG_PCT)';
+    row[B.ift] = '=(' + bc(B.fta) + '/POOL_AVG_FTA)*(' + bc(B.ftp) + '-POOL_FT_PCT)';
 
-    row[B.zfg]  = '=$U' + r + '/SD_FG_IMPACT';
-    row[B.zft]  = '=$V' + r + '/SD_FT_IMPACT';
-    row[B.z3]   = '=($N' + r + '-MEAN_3PM)/SD_3PM';
-    row[B.zpts] = '=($O' + r + '-MEAN_PTS)/SD_PTS';
-    row[B.zreb] = '=($P' + r + '-MEAN_REB)/SD_REB';
-    row[B.zast] = '=($Q' + r + '-MEAN_AST)/SD_AST';
-    row[B.zstl] = '=($R' + r + '-MEAN_STL)/SD_STL';
-    row[B.zblk] = '=($S' + r + '-MEAN_BLK)/SD_BLK';
-    row[B.zto]  = '=(MEAN_TO-$T' + r + ')/SD_TO';   // flipped: fewer is better
-    row[B.ztot] = '=SUM($W' + r + ':$AE' + r + ')';
+    row[B.zfg] = '=' + bc(B.ifg) + '/SD_FG_IMPACT';
+    row[B.zft] = '=' + bc(B.ift) + '/SD_FT_IMPACT';
+    var zmap = [[B.z3, B.tpm, 'MEAN_3PM', 'SD_3PM'], [B.zpts, B.pts, 'MEAN_PTS', 'SD_PTS'],
+                [B.zreb, B.reb, 'MEAN_REB', 'SD_REB'], [B.zast, B.ast, 'MEAN_AST', 'SD_AST'],
+                [B.zstl, B.stl, 'MEAN_STL', 'SD_STL'], [B.zblk, B.blk, 'MEAN_BLK', 'SD_BLK']];
+    for (var z = 0; z < zmap.length; z++) {
+      row[zmap[z][0]] = '=(' + bc(zmap[z][1]) + '-' + zmap[z][2] + ')/' + zmap[z][3];
+    }
+    // Turnovers count against, so that one subtraction runs the other way.
+    row[B.zto]  = '=(MEAN_TO-' + bc(B.to) + ')/SD_TO';
+    row[B.ztot] = '=SUM(' + bc(B.zfg) + ':' + bc(B.zto) + ')';
 
     // G-score = z discounted by how noisy the category is week to week.
-    var gmap = [[B.gfg, 'W', 'MULT_FG'], [B.gft, 'X', 'MULT_FT'], [B.g3, 'Y', 'MULT_3PM'],
-                [B.gpts, 'Z', 'MULT_PTS'], [B.greb, 'AA', 'MULT_REB'], [B.gast, 'AB', 'MULT_AST'],
-                [B.gstl, 'AC', 'MULT_STL'], [B.gblk, 'AD', 'MULT_BLK'], [B.gto, 'AE', 'MULT_TO']];
+    var gmap = [[B.gfg, B.zfg, 'MULT_FG'], [B.gft, B.zft, 'MULT_FT'], [B.g3, B.z3, 'MULT_3PM'],
+                [B.gpts, B.zpts, 'MULT_PTS'], [B.greb, B.zreb, 'MULT_REB'],
+                [B.gast, B.zast, 'MULT_AST'], [B.gstl, B.zstl, 'MULT_STL'],
+                [B.gblk, B.zblk, 'MULT_BLK'], [B.gto, B.zto, 'MULT_TO']];
     for (var g = 0; g < gmap.length; g++) {
-      row[gmap[g][0]] = '=$' + gmap[g][1] + r + '*' + gmap[g][2];
+      row[gmap[g][0]] = '=' + bc(gmap[g][1]) + '*' + gmap[g][2];
     }
-    row[B.gtot] = '=SUM($AG' + r + ':$AO' + r + ')';
+    row[B.gtot] = '=SUM(' + bc(B.gfg) + ':' + bc(B.gto) + ')';
 
-    row[B.vor] = '=$AP' + r + '-REPLACEMENT';
-    row[B.vorRank] = '=RANK($AQ' + r + ',B_VOR)';
+    row[B.vor] = '=' + bc(B.gtot) + '-REPLACEMENT';
+    row[B.vorRank] = '=RANK(' + bc(B.vor) + ',B_VOR)';
 
     // Seeded from the projection, then hand-edited. Section 6a.
-    row[B.myGp] = '=$F' + r;
-    row[B.gpCheck] = '=IF($AV' + r + '="","",IF(ABS($F' + r + '-$AV' + r + ')>10,"CHECK",""))';
+    row[B.myGp] = '=' + bc(B.gp);
+    row[B.gpCheck] = '=IF(' + bc(B.myGp) + '="","",IF(ABS(' + bc(B.gp) + '-' + bc(B.myGp) +
+                     ')>10,"CHECK",""))';
     // Scales VOR, never the G-score: a negative score times a fraction rises.
     // Availability may only ever discount. Below replacement VOR is negative,
     // and a negative times GP/72 moves TOWARD zero — i.e. up the board — which
     // would rank the less available of two equal players higher. The board
     // carries 200 rows against a pool of 156, so those rows exist.
-    row[B.adj] = '=IF($AV' + r + '="","",LET(v,$AQ' + r +
-                 ',v*IF(v<0,1,$AV' + r + '/GP_DIVISOR)))';
-    row[B.adjRank] = '=RANK($AX' + r + ',B_ADJ)';
+    row[B.adj] = '=IF(' + bc(B.myGp) + '="","",LET(v,' + bc(B.vor) +
+                 ',v*IF(v<0,1,' + bc(B.myGp) + '/GP_DIVISOR)))';
+    row[B.adjRank] = '=RANK(' + bc(B.adj) + ',B_ADJ)';
 
     // Blank ADP means no market read. Zero would read as "fairly priced".
-    row[B.gap] = '=IF($AZ' + r + '="","",$AZ' + r + '-$AY' + r + ')';
+    row[B.gap] = '=IF(' + bc(B.adp) + '="","",' + bc(B.adp) + '-' + bc(B.adjRank) + ')';
 
     // A punt column is the same quantity as ADJUSTED VALUE, computed inside the
     // build: value over that build's own replacement level, then discounted for
@@ -601,8 +610,8 @@ function writeBoardFormulas(sh) {
     // by who misses games.
     for (var q = 0; q < PUNTS.length; q++) {
       row[B[PUNTS[q].key]] =
-        '=IF($AV' + r + '="","",LET(v,' + puntScoreExpr(PUNTS[q], r) + '-' +
-        replName(PUNTS[q].key) + ',v*IF(v<0,1,$AV' + r + '/GP_DIVISOR)))';
+        '=IF(' + bc(B.myGp) + '="","",LET(v,' + puntScoreExpr(PUNTS[q], r) + '-' +
+        replName(PUNTS[q].key) + ',v*IF(v<0,1,' + bc(B.myGp) + '/GP_DIVISOR)))';
       var pc = a1col(B[PUNTS[q].key]);
       row[B[PUNTS[q].rank]] = '=RANK($' + pc + r + ',$' + pc + '$' + R0 + ':$' + pc + '$' + RN + ')';
     }
@@ -642,7 +651,7 @@ function writeSettingsSkeleton(sh) {
     ['Pool size (Q)', '=B4*B5'],
     ['GP divisor', 72],
     ['Min GP for pool', 25],
-    ['Tier multiplier', 4],
+    ['Tier multiplier', 2],
     ['Scoring format', 'Head-to-Head Categories'],
     ['Punt weight', 0.25]
   ];
@@ -1090,17 +1099,21 @@ function buildDraftTab(ss, sh, board) {
     if (i === 0) {
       row[D.drop] = ''; row[D.med] = ''; row[D.brk] = ''; row[D.tier] = 1;
     } else {
-      row[D.drop] = '=$F' + (r - 1) + '-$F' + r;
+      var dA = '$' + a1col(D.adj), dI = '$' + a1col(D.drop);
+      var dJ = '$' + a1col(D.med), dK = '$' + a1col(D.brk), dB = '$' + a1col(D.tier);
+      row[D.drop] = '=' + dA + (r - 1) + '-' + dA + r;
       // Fifteen drops centred here, clamped at both ends of the board.
       // INDEX(range,k) resolves to sheet row k+HDR, so these offsets give rows
       // r-7 through r+7. They were r-9 to r+5, which skewed the window up the
       // board where drops are larger, inflating the median and firing breaks
       // late — exactly where the curve steepens and a tier matters most.
       var back = 'ROW()-' + (HDR + 7), fwd = 'ROW()+' + (7 - HDR);
-      row[D.med]  = '=MEDIAN(INDEX($I$' + R0 + ':$I$' + RN + ',MAX(1,' + back + '))' +
-                    ':INDEX($I$' + R0 + ':$I$' + RN + ',MIN(' + POOL_ROWS + ',' + fwd + ')))';
-      row[D.brk]  = '=IF(N($J' + r + ')<=0,"",IF($I' + r + '>TIER_MULT*$J' + r + ',"BREAK",""))';
-      row[D.tier] = '=IF($K' + r + '="BREAK",$B' + (r - 1) + '+1,$B' + (r - 1) + ')';
+      var dropRange = dI + '$' + R0 + ':' + dI + '$' + RN;
+      row[D.med]  = '=MEDIAN(INDEX(' + dropRange + ',MAX(1,' + back + '))' +
+                    ':INDEX(' + dropRange + ',MIN(' + POOL_ROWS + ',' + fwd + ')))';
+      row[D.brk]  = '=IF(N(' + dJ + r + ')<=0,"",IF(' + dI + r +
+                    '>TIER_MULT*' + dJ + r + ',"BREAK",""))';
+      row[D.tier] = '=IF(' + dK + r + '="BREAK",' + dB + (r - 1) + '+1,' + dB + (r - 1) + ')';
     }
 
     var pr = 'Board!$' + a1col(B.rFt) + '$' + n + ':$' + a1col(B.rTriple) + '$' + n;
@@ -1119,11 +1132,15 @@ function buildDraftTab(ss, sh, board) {
     // mistake); this only counts what is left, which is a different question.
     // Yahoo locks lineups daily here, which is the condition that makes
     // eligibility actually pay.
+    // How many players still competing for a slot THIS player can fill. Both
+    // sides have to be multi-eligible: a PF,C candidate counts toward centres,
+    // and a PF,C subject has his centre scarcity measured too. Matching only the
+    // subject's first-listed position answered a narrower question than the one
+    // the column is for — turning his own eligibility into a single slot.
     var tC = a1col(D.tier), pC = a1col(D.pos), gC = a1col(D.drafted);
     function dcol(c) { return '$' + c + '$' + R0 + ':$' + c + '$' + RN; }
-    row[D.posLeft] = '=IF($' + tC + r + '="","",COUNTIFS(' + dcol(tC) + ',$' + tC + r +
-      ',' + dcol(pC) + ',"*"&INDEX(SPLIT($' + pC + r + ',","),1)&"*"' +
-      ',' + dcol(gC) + ',FALSE))';
+    row[D.posLeft] = '=IF($' + tC + r + '="","",SUMPRODUCT((' + dcol(tC) + '=$' + tC + r + ')*(' +
+      dcol(gC) + '=FALSE)*REGEXMATCH(' + dcol(pC) + ',SUBSTITUTE($' + pC + r + ',",","|"))))';
 
     row[D.hFgm] = ref(B.fgm); row[D.hFga] = ref(B.fga);
     row[D.hFtm] = ref(B.ftm); row[D.hFta] = ref(B.fta);
@@ -1166,9 +1183,15 @@ function readCheckState(sh) {
     if (sh.getLastRow() < R0) return state;
     var n = Math.min(POOL_ROWS, sh.getLastRow() - HDR);
     var names = sh.getRange(R0, D.player, n, 1).getValues();
-    var flags = sh.getRange(R0, D.drafted, n, 2).getValues();
+    // Notes sits beside the two checkboxes and is captured with them. A re-sort
+    // moves every player's row; without this the note stays put and ends up
+    // beside whoever landed on that row instead.
+    var span = D.notes - D.drafted + 1;
+    var flags = sh.getRange(R0, D.drafted, n, span).getValues();
     for (var i = 0; i < n; i++) {
-      if (names[i][0]) state[names[i][0]] = [flags[i][0] === true, flags[i][1] === true];
+      if (names[i][0]) {
+        state[names[i][0]] = [flags[i][0] === true, flags[i][1] === true, flags[i][2] || ''];
+      }
     }
   } catch (e) { /* first build */ }
   return state;
@@ -1178,10 +1201,10 @@ function restoreCheckState(sh, names, prior) {
   var out = [], any = false;
   for (var i = 0; i < names.length; i++) {
     var p = prior[names[i]];
-    if (p && (p[0] || p[1])) any = true;
-    out.push(p || [false, false]);
+    if (p && (p[0] || p[1] || p[2])) any = true;
+    out.push(p || [false, false, '']);
   }
-  if (any) sh.getRange(R0, D.drafted, out.length, 2).setValues(out);
+  if (any) sh.getRange(R0, D.drafted, out.length, D.notes - D.drafted + 1).setValues(out);
 }
 
 /**
@@ -1622,8 +1645,9 @@ var README_ROWS = [
   ['THINGS WORTH KNOWING', '', ''],
   ['Steals', '', 'Worth about half what the raw z-score claims. The week-to-week noise swamps the edge.'],
   ['Games played', '', 'The most under-priced variable on the board. Kept in its own column on purpose — never folded into the projection, so you can see talent and availability separately.'],
+  ['MPG', '', 'Carried for context and deliberately not valued. Minutes are the best single predictor of production, which is exactly why folding them in would double-count: a per-game projection already is the minutes. Use the column to sanity-check a line that looks wrong — big counting stats on small minutes is usually a projection worth overriding, not a bargain.'],
   ['Tier 1', '', 'Written as a literal rather than computed. The fifteen-row window is truncated at the very top of the board, so the formula has nothing useful to say there.'],
-  ['Tier multiplier', '', 'Ships at 4.0, which gives 14 tiers. The playbook suggests 2 as a starting point; on this data that produces 46, which is useless. Worth re-checking now the window is genuinely centred — it used to lean nine rows up the board and five down, which inflated the median and made breaks fire late. Tune it on Settings.'],
+  ['Tier multiplier', '', 'Ships at 2.0, the playbook\'s own suggestion. It shipped at 4.0 for a while, chosen to hit a target number of tiers — which turned out to be the wrong thing to measure. What matters is the size of a tier where you are actually picking, and at 4.0 one tier ran from pick 25 to pick 70: forty-six players the board called interchangeable, across rounds three to six. At 2.0 the worst tier in the top 100 is twelve. The total count is higher and that is fine; a tier you cannot act on is not worth counting. Tune it on Settings.'],
   ['Blank GAP', '', 'Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely.'],
   ['ADP source', '', "Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as \"cheap somewhere\", not \"cheap in my league\"."],
   ['Scoring format', '', 'Head-to-Head Categories: all nine categories are settled separately every week, so a week ends 6-3. That is Yahoo\'s name for it; ESPN calls the same thing Each Category. It is not the format where the week resolves to a single win, which Yahoo calls One Win. The difference decides how hard to punt — conceding a category here costs a loss every single week, so soft-punt at most and stay broad.'],

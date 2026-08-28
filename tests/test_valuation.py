@@ -11,6 +11,7 @@ from valuation import (
     Player,
     adjusted_value,
     build_pool,
+    converge_pool,
     fg_impact,
     g_scores,
     g_total,
@@ -208,9 +209,89 @@ class TestPunts:
         assert got == pytest.approx(g_total(p, pool) - g["fg"] - g["ft"] - g["to"])
 
 
+class TestConvergence:
+    """The pool is "the top Q by value", which needs values to know who they are.
+
+    Seeding from the provider's rank breaks that circle for one pass; re-seeding
+    from the result and repeating closes it.
+    """
+
+    def _mixed(self):
+        """Eight players whose provider rank disagrees with their actual value.
+
+        The seed order is deliberately wrong so the first pass picks a different
+        four than the settled answer does.
+        """
+        specs = [
+            (1, "Rui Castellan", dict(pts=6.0, reb=2.0, ast=1.0, tpm=0.4, stl=0.3,
+                                      blk=0.1, to=0.8, fgm=2.0, fga=6.0, ftm=1.0, fta=1.6)),
+            (2, "Sami Delacroix", dict(pts=7.0, reb=2.5, ast=1.5, tpm=0.9, stl=0.5,
+                                       blk=0.2, to=1.1, fgm=3.0, fga=7.0, ftm=1.4, fta=2.0)),
+            (3, "Tomas Belghazi", dict(pts=8.0, reb=3.0, ast=2.0, tpm=1.3, stl=0.6,
+                                       blk=0.4, to=1.4, fgm=3.5, fga=9.0, ftm=1.8, fta=2.9)),
+            (4, "Ute Fairbairn", dict(pts=9.0, reb=3.5, ast=2.5, tpm=1.7, stl=0.8,
+                                      blk=0.6, to=1.7, fgm=4.0, fga=8.0, ftm=2.2, fta=2.6)),
+            (5, "Vero Anand", dict(pts=26.0, reb=11.0, ast=8.0, tpm=3.1, stl=1.7,
+                                   blk=1.4, to=3.6, fgm=10.0, fga=18.0, ftm=5.5, fta=6.2)),
+            (6, "Wen Oyelaran", dict(pts=24.0, reb=10.0, ast=7.0, tpm=2.8, stl=1.5,
+                                     blk=1.1, to=3.2, fgm=9.0, fga=17.0, ftm=4.8, fta=7.1)),
+            (7, "Xan Petrosyan", dict(pts=22.0, reb=9.5, ast=6.5, tpm=2.4, stl=1.3,
+                                      blk=0.9, to=2.9, fgm=8.5, fga=16.0, ftm=4.0, fta=4.7)),
+            (8, "Yara Nakashima", dict(pts=21.0, reb=9.0, ast=6.0, tpm=2.1, stl=1.1,
+                                       blk=0.8, to=2.6, fgm=8.0, fga=15.0, ftm=3.6, fta=5.5)),
+        ]
+        return [make(seed, name, **kw) for seed, name, kw in specs]
+
+    def test_it_settles_and_reports_the_pass_count(self):
+        pool, passes = converge_pool(self._mixed(), 4, MIN_GP)
+        assert len(pool.members) == 4
+        assert passes >= 2  # a first pass, then at least one confirming it
+
+    def test_it_finds_the_actually_best_players(self):
+        """The four strongest end up in the pool despite being seeded last."""
+        pool, _ = converge_pool(self._mixed(), 4, MIN_GP)
+        assert {m.name for m in pool.members} == {
+            "Vero Anand", "Wen Oyelaran", "Xan Petrosyan", "Yara Nakashima"
+        }
+
+    def test_a_single_pass_gets_it_wrong(self):
+        """Why the loop exists: one pass just trusts the provider's ordering."""
+        players = self._mixed()
+        first = build_pool(players, 4, MIN_GP)
+        assert {m.name for m in first.members} != {
+            "Vero Anand", "Wen Oyelaran", "Xan Petrosyan", "Yara Nakashima"
+        }
+
+    def test_it_is_idempotent_once_settled(self):
+        """Running it again on a converged set changes nothing."""
+        players = self._mixed()
+        pool_a, _ = converge_pool(players, 4, MIN_GP)
+        pool_b, passes_b = converge_pool(players, 4, MIN_GP)
+        assert {m.name for m in pool_a.members} == {m.name for m in pool_b.members}
+        assert pool_a.fg_pct == pytest.approx(pool_b.fg_pct)
+        assert passes_b >= 2
+
+    def test_it_raises_rather_than_silently_capping(self):
+        """A pool that will not settle is a finding, not something to truncate."""
+        with pytest.raises(ValueError, match="did not settle"):
+            converge_pool(self._mixed(), 4, MIN_GP, max_passes=1)
+
+
+def test_a_pool_with_no_shooting_spread_says_so():
+    """The degenerate case fails with a sentence, not a ZeroDivisionError."""
+    flat = [make(i, f"Clone {i}") for i in range(1, 6)]
+    with pytest.raises(ValueError, match="zero spread"):
+        build_pool(flat, 4, MIN_GP)
+
+
 def test_min_gp_gate_excludes_from_the_pool():
     """A player below MIN_GP does not vote on what "average" means."""
-    players = [make(i, f"Player {i}") for i in range(1, 6)]
+    players = [
+        make(i, f"Player {i}", fgm=3.0 + i, fga=8.0 + i, ftm=1.0 + i * 0.4, fta=2.0 + i * 0.5,
+             pts=10.0 + i, reb=3.0 + i * 0.5, ast=2.0 + i * 0.3, tpm=1.0 + i * 0.2,
+             stl=0.5 + i * 0.1, blk=0.3 + i * 0.2, to=1.0 + i * 0.3)
+        for i in range(1, 6)
+    ]
     players.append(make(6, "Quin Alvarado", gp=10.0, pts=99.0))
     pool = build_pool(players, Q, MIN_GP)
     assert len(pool.members) == 5
