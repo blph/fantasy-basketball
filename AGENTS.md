@@ -56,6 +56,7 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - DO NOT value FG%/FT% as bare rates. They are volume-weighted; without makes and attempts the math is silently wrong. See [schema.md](docs/database/schema.md#marts).
 - DO NOT let availability raise a player's value. Scaling by games played must discount and never promote; below replacement the scaling is switched off, or the less available of two equal players sorts higher.
 - DO NOT hand-edit [docs/draft-board/cheat-sheet.md](docs/draft-board/cheat-sheet.md). It is generated from `README_ROWS` in `Build.gs` — edit there and regenerate.
+- DO NOT read from or write to the draft Google Sheet by any route except **Playwright**. Not the Sheets API, not a service account, not Drive's file-content reader. `playwright-cli` drives the owner's own signed-in Chrome profile, so it needs no sharing change and no extra credential, and it sees the sheet exactly as the owner does. The alternatives are worse in ways that fail quietly: the Sheets API cannot create named ranges, conditional formats, checkboxes or data validation, so it cannot build this board at all, and Drive's reader truncates the tab around rank 77 of 200 without saying so. Commands in [build-and-maintenance.md](docs/draft-board/build-and-maintenance.md).
 - DO NOT hardcode a spreadsheet column letter in `Build.gs`. Derive it from the `B` or `D` map via `a1col()`; the harness asserts this, because a shifted column repoints a formula at the wrong data and still computes.
 
 ## Architecture (non-obvious only)

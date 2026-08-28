@@ -779,7 +779,11 @@ function writeSettingsFormulas(sh) {
     for (var d = 0; d < PUNTS[pi].drop.length; d++) {
       e += '-(1-PUNT_WEIGHT)*B_' + PUNTS[pi].drop[d].toUpperCase();
     }
-    repl.push(['=LARGE(' + e + ',Q)']);
+    // ARRAYFORMULA is load-bearing. Without it Sheets does not array-evaluate an
+    // arithmetic expression passed as a function argument, so LARGE receives a
+    // single value, n=Q overflows it, and every build's replacement level comes
+    // back #NUM! — which then propagates into all nine punt columns.
+    repl.push(['=LARGE(ARRAYFORMULA(' + e + '),Q)']);
   }
   sh.getRange(47, 2, repl.length, 1).setFormulas(repl);
   sh.getRange(47, 2, repl.length, 1).setNumberFormat('0.0000');
