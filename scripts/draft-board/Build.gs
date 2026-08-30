@@ -471,10 +471,7 @@ function step1_Settings() {
   _guard('Settings', function () {
     var sh = sheetByName(ss, 'Settings', 10, 90);
     writeSettingsSkeleton(sh);
-    // Named ranges are (re)declared here, not only in the full build: a step
-    // that adds a Settings block referencing new columns is useless if the
-    // names those formulas need only appear on a rebuild.
-    defineNames(ss);
+    // defineNames is deliberately NOT called here. See step1d.
     writeSettingsFormulas(sh);
     formatSettings(sh);
   });
@@ -488,6 +485,48 @@ function step1b_FormatBoard() {
     sh.clearConditionalFormatRules();
     detachBandings(sh);
     formatBoard(ensureGrid(sh, B_LAST, RN));
+  });
+}
+
+/**
+ * Step 1d: redeclare the named ranges, then rewrite every formula that reads
+ * them -- the Board block and the Settings block together.
+ *
+ * THE HAZARD, and the reason this function exists at all.
+ *
+ * `defineNames` removes the names it owns before re-adding them. Removing a
+ * named range does not merely break the formulas that reference it: Sheets
+ * rewrites their TEXT to #REF!, permanently. Re-adding the name a millisecond
+ * later does not bring the formula back. So `defineNames` is only ever safe
+ * when every formula that reads a name is rewritten straight afterwards, which
+ * is exactly what the full build does and why it never shows this.
+ *
+ * Calling it from a step that rewrites only Settings turns the entire Board to
+ * #REF!. Calling it from a step that rewrites only the Board does the same to
+ * Settings. That is why this step does both, and why `step1_Settings` does not
+ * declare names at all.
+ *
+ * This is also the repair path when it has already happened -- far cheaper than
+ * a full rebuild, which is the only other way back: row order, the Draft Board,
+ * the Punts tab and the Tracker are all left alone here.
+ *
+ * It DOES reseed `My GP Est` from Projected GP, because that column is written
+ * by the same pass. Check the GP Flag column afterwards if you were carrying
+ * overrides.
+ */
+function step1d_BoardFormulas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  _guard('Board formulas', function () {
+    var board = ensureGrid(ss.getSheetByName('Board'), B_LAST, RN);
+    var settings = ss.getSheetByName('Settings');
+    // Widen the Board BEFORE naming: a range past the last column would abort
+    // the re-add and leave the names it had already removed missing.
+    defineNames(ss);
+    // Both consumers, immediately, in the order the full build uses. Neither is
+    // optional -- see the hazard note on this function.
+    writeBoardFormulas(board);
+    if (settings) writeSettingsFormulas(settings);
+    SpreadsheetApp.flush();
   });
 }
 
@@ -724,6 +763,7 @@ function writeBoardFormulas(sh) {
   writeBlock(sh, f, B.myGp, B.adjRank);
   writeBlock(sh, f, B.gap, B.gap);
   writeBlock(sh, f, B.pFt, B.rTriple);
+  writeBlock(sh, f, B.dFg, B.durRank);
 }
 
 function writeBlock(sh, grid, c1, c2) {
@@ -1045,11 +1085,25 @@ function defineNames(ss) {
   for (var qi = 0; qi < PUNTS.length; qi++) {
     names[replName(PUNTS[qi].key)] = s + '!$B$' + (47 + qi);
   }
+  // Resolve EVERY range before removing a single name.
+  //
+  // This function is destructive by construction: it removes the names it owns
+  // and re-adds them. If a getRange() throws half way through the re-add -- one
+  // range past the last column is enough -- the names already removed stay
+  // removed, and Sheets does not merely break those formulas, it rewrites their
+  // text to #REF!. Recreating the name afterwards cannot undo that. One bad
+  // range took out Q and MIN_GP and with them every computed column on the
+  // board, and only a full rebuild brought it back.
+  //
+  // Resolving first makes the whole operation a no-op when anything is wrong.
+  var resolved = {};
+  for (var n in names) resolved[n] = ss.getRange(names[n]);
+
   var existing = ss.getNamedRanges();
   for (var i = 0; i < existing.length; i++) {
     if (names[existing[i].getName()]) existing[i].remove();
   }
-  for (var n in names) ss.setNamedRange(n, ss.getRange(names[n]));
+  for (var n2 in resolved) ss.setNamedRange(n2, resolved[n2]);
 }
 
 // ------------------------------------------------------------ Board format
@@ -1201,7 +1255,7 @@ var D = {
   // in at write time -- so it would need a full rebuild, losing every hand edit.
   durRank: 34, durGap: 35
 };
-var D_LAST = D.hTo;
+var D_LAST = D.durGap;
 
 /** Board row numbers, ordered by Adjusted Value descending. */
 function boardOrder(board) {
@@ -1380,6 +1434,10 @@ function buildDraftTab(ss, sh, board) {
   writeGrid(sh, f, D.best, D.posLeft);
   writeGrid(sh, f, D.hFgm, D.hTo);
   writeGrid(sh, f, D.durRank, D.durGap);
+  // A rank is a whole number. Without this it inherits a decimal format from
+  // the neighbouring block and reads as "2.0", which looks like a score.
+  sh.getRange(R0, D.durRank, POOL_ROWS, 1).setNumberFormat('0');
+  sh.getRange(R0, D.durGap, POOL_ROWS, 1).setHorizontalAlignment('center');
 
   sh.getRange(R0, D.drafted, POOL_ROWS, 2).insertCheckboxes();
   restoreCheckState(sh, names, prior);
@@ -1495,6 +1553,7 @@ function formatDraftTab(sh) {
     // the header: this is STEP 1, not a second valuation.
     [D.profile, D.profile, 'PROFILE', COLOR.z],
     [D.posLeft, D.notes, 'DRAFT DAY', COLOR.identity],
+    [D.durRank, D.durGap, 'DURANT', COLOR.g],
     [D.hFgm, D.hTo, 'CATEGORY FEED (hidden helper)', COLOR.notes]
   ];
   blocks.forEach(function (b) {
@@ -2017,6 +2076,7 @@ function onOpen() {
     .addItem('Step 1 — Settings only', 'step1_Settings')
     .addItem('Step 1b — Reformat Board', 'step1b_FormatBoard')
     .addItem('Step 1c — DURANT columns', 'step1c_DurantColumns')
+    .addItem('Step 1d — Rewrite Board formulas', 'step1d_BoardFormulas')
     .addItem('Step 2 — Draft Board only', 'step2_DraftBoard')
     .addItem('Step 3 — Punts, Tracker, README', 'step3_Rest')
     .addToUi();
