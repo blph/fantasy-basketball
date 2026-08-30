@@ -64,9 +64,24 @@ var B = {
   pFgReb: 60, pAstStl: 61, pPtsFt: 62, pTriple: 63,
   rFt: 64, rFg: 65, rAst: 66, r3: 67, rBlk: 68,
   rFgReb: 69, rAstStl: 70, rPtsFt: 71, rTriple: 72,
-  notes: 73
+  notes: 73,
+  // DURANT block, deliberately AFTER notes so no existing column moves --
+  // `Refresh data` writes by fixed position and a shift would repoint it.
+  dFg: 74, dFt: 75, d3: 76, dPts: 77, dReb: 78, dAst: 79, dStl: 80, dBlk: 81, dTo: 82,
+  durTot: 83, durRank: 84
 };
-var B_LAST = B.notes;
+var B_LAST = B.durRank;
+
+// The DURANT reconstruction: which Board column feeds each transformed column,
+// in CAT_LABELS order. Percentages transform the volume-weighted impact, not the
+// bare rate, so DURANT and the G-score disagree about the transform and nothing
+// else. See docs/references/basketball-monster-durant.md.
+var DURANT_CATS = [
+  { src: 'ifg', dst: 'dFg' }, { src: 'ift', dst: 'dFt' }, { src: 'tpm', dst: 'd3' },
+  { src: 'pts', dst: 'dPts' }, { src: 'reb', dst: 'dReb' }, { src: 'ast', dst: 'dAst' },
+  { src: 'stl', dst: 'dStl' }, { src: 'blk', dst: 'dBlk' }, { src: 'to', dst: 'dTo' }
+];
+var DURANT_ROW0 = 78;   // Settings row of the first DURANT category
 
 // Nine builds: the five canonical single punts, then four named groupings.
 // Published guides converge on FT%, FG%, AST and 3PM as the four most common
@@ -528,6 +543,9 @@ function writeBoardData(sh) {
     head[B[PUNTS[i].rank]] = '#\n' + PUNTS[i].label.replace('Punt ', '');
   }
   head[B.notes] = 'Notes';
+  var dlab = ['d FG%', 'd FT%', 'd 3PM', 'd PTS', 'd REB', 'd AST', 'd STL', 'd BLK', 'd TO'];
+  for (var di = 0; di < DURANT_CATS.length; di++) head[B[DURANT_CATS[di].dst]] = dlab[di];
+  head[B.durTot] = 'DURANT H2H'; head[B.durRank] = 'DURANT rank';
 
   var row = [];
   for (var c = 1; c <= B_LAST; c++) row.push(head[c] || '');
@@ -608,6 +626,30 @@ function writeBoardFormulas(sh) {
     row[B.adj] = '=IF(' + bc(B.myGp) + '="","",LET(v,' + bc(B.vor) +
                  ',v*IF(v<0,1,' + bc(B.myGp) + '/GP_DIVISOR)))';
     row[B.adjRank] = '=RANK(' + bc(B.adj) + ',B_ADJ)';
+
+    // DURANT reconstruction. Yeo-Johnson per category, then standardised on the
+    // Settings block. The transform is written out longhand because Sheets has
+    // no POWER form that handles the negative branch: for x >= 0 it is
+    // ((1+x)^L - 1)/L, and for x < 0 it is -(((1-x)^(2-L) - 1)/(2-L)), with
+    // logarithms at L = 0 and L = 2 respectively.
+    for (var di = 0; di < DURANT_CATS.length; di++) {
+      var src = bc(B[DURANT_CATS[di].src]);
+      var lam = 'INDEX(DUR_LAM,' + (di + 1) + ')';
+      row[B[DURANT_CATS[di].dst]] =
+        '=LET(x,' + src + ',L,' + lam + ',IF(x>=0,IF(L=0,LN(1+x),((1+x)^L-1)/L),' +
+        'IF(L=2,-LN(1-x),-(((1-x)^(2-L)-1)/(2-L)))))';
+    }
+
+    // DURANT H2H: turnovers dropped outright, then the next-lowest category
+    // dropped too. The {1,...,-1} flips turnovers after standardising, because
+    // the transform is fitted to the raw statistic where high is bad.
+    // ARRAYFORMULA sits INSIDE the LET binding on purpose: a comparison bound in
+    // a LET evaluates outside any enclosing ARRAYFORMULA and collapses to its
+    // first element.
+    row[B.durTot] = '=IF(' + bc(B.player) + '="","",LET(t,' + bc(B.dFg) + ':' + bc(B.dTo) +
+      ',v,ARRAYFORMULA(TRANSPOSE(DUR_W)*(t-TRANSPOSE(DUR_MEAN))/TRANSPOSE(DUR_SD)' +
+      '*{1,1,1,1,1,1,1,1,-1}),SUM(v)-INDEX(v,1,9)-MIN(ARRAY_CONSTRAIN(v,1,8))))';
+    row[B.durRank] = '=IF(' + bc(B.durTot) + '="","",RANK(' + bc(B.durTot) + ',B_DURTOT))';
 
     // Blank ADP means no market read. Zero would read as "fairly priced".
     row[B.gap] = '=IF(' + bc(B.adp) + '="","",' + bc(B.adp) + '-' + bc(B.adjRank) + ')';
@@ -750,6 +792,30 @@ function writeSettingsSkeleton(sh) {
     'export provider\'s own aggregate. Read GAP as "cheap somewhere", not "cheap in my league".')
     .setFontSize(8).setFontColor(COLOR.muted).setWrap(true);
 
+  // DURANT reconstruction. Lambda is FITTED, not chosen -- run `Fit DURANT
+  // lambdas` from the menu after a refresh. Weight is yours to edit; the
+  // defaults are Lloyd's published pre-DURANT hand weights (article 1831),
+  // because DURANT's real weights are withheld. Mean and SD are formulas over
+  // the transformed columns, so they follow the pool automatically.
+  sh.getRange(75, 1).setNumberFormat('@').setValue('DURANT (RECONSTRUCTION)').setFontWeight('bold');
+  sh.getRange(76, 1, 1, 5).setValues([['Category', 'Lambda', 'Mean', 'SD', 'Weight']]);
+  var dw = [1.0, 0.85, 0.8, 1.0, 1.0, 1.0, 0.7, 0.7, 1.0];
+  var drows = [];
+  for (var dj = 0; dj < CAT_LABELS.length; dj++) drows.push([CAT_LABELS[dj]]);
+  sh.getRange(DURANT_ROW0, 1, drows.length, 1).setNumberFormat('@').setValues(drows);
+  var dws = [];
+  for (var dk = 0; dk < dw.length; dk++) dws.push([dw[dk]]);
+  sh.getRange(DURANT_ROW0, 5, dws.length, 1).setValues(dws)
+    .setBackground(COLOR.inputBg).setFontColor(COLOR.inputText).setNumberFormat('0.00');
+  sh.getRange(DURANT_ROW0, 2, 9, 1).setNumberFormat('0.000');
+  sh.getRange(DURANT_ROW0, 3, 9, 2).setNumberFormat('0.0000');
+  sh.getRange(87, 1).setValue(
+    'A reconstruction of Basketball Monster\'s DURANT from its published description, not a copy ' +
+    'of it: the mechanism is sourced, the coefficients are withheld. It ranks alongside the board ' +
+    'rather than driving it — see docs/references/basketball-monster-durant.md and ADR-0014. ' +
+    'Lambda is refitted from the pool by the menu; a stale lambda is a wrong transform.')
+    .setFontSize(8).setFontColor(COLOR.muted).setWrap(true);
+
   sh.getRange(3, 7).setValue('LEGEND').setFontWeight('bold');
   sh.getRange(4, 7).setValue('You edit this').setBackground(COLOR.inputBg).setFontColor(COLOR.inputText);
   sh.getRange(5, 7).setValue('Formula — leave alone');
@@ -790,6 +856,16 @@ function writeSettingsFormulas(sh) {
       '"Modelled per player ("&TEXT(inband,"0%")&" in 68-74). Lean on it."))'],
     ['=COUNT(B_ADP)&" of "&COUNTA(B_PLAYER)&" have ADP — the rest show a blank Gap, not a zero"']
   ]);
+
+  // Mean and SD of each TRANSFORMED column, over the pool. Formulas, not
+  // values, so they follow the pool the moment In Pool changes -- unlike lambda
+  // above them, which is a fit and has to be re-run.
+  var dms = [];
+  for (var dq = 0; dq < DURANT_CATS.length; dq++) {
+    var nm = 'B_' + DURANT_CATS[dq].dst.toUpperCase();
+    dms.push(['=AVERAGEIF(B_POOL,1,' + nm + ')', '=STDEV(FILTER(' + nm + ',B_POOL=1))']);
+  }
+  sh.getRange(DURANT_ROW0, 3, dms.length, 2).setFormulas(dms);
 
   sh.getRange(41, 2, 4, 1).setFormulas([
     ['=STDEV(FILTER(B_FGP,B_POOL=1))'],
@@ -888,6 +964,10 @@ function defineNames(ss) {
     SD_FG_RATE: s + '!$B$41', SD_FT_RATE: s + '!$B$42',
     TRACK_FG_BAND: s + '!$B$68', TRACK_FT_BAND: s + '!$B$69', TRACK_COUNT_BAND: s + '!$B$70',
     CAT_BAND: s + '!$B$71',
+    DUR_LAM: s + '!$B$' + DURANT_ROW0 + ':$B$' + (DURANT_ROW0 + 8),
+    DUR_MEAN: s + '!$C$' + DURANT_ROW0 + ':$C$' + (DURANT_ROW0 + 8),
+    DUR_SD: s + '!$D$' + DURANT_ROW0 + ':$D$' + (DURANT_ROW0 + 8),
+    DUR_W: s + '!$E$' + DURANT_ROW0 + ':$E$' + (DURANT_ROW0 + 8),
 
     B_POOL: colRange('Board', B.inPool), B_PLAYER: colRange('Board', B.player),
     B_GP: colRange('Board', B.gp),
@@ -897,6 +977,11 @@ function defineNames(ss) {
     B_REB: colRange('Board', B.reb), B_AST: colRange('Board', B.ast),
     B_STL: colRange('Board', B.stl), B_BLK: colRange('Board', B.blk),
     B_TO: colRange('Board', B.to),
+    B_DFG: colRange('Board', B.dFg), B_DFT: colRange('Board', B.dFt),
+    B_D3: colRange('Board', B.d3), B_DPTS: colRange('Board', B.dPts),
+    B_DREB: colRange('Board', B.dReb), B_DAST: colRange('Board', B.dAst),
+    B_DSTL: colRange('Board', B.dStl), B_DBLK: colRange('Board', B.dBlk),
+    B_DTO: colRange('Board', B.dTo), B_DURTOT: colRange('Board', B.durTot),
     B_IFG: colRange('Board', B.ifg), B_IFT: colRange('Board', B.ift),
     B_ZTOT: colRange('Board', B.ztot), B_GTOT: colRange('Board', B.gtot),
     B_VOR: colRange('Board', B.vor), B_ADJ: colRange('Board', B.adj),
@@ -1065,7 +1150,11 @@ var D = {
   drop: 9, med: 10, brk: 11, projGp: 12, myGp: 13, adp: 14, xrank: 15, gap: 16,
   best: 17, profile: 18, posLeft: 19, drafted: 20, mine: 21, notes: 22,
   hFgm: 23, hFga: 24, hFtm: 25, hFta: 26, h3: 27, hPts: 28, hReb: 29, hAst: 30,
-  hStl: 31, hBlk: 32, hTo: 33
+  hStl: 31, hBlk: 32, hTo: 33,
+  // DURANT sits after the hidden mirror block on purpose. Inserting it earlier
+  // would shift hFgm..hTo, and the Category Tracker bakes those column letters
+  // in at write time -- so it would need a full rebuild, losing every hand edit.
+  durRank: 34, durGap: 35
 };
 var D_LAST = D.hTo;
 
@@ -1102,6 +1191,7 @@ function buildDraftTab(ss, sh, board) {
   head[D.posLeft] = 'Left\n@pos';
   head[D.drafted] = 'Gone'; head[D.mine] = 'Mine';
   head[D.notes] = 'Notes';
+  head[D.durRank] = 'DURANT'; head[D.durGap] = 'vs us';
   head[D.hFgm] = 'FGM'; head[D.hFga] = 'FGA'; head[D.hFtm] = 'FTM'; head[D.hFta] = 'FTA';
   head[D.h3] = '3PM'; head[D.hPts] = 'PTS'; head[D.hReb] = 'REB'; head[D.hAst] = 'AST';
   head[D.hStl] = 'STL'; head[D.hBlk] = 'BLK'; head[D.hTo] = 'TO';
@@ -1221,6 +1311,13 @@ function buildDraftTab(ss, sh, board) {
     row[D.posLeft] = '=IF($' + tC + r + '="","",SUMPRODUCT((' + dcol(tC) + '=$' + tC + r + ')*(' +
       dcol(gC) + '=FALSE)*(' + dcol(mC) + '=FALSE)*REGEXMATCH(' + dcol(pC) + ',SUBSTITUTE($' + pC + r + ',",","|"))))';
 
+    // A second opinion, not a second ranking. Positive `vs us` means DURANT
+    // likes him more than we do. Read it the way the quant-vs-expert procedure
+    // says to read an analyst: information, never a rank.
+    row[D.durRank] = ref(B.durRank);
+    row[D.durGap] = '=IF(N($' + a1col(D.durRank) + r + ')=0,"",TEXT($' + a1col(D.rank) + r +
+      '-$' + a1col(D.durRank) + r + ',"+0;-0;0"))';
+
     row[D.hFgm] = ref(B.fgm); row[D.hFga] = ref(B.fga);
     row[D.hFtm] = ref(B.ftm); row[D.hFta] = ref(B.fta);
     row[D.h3] = ref(B.tpm); row[D.hPts] = ref(B.pts); row[D.hReb] = ref(B.reb);
@@ -1237,6 +1334,7 @@ function buildDraftTab(ss, sh, board) {
   writeGrid(sh, f, D.drop, D.gap);
   writeGrid(sh, f, D.best, D.posLeft);
   writeGrid(sh, f, D.hFgm, D.hTo);
+  writeGrid(sh, f, D.durRank, D.durGap);
 
   sh.getRange(R0, D.drafted, POOL_ROWS, 2).insertCheckboxes();
   restoreCheckState(sh, names, prior);
@@ -1814,7 +1912,8 @@ var README_ROWS = [
   ['Blank GAP', '', 'Some players have no ADP. Blank, not zero — a zero would read as "fairly priced", which is a different claim entirely.'],
   ['ADP source', '', "Hashtag's, not Yahoo. Yahoo ADP is the room you are actually drafting in, and the two do not agree — Yahoo skews toward established names. Read GAP as \"cheap somewhere\", not \"cheap in my league\"."],
   ['Scoring format', '', 'Head-to-Head Categories: all nine categories are settled separately every week, so a week ends 6-3. That is Yahoo\'s name for it; ESPN calls the same thing Each Category. It is not the format where the week resolves to a single win, which Yahoo calls One Win. The difference decides how hard to punt — conceding a category here costs a loss every single week, so soft-punt at most and stay broad.'],
-  ['Left @pos', '', 'How many players still un-Gone in his tier could fill a slot he is eligible for — any of them, not just his first-listed position, so a PF/C is measured against both. The scarcity tiebreak: between two players you rate the same, take the one whose slots are running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left. This is the ONE column that needs the Gone boxes ticked for players other managers took. Track only your own and it quietly stops moving: it becomes the size of his tier at his position, the same all draft, and it will look like it is working.'],
+  ['Left @pos', '', 'How many players still un-Gone in his tier could fill a slot he is eligible for — any of them, not just his first-listed position, so a PF/C is measured against both. The scarcity tiebreak: between two players you rate the same, take the one whose slots are running out. Position is deliberately kept out of the valuation itself — a rebound counts the same whoever grabs it — so this only counts what is left. Tick Gone as other managers pick; your own picks drop out on Mine alone, so you do not have to tick both. Track nobody and it quietly stops moving: it becomes the size of his tier at his position, the same all draft, and it will look like it is working.'],
+  ['DURANT', '', 'A reconstruction of Basketball Monster\'s DURANT, ranking alongside the board rather than driving it. It transforms each category toward normality before standardising, and drops turnovers plus your worst remaining category — an automatic punt, decided per player. It has no games-played term at all. Read `vs us` as a disagreement flag: positive means DURANT rates him higher than we do. Treat it the way you would treat an analyst — take the information, never the rank. The mechanism is sourced; the coefficients are not, so this is a reconstruction and not a copy. See ADR-0014.'],
   ['Punt weight', '', 'What a punted category still counts for, on Settings. Ships at 0.25. Set it to 0 for a hard punt, which is what this board did before and what most public tools still do.'],
   ['G-score multipliers', '', 'From Rosenof (arXiv 2307.02188, Table 8), computed on the 2022-23 season. The ordering is solid and the steals discount is robust; the second decimal is not, least of all on FG% and FT%.']
 ];
@@ -1866,6 +1965,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Rebuild & re-sort', 'rebuildAndResort')
     .addItem('Re-seed pool from current ranks', 'reseedPool')
+    .addItem('Fit DURANT lambdas', 'fitDurantLambdas')
     .addSeparator()
     .addItem('Full rebuild (from Data.gs)', 'buildDraftBoard')
     .addSeparator()
@@ -1892,6 +1992,95 @@ function rebuildAndResort() {
  * One iteration of the pool. Copies current Adj Rank into Seed Rank, so
  * membership reflects the values the board just produced. Run it twice.
  */
+/**
+ * Refit the nine Yeo-Johnson lambdas from the current pool and write them to
+ * Settings.
+ *
+ * Lambda is a FIT, not a setting, so it does not follow the pool the way the
+ * means and SDs beside it do. Leave it stale after a refresh and every DURANT
+ * number is computed with the wrong transform, silently and plausibly.
+ *
+ * Reads the Board rather than PLAYERS, so it sees the same pool the sheet does
+ * -- including the MIN_GP gate and any re-seeding already applied.
+ */
+function fitDurantLambdas() {
+  var ss = SpreadsheetApp.getActive();
+  var board = ss.getSheetByName('Board');
+  var settings = ss.getSheetByName('Settings');
+  if (!board || !settings) throw new Error('Board or Settings missing — run a full build first.');
+
+  var pool = board.getRange(R0, B.inPool, POOL_ROWS, 1).getValues();
+  var cols = [];
+  for (var i = 0; i < DURANT_CATS.length; i++) {
+    cols.push(board.getRange(R0, B[DURANT_CATS[i].src], POOL_ROWS, 1).getValues());
+  }
+
+  var lams = [], n = 0;
+  for (var c = 0; c < DURANT_CATS.length; c++) {
+    var vals = [];
+    for (var r = 0; r < POOL_ROWS; r++) {
+      if (pool[r][0] !== 1) continue;
+      var v = cols[c][r][0];
+      if (typeof v === 'number' && isFinite(v)) vals.push(v);
+    }
+    if (vals.length < 2) throw new Error('Pool has ' + vals.length + ' usable rows for ' +
+      CAT_LABELS[c] + '; cannot fit a transform.');
+    n = vals.length;
+    lams.push([fitYeoJohnsonLambda_(vals)]);
+  }
+  settings.getRange(DURANT_ROW0, 2, lams.length, 1).setValues(lams);
+  logBuild(ss, 'Fit DURANT lambdas: OK — ' + n + ' pool rows, ' +
+    lams.map(function (x) { return x[0].toFixed(2); }).join(' '));
+  SpreadsheetApp.getActive().toast('DURANT lambdas refitted over ' + n + ' pool rows.');
+}
+
+/** Yeo-Johnson, the transform DURANT is built on. */
+function yeoJohnson_(x, L) {
+  if (x >= 0) return L === 0 ? Math.log(1 + x) : (Math.pow(1 + x, L) - 1) / L;
+  return L === 2 ? -Math.log(1 - x) : -((Math.pow(1 - x, 2 - L) - 1) / (2 - L));
+}
+
+/** Profile log-likelihood of L, up to a constant. */
+function yjLogLik_(vals, L) {
+  var n = vals.length, t = new Array(n), sum = 0, jac = 0, i;
+  for (i = 0; i < n; i++) {
+    t[i] = yeoJohnson_(vals[i], L);
+    if (!isFinite(t[i])) return -Infinity;
+    sum += t[i];
+    jac += (vals[i] < 0 ? -1 : 1) * Math.log(1 + Math.abs(vals[i]));
+  }
+  var mean = sum / n, ss = 0;
+  for (i = 0; i < n; i++) ss += (t[i] - mean) * (t[i] - mean);
+  var varr = ss / n;
+  if (!(varr > 0)) return -Infinity;
+  return -0.5 * n * Math.log(varr) + (L - 1) * jac;
+}
+
+/**
+ * Maximum-likelihood lambda: coarse scan, then golden section.
+ *
+ * The bracket is [-15, 15] rather than the [-2, 2] most libraries default to.
+ * The percentage impacts are small signed numbers clustered near zero and their
+ * likelihood peaks near -7 on a real pool, so a narrow bracket returns the edge
+ * of the search instead of the fit, and nothing about the result looks wrong.
+ */
+function fitYeoJohnsonLambda_(vals) {
+  var LO = -15, HI = 15, STEPS = 120, i;
+  var best = LO, bestLL = -Infinity;
+  for (i = 0; i <= STEPS; i++) {
+    var L = LO + i * (HI - LO) / STEPS, ll = yjLogLik_(vals, L);
+    if (ll > bestLL) { bestLL = ll; best = L; }
+  }
+  var lo = Math.max(LO, best - (HI - LO) / STEPS), hi = Math.min(HI, best + (HI - LO) / STEPS);
+  var invphi = (Math.sqrt(5) - 1) / 2;
+  var c = hi - invphi * (hi - lo), d = lo + invphi * (hi - lo);
+  while (hi - lo > 1e-6) {
+    if (yjLogLik_(vals, c) > yjLogLik_(vals, d)) { hi = d; d = c; c = hi - invphi * (hi - lo); }
+    else { lo = c; c = d; d = lo + invphi * (hi - lo); }
+  }
+  return Math.round(((lo + hi) / 2) * 1000) / 1000;
+}
+
 function reseedPool() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var board = ss.getSheetByName('Board');
