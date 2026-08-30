@@ -75,7 +75,7 @@ API → data/raw/{endpoint}/{date}.json → data/parquet/{table}/as_of_date=… 
 
 Apps read marts only. They never call the API and never recompute valuations at load time — draft day is when latency is least acceptable.
 
-Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md) · [draft board](docs/draft-board/build-and-maintenance.md) · [board cheat sheet](docs/draft-board/cheat-sheet.md) · [mock draft review](docs/draft-board/mock-draft-review.md) · [draft playbook](docs/references/fantasy-basketball-draft-playbook.md) · [quant vs expert](docs/references/quant-vs-expert-reconciliation.md)
+Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md) · [draft board](docs/draft-board/build-and-maintenance.md) · [board cheat sheet](docs/draft-board/cheat-sheet.md) · [mock draft review](docs/draft-board/mock-draft-review.md) · [draft playbook](docs/references/fantasy-basketball-draft-playbook.md) · [quant vs expert](docs/references/quant-vs-expert-reconciliation.md) · [Basketball Monster & DURANT](docs/references/basketball-monster-durant.md)
 
 ## Security & Data Handling
 
