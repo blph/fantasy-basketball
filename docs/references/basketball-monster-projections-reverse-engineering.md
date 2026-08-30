@@ -379,10 +379,17 @@ It tracks availability and nothing else in the export:
 
 Grouped by injury grade it separates cleanly — low +1.37, medium +0.39, high −0.34.
 
-The decisive test: regress `FrV` on **all 25 numeric columns in the export at once**. R² = 0.31.
-Whatever it measures is built from data this export does not contain, almost certainly
-game-level logs — a season projection has no game-to-game variance to measure. Treat `FrV` as
-an input you can read but not rebuild.
+The decisive test: a cross-validated linear model over **54 features** (5-fold, seeded) scores
+**in-sample R² +0.565 but out-of-sample only +0.106.** So there is a little real signal — roughly
+a tenth of the variance, and what survives is the availability information above — but nine
+tenths of `FrV` is not recoverable from anything the export publishes.
+
+That fits what the column is supposed to be. Whatever the rest measures is built from data this
+export does not carry, almost certainly game-level logs: a season projection has no game-to-game
+variance in it to measure. Treat `FrV` as an input you can read but not rebuild.
+
+(An earlier version of this document quoted R² = 0.31 here. That was an in-sample fit; see the
+method note under `Conf` below.)
 
 ### `Tier`, `Role`, `Conf` — curated
 
@@ -393,11 +400,15 @@ order, so a `#2` outranks its own `#1`. Someone is placing these by hand.
 `Role` is a depth-chart call — `ST` starter, `mST` marginal starter, `BN` bench, with the
 position. 57 of 234 are bench.
 
-### `Conf` — drafting confidence, not reproducible
+### `Conf` — drafting confidence, and a genuine negative result
 
-An integer 1–10 spread across the whole range. A natural hypothesis is that it measures how much
-the various metrics disagree about a player — if Josh, Bonus, DURANT and DURANT H2H all say the
-same thing, be confident. **Tested directly, that is not what it is.**
+An integer 1–10 spread across the whole range. The natural hypothesis is that it measures how
+much the metrics disagree about a player: if Josh, Bonus, DURANT and DURANT H2H all say the same
+thing, be confident. **That is not what it is, and neither is anything else in the export.**
+
+Three approaches were tried, in increasing order of flexibility.
+
+**1. The disagreement hypothesis, directly.**
 
 | Feature | Correlation with `Conf` |
 |---|---|
@@ -408,22 +419,60 @@ same thing, be confident. **Tested directly, that is not what it is.**
 | \|Josh Value − Bonus Value\| | **−0.074** |
 | \|DUR − DUR H2H\| | +0.023 |
 
-The disagreement measures are the *weakest* things in the table. The most direct one — how far
-the two projection sources' values differ — comes in at −0.074, indistinguishable from nothing,
-and several carry the wrong sign, with more disagreement going with slightly *higher* confidence.
-The plain level of `Value` beats every one of them, which says `Conf` mostly rises with player
-quality rather than with agreement.
+The disagreement measures are the *weakest* entries. The most direct one — how far the two
+projection sources' values differ — is −0.074, indistinguishable from nothing, and several carry
+the wrong sign, with more disagreement going alongside slightly *higher* confidence. The plain
+level of `Value` beats every one of them.
 
-A multivariate fit on 25 numeric features returns **R² = 0.148** — weaker even than `FrV`.
+**2. Categorical structure.** Measured as η², the share of variance explained by grouping:
 
-What it does separate on looks like judgement:
+| Grouping | η² |
+|---|---|
+| `Role` | 0.120 |
+| `Inj Risk` | 0.048 |
+| Has NBA history | 0.018 |
+| Position | 0.005 |
+| `Status` | 0.000 |
 
-- Players with no NBA history: mean 5.47, against 6.26 for those with a full history block.
-- `Inj Risk` low 8.00, med 6.34, high 5.94, unset 3.88.
-- Settled starters slightly above marginal starters.
+Conditioning on all three of (`Inj Risk`, role class, history) gives 18 cells, only **4** of them
+single-valued, and leaves a within-cell standard deviation of **2.11** against an overall 2.36.
+Almost nothing is explained.
 
-Read `Conf` as an analyst's grade for how sure they are about a player's role and health, not as
-a computed dispersion statistic. Like `FrV` and `Tier`, take it as an input you cannot rebuild.
+**3. Arbitrary non-linear interactions.** A regression tree over 54 features — including every
+disagreement measure above, both projection sources, all nine category values, and the
+minute-gap features — scored by 5-fold cross-validation:
+
+| Tree depth | In-sample R² | Out-of-sample R² |
+|---|---|---|
+| 2 | +0.218 | **+0.027** |
+| 3 | +0.319 | −0.013 |
+| 4 | +0.405 | −0.118 |
+| 5 | +0.489 | −0.180 |
+
+A cross-validated linear model over the same 54 features scores **in-sample +0.378, out-of-sample
+−0.391.**
+
+Out-of-sample performance is at best a rounding error above zero and mostly *worse than
+predicting the mean*, while in-sample fit climbs steadily with capacity. That pattern is
+memorisation, not signal.
+
+**`Conf` is exogenous.** It is an analyst's grade for how sure they are about a player's role and
+health, and it carries information no exported column does. Read it as an input; do not try to
+rebuild it.
+
+> **A note on method, because an earlier version of this document got it wrong.** It reported
+> "R² = 0.148 on 25 numeric columns" for `Conf` and 0.31 for `FrV`. Both were *in-sample* fits of
+> a many-parameter model to roughly two hundred rows — a number that only rises as features are
+> added and cannot separate signal from memorisation. The cross-validated figures above replace
+> them. They make the conclusion stronger, not weaker, but the original method could not have
+> supported either claim.
+>
+> **The protocol, so the figures can be checked rather than taken on trust.** 5-fold
+> cross-validation over a fixed permutation seeded with `numpy.default_rng(0)`; ridge regression
+> at λ = 1e-3 for the linear model; a CART regression tree with a minimum leaf of 8 for the
+> non-linear one. Out-of-sample R² is computed as `1 − SSE/(n·var(y))` pooled across held-out
+> folds, so it is comparable to the in-sample figure beside it. 54 features, `n` = 204 for `Conf`
+> and 212 for `FrV`. A negative value means the model does worse than predicting the mean.
 
 `1W+-` is the one-week change in `Value`, spanning −0.21 to +0.72. Reproducing it needs last
 week's export, so archive each pull if you want the series.
@@ -754,21 +803,47 @@ reconstruction lands near 0.10 rather than 0.004, the weight vector is missing.
 within ±0.05, and each aggregate at MAE ≤ 0.010 with Spearman ≥ 0.9995.** Both metrics pass;
 run the check for both, not just `DUR`.
 
-### What is still open: the percentages
+### What is solved, and what is not
 
-The seven counting categories are solved. The two percentage categories are not.
+Worth stating precisely, because "the percentages are open" is easy to over-read as "DURANT is
+not reproduced". It is reproduced. The gap is one layer down.
 
-Yeo-Johnson applied to the same volume-weighted impact of §4 is the best of the candidates
-tested, but it only reaches R² 0.998 and — the real tell — **Spearman 0.9977 against the
-published column, not 1.0**. A monotone transform of the right input would order players
-identically. DURANT is transforming something slightly different.
+**Solved — both metrics, exactly.** Given Basketball Monster's published category columns, the
+aggregation reproduces at the rounding floor: `DUR` MAE **0.0025**, `DUR H2H` MAE **0.0025**. The
+drop rule, the weight vector and the averaging are fully known, and the dropped category matches
+the player's minimum 234/234 for both.
 
-Ruled out: the raw percentage (R² 0.83 / 0.72), and impact scaled by the square root of attempts
+**Solved — seven of the nine input columns**, rebuilt from the raw stat sheet through the
+recovered lambdas:
+
+| Column | MAE | | Column | MAE |
+|---|---|---|---|---|
+| `DpV` | 0.0032 | | `DaV` | 0.0036 |
+| `D3V` | 0.0038 | | `DtoV` | 0.0063 |
+| `DrV` | 0.0038 | | `DbV` | 0.0109 |
+| | | | `DsV` | 0.0133 |
+
+**Not solved — the two percentage input columns.** `Dfg%V` reaches only MAE 0.0345 and `Dft%V`
+0.0273 against a Yeo-Johnson-on-impact model, at **Spearman 0.9977 and 0.9980** — and it is the
+Spearman that gives it away. A monotone transform of the correct input would order players
+*identically*, at 1.0. DURANT is transforming something slightly different from the §4
+volume-weighted impact.
+
+Ruled out: the raw percentage (R² 0.83 / 0.72) and impact scaled by the square root of attempts
 (R² 0.96 / 0.93). Both are worse on every measure.
 
-This is where Lloyd himself says the method is unfinished — *"Durant doesn't necessarily fix this
-problem… I actually haven't found a way to do it yet"* — and it is the one part of the metric
-that a reader should not treat as reproduced.
+**Which situation are you in?**
+
+- **Reading Basketball Monster's own numbers** — you have `D*V`, so both aggregates are exact and
+  the gap does not touch you.
+- **Rebuilding DURANT end to end from a stat sheet** — seven categories land at MAE ≤ 0.013 and
+  two at ~0.03, which is why the full reconstruction comes in at MAE 0.0048 rather than 0.0025.
+  Still comfortably inside the acceptance bar, but the two percentage columns are where the error
+  lives.
+
+This is also where Lloyd says the method is unfinished — *"Durant doesn't necessarily fix this
+problem… I actually haven't found a way to do it yet"* — so the residual may not be a gap in the
+reconstruction so much as a reflection of something ad hoc in the original.
 
 ### Corrections this section makes
 
@@ -798,16 +873,23 @@ where our board makes you choose a build and values everyone against it.
 ## 11. The two projection sources
 
 `Projection Source` on `projections.aspx` offers **Josh Projections** and **Bonus Projections**.
-These are projection *inputs*, not valuation methods, and the distinction is easy to miss.
+
+**There is no difference in the math between them. None.** Same z-score construction, same
+156-player pool, same volume-weighted percentages, same arithmetic mean of nine, same `Rank` and
+`Round`. Everything in §§1–5 applies unchanged to both.
+
+What differs is the **input**: the projected games, minutes and box-score rates fed into that
+identical machine. These are projection *sources*, not valuation methods, and the distinction is
+easy to miss because switching between them changes every number on the page.
 
 The `Josh Bonus '25 2m 3w` header block — a single five-part group, which the §2 inventory should
 be read as covering — carries **games and minutes** under each: the two projection sources, then
 last season (`'25`) and two recent windows (`2m`, `3w`). The displayed `g` and `m/g` track
 whichever source is selected.
 
-### The valuation math is identical
+### Verified, not assumed
 
-Verified rather than assumed, by re-running §4's recovery against the Bonus export:
+Re-running §4's recovery against the Bonus export:
 
 | Check | Result under Bonus |
 |---|---|
