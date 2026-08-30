@@ -213,6 +213,62 @@ transform.
 
 ---
 
+## What we verified against their published numbers
+
+Measured 2026-08-29 against Basketball Monster's free rankings table (252 rows, the
+2025-26 season, since the 2026-27 set is member-only). Their page publishes both the inputs
+and the nine per-category outputs, which makes the standard Value an inverse problem with a
+unique solution rather than a guess.
+
+### Their standard Value is our z-score layer
+
+| Check | Result |
+|---|---|
+| `Value` = arithmetic mean of the nine category values | 220 of 234 agree to display precision (worst deviation 0.0067, consistent with rounding nine 2dp values) |
+| Each counting category regressed on its per-game stat | **R² ≥ 0.9948** for all seven — exactly linear, so a plain z-score with no transform |
+| Turnovers | Negative slope: inverted, the same convention we use |
+| Pool size that reproduces their recovered means and SDs | **N = 156** — teams × roster spots, the same Q we use |
+| Our `valuation.py` z-scores vs their published ranking | **Spearman 0.9979**, mean 3.11 places, 82% within five places |
+| Our per-category z vs their per-category values, mean absolute difference | AST 0.013, REB 0.016, FT% 0.018, 3PM 0.025, TO 0.036, FG% 0.036, PTS 0.042, BLK 0.051, STL 0.081 |
+
+So on the standard Value there is essentially nothing to reconcile: **we already compute what
+Basketball Monster computes.** The residual is pool membership at the margin and their 2dp
+display rounding.
+
+### The DURANT reconstruction reproduces its published behaviour
+
+`scripts/draft-board/durant.py` implements the documented structure — Yeo-Johnson per
+category, standardise, fixed weights, minus-one. Fitted on our own pool the transform does
+what Lloyd says it should: skew falls from **+1.60 to +0.09** in blocks and from **−1.50 to
++0.11** in FT%.
+
+Scored against the fourteen players Lloyd named in Sept 2023 as moving under DURANT, of
+which nine appear on our board: **eight move in the direction he published** — Nurkić, Zion,
+Draymond Green, Banchero and Beal up; Kessler, Trey Murphy and Jaren Jackson Jr. down. Only
+Brunson misses, and he moves four places. Different season, different projections, and an
+independent implementation, so this tests the mechanism rather than his arithmetic.
+
+It also reproduces the headline oddity DURANT is marketed against. Run over Basketball
+Monster's own 2025-26 stat lines, their z-score ranking puts Okongwu 41st and Giannis 67th;
+the reconstruction puts Giannis **7th** and Okongwu 59th.
+
+### What it would do to our board
+
+Comparing per-game against per-game, so the GP layer is not confounding the result: mean
+absolute movement **18.6 places**, maximum 82, with **135 of 200 players moving ten or
+more**. This is not a marginal adjustment.
+
+The direction is coherent and is the mechanism working as designed. Players with one
+catastrophic category rise, because the minus-one rule forgives it outright. One-category
+specialists fall, because compressing the right tail is precisely what removes their edge —
+on our board the largest fallers are shot blockers and three-point specialists.
+
+Separately, substituting Lloyd's 0.8 weighting on 3PM/STL/BLK for our Rosenof multipliers
+moves players a mean of 6.8 places, 46 of them by ten or more, with 12 moves of five or more
+inside the top 50. Measured, not recommended.
+
+---
+
 ## Sources
 
 ### Primary — Lloyd's own words
