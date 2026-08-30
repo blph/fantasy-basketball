@@ -266,6 +266,27 @@ class TestConvergence:
             "Vero Anand", "Wen Oyelaran", "Xan Petrosyan", "Yara Nakashima"
         }
 
+    def test_it_leaves_the_provider_seed_alone(self):
+        """Converging must not overwrite the caller's players.
+
+        It has to reassign `seed` while iterating, but leaving it reassigned
+        makes every later read of `seed` return this function's own output
+        instead of the provider's rank. That silently turned a correlation
+        against the provider into a correlation against ourselves, and made
+        verify.py mis-diagnose a convergence mismatch.
+        """
+        players = self._mixed()
+        before = {p.name: p.seed for p in players}
+        converge_pool(players, q=4, min_gp=25)
+        assert {p.name: p.seed for p in players} == before
+
+    def test_the_seed_survives_a_pool_that_never_settles(self):
+        players = self._mixed()
+        before = {p.name: p.seed for p in players}
+        with pytest.raises(ValueError, match="did not settle"):
+            converge_pool(players, q=4, min_gp=25, max_passes=1)
+        assert {p.name: p.seed for p in players} == before
+
     def test_it_is_idempotent_once_settled(self):
         """Running it again on a converged set changes nothing."""
         players = self._mixed()

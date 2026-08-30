@@ -1211,10 +1211,15 @@ function buildDraftTab(ss, sh, board) {
     // and a PF,C subject has his centre scarcity measured too. Matching only the
     // subject's first-listed position answered a narrower question than the one
     // the column is for — turning his own eligibility into a single slot.
-    var tC = a1col(D.tier), pC = a1col(D.pos), gC = a1col(D.drafted);
+    // Mine is excluded as well as Gone. A player you have drafted is off the
+    // board whether or not you also ticked Gone, and nothing makes you tick
+    // both. Counting only Gone overstated what was left at a position by up to
+    // three players across a quarter of the board, and it erred toward "you can
+    // wait", which is the wrong direction for a scarcity column.
+    var tC = a1col(D.tier), pC = a1col(D.pos), gC = a1col(D.drafted), mC = a1col(D.mine);
     function dcol(c) { return '$' + c + '$' + R0 + ':$' + c + '$' + RN; }
     row[D.posLeft] = '=IF($' + tC + r + '="","",SUMPRODUCT((' + dcol(tC) + '=$' + tC + r + ')*(' +
-      dcol(gC) + '=FALSE)*REGEXMATCH(' + dcol(pC) + ',SUBSTITUTE($' + pC + r + ',",","|"))))';
+      dcol(gC) + '=FALSE)*(' + dcol(mC) + '=FALSE)*REGEXMATCH(' + dcol(pC) + ',SUBSTITUTE($' + pC + r + ',",","|"))))';
 
     row[D.hFgm] = ref(B.fgm); row[D.hFga] = ref(B.fga);
     row[D.hFtm] = ref(B.ftm); row[D.hFta] = ref(B.fta);

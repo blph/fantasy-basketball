@@ -74,6 +74,53 @@ def agree(a: float, b: float, places: int = 4) -> bool:
     return round(a, places) == round(b, places)
 
 
+def constants(players: list[Player], pool, q: int) -> dict[str, float]:
+    """The seven Settings values the sheet computes and this file re-derives."""
+    return {
+        "POOL_FG_PCT": pool.fg_pct, "POOL_FT_PCT": pool.ft_pct,
+        "POOL_AVG_FGA": pool.avg_fga, "POOL_AVG_FTA": pool.avg_fta,
+        "SD_FG_IMPACT": pool.sd_fg_impact, "SD_FT_IMPACT": pool.sd_ft_impact,
+        "REPLACEMENT": replacement(players, pool, q),
+    }
+
+
+def explain_mismatch(players: list[Player], q: int, args, sheet: dict) -> str:
+    """Name the likeliest cause before the operator concludes the board is wrong.
+
+    A converged pool and a single-pass pool are different 156-player sets, so
+    every constant differs between them. That is the *expected* reading when
+    `Re-seed pool from current ranks` has not been run to convergence -- and it
+    looks identical to a genuine break unless someone says so. Re-run against
+    the other pool and, if that one agrees, report which.
+    """
+    other_converged = args.no_converge
+    try:
+        if other_converged:
+            pool, _ = converge_pool(players, q, DEFAULTS["min_gp"], DEFAULTS["gp_divisor"])
+        else:
+            pool = build_pool(players, q, DEFAULTS["min_gp"])
+    except ValueError as e:
+        return f"  (could not build the comparison pool: {e})"
+
+    other = constants(players, pool, q)
+    still_bad = sum(
+        1 for k, v in other.items() if k in sheet and not agree(v, float(sheet[k]))
+    )
+    label = "converged" if other_converged else "single-pass"
+    ran = "single-pass" if other_converged else "converged"
+    if still_bad:
+        return (
+            f"  Also checked a {label} pool: {still_bad} still disagree.\n"
+            "  So this is not a convergence difference. Suspect the export or the sheet."
+        )
+    return (
+        f"  But ALL of them agree against a {label} pool.\n"
+        f"  This ran against a {ran} pool, so the board is very likely correct and its\n"
+        "  pool simply has not settled. Run `Re-seed pool from current ranks` until\n"
+        "  In Pool stops moving, then re-run this."
+    )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data", default=str(Path(__file__).parent / "Data.gs"))
@@ -111,12 +158,7 @@ def main() -> int:
     print(f"pool shortfall      {shortfall}{why}")
 
     print("\nPOOL CONSTANTS")
-    consts = {
-        "POOL_FG_PCT": pool.fg_pct, "POOL_FT_PCT": pool.ft_pct,
-        "POOL_AVG_FGA": pool.avg_fga, "POOL_AVG_FTA": pool.avg_fta,
-        "SD_FG_IMPACT": pool.sd_fg_impact, "SD_FT_IMPACT": pool.sd_ft_impact,
-        "REPLACEMENT": replacement(players, pool, q),
-    }
+    consts = constants(players, pool, q)
     for k, v in consts.items():
         print(f"  {k:<16} {v:.6f}")
 
@@ -159,6 +201,7 @@ def main() -> int:
             print(f"  {k:<16} {verdict}  py={v:.6f} sheet={other:.6f}")
         if bad:
             print(f"\n{bad} constant(s) disagree to 4 decimal places.")
+            print(explain_mismatch(players, q, args, sheet))
             return 1
         print("\nAll compared constants agree to 4 decimal places.")
 

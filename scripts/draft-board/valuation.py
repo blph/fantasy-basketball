@@ -239,27 +239,38 @@ def converge_pool(
     not settle -- a pool that oscillates is a real finding, not something to
     paper over with a pass limit.
     """
-    seeds = {p.name: p.seed for p in players}
+    original = {p.name: p.seed for p in players}
+    seeds = dict(original)
     previous: set[str] | None = None
 
-    for pass_no in range(1, max_passes + 1):
+    # The provider's seed is restored on every exit path. Iterating requires
+    # overwriting it, but leaving it overwritten makes the caller's players lie
+    # about where they came from: anything reading `seed` afterwards gets this
+    # function's output back instead of the provider's rank. That produced a
+    # false "the board matches the provider exactly" reading once, and a wrong
+    # diagnosis in verify.py once.
+    try:
+        for pass_no in range(1, max_passes + 1):
+            for p in players:
+                p.seed = seeds[p.name]
+            pool = build_pool(players, q, min_gp)
+            members = {p.name for p in pool.members}
+            if members == previous:
+                return pool, pass_no
+            previous = members
+
+            # Re-seed from this pass's adjusted ranks, exactly as the sheet does.
+            repl = replacement(players, pool, q)
+            ranked = sorted(
+                players,
+                key=lambda p: -adjusted_value(g_total(p, pool) - repl, p.gp, gp_divisor),
+            )
+            seeds = {p.name: i + 1 for i, p in enumerate(ranked)}
+
+        raise ValueError(f"pool did not settle in {max_passes} passes")
+    finally:
         for p in players:
-            p.seed = seeds[p.name]
-        pool = build_pool(players, q, min_gp)
-        members = {p.name for p in pool.members}
-        if members == previous:
-            return pool, pass_no
-        previous = members
-
-        # Re-seed from this pass's adjusted ranks, exactly as the sheet does.
-        repl = replacement(players, pool, q)
-        ranked = sorted(
-            players,
-            key=lambda p: -adjusted_value(g_total(p, pool) - repl, p.gp, gp_divisor),
-        )
-        seeds = {p.name: i + 1 for i, p in enumerate(ranked)}
-
-    raise ValueError(f"pool did not settle in {max_passes} passes")
+            p.seed = original[p.name]
 
 
 def adjusted_value(vor: float, my_gp: float, gp_divisor: float) -> float:
