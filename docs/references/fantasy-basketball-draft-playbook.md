@@ -58,6 +58,11 @@ The board is only as good as its inputs, and the document leans on them for 50 t
 
 Pull from more than one and compare. Where two sources disagree by a lot on a player's minutes, that player belongs on your homework list.
 
+When an analyst disagrees with the board rather than with another source, see
+[when the board and the analysts disagree](quant-vs-expert-reconciliation.md). Short version:
+check ADP first, because most splits are about price and resolve themselves. Take their
+information, never their rank.
+
 ### The weighting
 
 | Input | Weight | What it is for |
@@ -467,6 +472,9 @@ Two guardrails:
 2. **Sort by Gap descending.** With `Gap = Yahoo ADP - My Rank`, positive means the room rates a player lower than you do. The top of that list is your target list. The bottom is players to let someone else take.
 
 3. **Sanity-check the extremes.** Anyone 40 or more spots off ADP is either a real find or a broken projection. Go look at their last three seasons and decide which.
+
+   Run [quant vs expert](quant-vs-expert-reconciliation.md) on each one. Every surviving
+   override lands in `My GP Est` or the projection row, never in a rank.
 
 4. **Set your Yahoo pre-rank list from your board.** It protects you if you lose connection, and it makes your queue surface the right names at the right moment.
 
