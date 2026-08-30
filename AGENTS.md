@@ -31,10 +31,11 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Re-verify the board's math: `python3 scripts/draft-board/verify.py`
 - Review a mock draft: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` (inputs are `playwright-cli` board pulls; see [the procedure](docs/draft-board/mock-draft-review.md))
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
+- Chart and characterise the nine categories: `python3 scripts/analysis/category_distributions.py` (writes nine histograms and a normality report to `data/exports/`; `--no-converge` for the single-pass pool)
 - Lint: `ruff check .`
 - Format: `ruff format .`
 
-No dependencies are declared yet beyond dev tooling. Runtime dependencies land in Phase 2 and each needs an ADR.
+No runtime dependencies are declared. `numpy`, `matplotlib` and `scipy` are **dev** dependencies serving `scripts/analysis/` only and never enter `src/` ([ADR-0015](docs/decisions/ADR-0015-analysis-tooling-dependencies.md)); that precedent does not extend to anything the pipeline or an app imports. Runtime dependencies land in Phase 2 and each needs an ADR.
 
 ## Testing
 
@@ -55,7 +56,9 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - DO NOT commit provider data in any form: API responses as test fixtures, sample payloads pasted into docs, or exported tables. The repo is public and the API tiers are personal-use.
 - DO NOT add a runtime dependency without an ADR.
 - DO NOT key a fact table on a provider's player ID. Use our `player_key` surrogate.
-- DO NOT value FG%/FT% as bare rates. They are volume-weighted; without makes and attempts the math is silently wrong. See [schema.md](docs/database/schema.md#marts).
+- DO NOT value FG%/FT% as bare rates. They are volume-weighted; without makes and attempts the math is silently wrong. See [schema.md](docs/database/schema.md#marts). This applies to charts and analysis as much as to the board: plot `fg_impact`, not `FG%`.
+- DO NOT write a fourth parser for the provider export. `scripts/draft-board/gen_data.py` owns `parse`, `check` and the column order; `verify.py` and `scripts/analysis/` import them. A second parser that disagrees produces two internally consistent boards that differ.
+- DO NOT describe the 200-row export when you mean the pool. The z-scores are computed over the converged rostered pool (seed <= Q and GP >= MIN_GP), so that is the population any distribution claim is about.
 - DO NOT let availability raise a player's value. Scaling by games played must discount and never promote; below replacement the scaling is switched off, or the less available of two equal players sorts higher.
 - DO NOT hand-edit [docs/draft-board/cheat-sheet.md](docs/draft-board/cheat-sheet.md). It is generated from `README_ROWS` in `Build.gs` — edit there and regenerate.
 - DO NOT read from or write to the draft Google Sheet by any route except **Playwright**. Not the Sheets API, not a service account, not `clasp`, not Drive's file-content reader. `playwright-cli` drives the owner's own signed-in Chrome profile, so it needs no sharing change and no extra credential, and it sees the sheet exactly as the owner does. The alternatives are worse in ways that fail quietly: the Sheets API cannot create named ranges, conditional formats, checkboxes or data validation, so it cannot build this board at all, and Drive's reader truncates the tab around rank 77 of 200 without saying so. Commands in [build-and-maintenance.md](docs/draft-board/build-and-maintenance.md).
@@ -75,7 +78,7 @@ API → data/raw/{endpoint}/{date}.json → data/parquet/{table}/as_of_date=… 
 
 Apps read marts only. They never call the API and never recompute valuations at load time — draft day is when latency is least acceptable.
 
-Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md) · [draft board](docs/draft-board/build-and-maintenance.md) · [board cheat sheet](docs/draft-board/cheat-sheet.md) · [mock draft review](docs/draft-board/mock-draft-review.md) · [draft playbook](docs/references/fantasy-basketball-draft-playbook.md) · [quant vs expert](docs/references/quant-vs-expert-reconciliation.md) · [Basketball Monster & DURANT](docs/references/basketball-monster-durant.md)
+Deeper docs: [category distributions](docs/reviews/2026-08-30-category-distribution-normality.md) · [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md) · [draft board](docs/draft-board/build-and-maintenance.md) · [board cheat sheet](docs/draft-board/cheat-sheet.md) · [mock draft review](docs/draft-board/mock-draft-review.md) · [draft playbook](docs/references/fantasy-basketball-draft-playbook.md) · [quant vs expert](docs/references/quant-vs-expert-reconciliation.md) · [Basketball Monster & DURANT](docs/references/basketball-monster-durant.md)
 
 ## Security & Data Handling
 

@@ -22,6 +22,7 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0012](ADR-0012-tier-multiplier-and-percentage-denominator.md) | Tier multiplier of 2.0, and closing the percentage-denominator question | Accepted | 2026-08-28 | Bryan | ADR-0008 (in part) |
 | [ADR-0013](ADR-0013-category-profile-column.md) | The Category profile column names strengths from z, not G | Accepted | 2026-08-27 | Bryan | |
 | [ADR-0014](ADR-0014-durant-as-a-second-opinion.md) | DURANT ships as a column, not as the ranking | Accepted | 2026-08-29 | Bryan | |
+| [ADR-0015](ADR-0015-analysis-tooling-dependencies.md) | numpy, matplotlib and scipy as analysis-only dev dependencies | Accepted | 2026-08-30 | Bryan | |
 
 ## Decisions expected next
 

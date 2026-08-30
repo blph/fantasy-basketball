@@ -13,9 +13,16 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
+# numpy/matplotlib/scipy serve `scripts/analysis/` only and never enter `src/`;
+# the project still ships zero runtime dependencies. They are in `dev` rather
+# than their own extra so CI installs them and can actually test that code.
+# See ADR-0015.
 dev = [
   "pytest>=8.0",
   "ruff>=0.6",
+  "numpy>=1.26",
+  "matplotlib>=3.8",
+  "scipy>=1.11",
 ]
 
 [tool.setuptools.packages.find]

@@ -62,6 +62,14 @@ The premise is real. On our own pool, blocks skew **+1.53** with excess kurtosis
 and a zero-block player sits at z = −1.41 where a Normal says 7.95% of the pool should be
 below him and **0%** is. FT% impact skews the other way, **−1.40** with kurtosis **+6.31**.
 
+> Those figures, and the ones in the DURANT section below, are measured over **two
+> different pools** — single-pass here, converged there — which is why blocks reads +1.53
+> in this paragraph and +1.60 further down. Nothing in the repo computed a skew when they
+> were written, so both were produced ad hoc. The canonical, re-derivable figures are now in
+> [the normality review](../reviews/2026-08-30-category-distribution-normality.md): converged
+> blocks **+1.62 / +3.83**, FT% impact **−1.52 / +7.07**; single-pass **+1.54** and **−1.41**.
+> ADR-0014 quotes the single-pass pair and is left as accepted.
+
 ### The minus-one — a per-player automatic punt
 
 Verbatim from the column tooltips on Basketball Monster's public Player Rankings and Trade
