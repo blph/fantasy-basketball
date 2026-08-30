@@ -26,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+from gen_data import COLS  # noqa: E402  — the file that writes the order owns it
 from valuation import (  # noqa: E402
     CATEGORIES,
     Player,
@@ -37,10 +38,6 @@ from valuation import (  # noqa: E402
     replacement,
     z_total,
 )
-
-# Column order written by gen_data.py. Positions 1-4 are identity and ADP.
-COLS = ["seed", "name", "team", "pos", "adp", "gp", "mpg", "fgm", "fga", "fgp",
-        "ftm", "fta", "ftp", "tpm", "pts", "reb", "ast", "stl", "blk", "to"]
 
 # Defaults mirror the Settings tab. Q comes from config/league.yaml: 12 x 13.
 DEFAULTS = {"teams": 12, "roster": 13, "min_gp": 25, "gp_divisor": 72, "punt_weight": 0.25}

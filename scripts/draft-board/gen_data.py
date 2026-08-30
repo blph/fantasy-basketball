@@ -7,17 +7,37 @@ indicator) alongside the rank itself.
 
 Emits Data.gs — an array of arrays, one per player, in Board column order.
 Provider data. Never commit the output.
+
+This is the repository's only reader of the provider export. `verify.py` and the
+analysis scripts consume `parse` and `check` rather than re-implementing them: a
+second parser that disagrees with this one produces two internally consistent
+boards that differ, which is the hardest kind of wrong to see.
+
+Importing this module must stay free of side effects. It previously read
+`sys.argv` and wrote its output at import time, so `import gen_data` under pytest
+parsed nothing and wrote a file named `-q`.
+
+    python3 gen_data.py [export.md] [Data.gs]
 """
+from __future__ import annotations
+
 import json
 import re
 import statistics as st
 import sys
+from pathlib import Path
 
-SRC = sys.argv[1] if len(sys.argv) > 1 else (
-    "/Users/bryanpreza/Documents/Visual Studio Code/Fantasy Basketball/"
-    "data/player_data/player_data_0826.md"
-)
-OUT = sys.argv[2] if len(sys.argv) > 2 else "Data.gs"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_SRC = REPO_ROOT / "data" / "player_data" / "player_data_0826.md"
+DEFAULT_OUT = "Data.gs"
+
+# Column order of a parsed row. The Board's columns A-D, AZ, F-T in sheet order;
+# `verify.py` imports this rather than restating it.
+COLS = ["seed", "name", "team", "pos", "adp", "gp", "mpg", "fgm", "fga", "fgp",
+        "ftm", "fta", "ftp", "tpm", "pts", "reb", "ast", "stl", "blk", "to"]
+
+# The integrity guards, by name, so a caller can say which one tripped.
+CHECKS = ("contiguous", "duplicate", "unparsed")
 
 PCT = re.compile(r"([\d.]+)\(([\d.]+)/([\d.]+)\)")
 
@@ -67,28 +87,61 @@ def parse(path):
     return players, problems
 
 
-players, problems = parse(SRC)
-players.sort(key=lambda p: p[0])
+def check(players: list[list], problems: list[tuple] | None = None) -> list[str]:
+    """Name every way this export would make a wrong board, rather than the first.
 
-# Integrity checks — a silently dropped or duplicated player is a wrong board.
-ranks = [p[0] for p in players]
-names = [p[1] for p in players]
-assert ranks == list(range(1, len(players) + 1)), "seed ranks are not contiguous"
-assert len(set(names)) == len(names), "duplicate player names"
-assert not problems, f"unparsed rows: {problems}"
+    A silently dropped or duplicated player shifts every seed rank below it, which
+    moves the pool boundary, which moves all eight pool constants — and the board
+    still computes. Callers that skip this get that failure with no symptom.
 
-with open(OUT, "w", encoding="utf-8") as f:
-    f.write("// Generated from Hashtag Basketball export. Provider data - do not commit.\n")
-    f.write(f"// {len(players)} players. Column order matches Board columns A-D, AZ, F-T.\n")
-    f.write("// [rank, player, team, pos, adp, gp, mpg, fgm, fga, fgpct,\n")
-    f.write("//  ftm, fta, ftpct, tpm, pts, reb, ast, stl, blk, to]\n")
-    f.write("var PLAYERS = [\n")
-    for p in players:
-        f.write("  " + json.dumps(p) + ",\n")
-    f.write("];\n")
+    Returns complaints; empty means clean. Each string starts with its CHECKS name.
+    """
+    complaints = []
+    ranks = [p[0] for p in players]
+    names = [p[1] for p in players]
+    if ranks != list(range(1, len(players) + 1)):
+        complaints.append(f"contiguous: seed ranks are not 1..{len(players)}")
+    if len(set(names)) != len(names):
+        dupes = sorted({n for n in names if names.count(n) > 1})
+        complaints.append(f"duplicate: {len(dupes)} player name(s) appear more than once")
+    if problems:
+        complaints.append(f"unparsed: {len(problems)} row(s) — {problems[:3]}")
+    return complaints
 
-n_adp = sum(1 for p in players if p[4] != "")
-gp = [p[5] for p in players[:156]]
-print(f"wrote {OUT}: {len(players)} players, {n_adp} with ADP, {len(players)-n_adp} without")
-print(f"pool GP: min {min(gp):g} max {max(gp):g} mean {st.mean(gp):.1f}")
-print(f"pool avg PTS {st.mean(p[14] for p in players[:156]):.2f} (per-game gate)")
+
+def load(path) -> list[list]:
+    """Parse, sort by seed, and refuse to return anything that fails `check`."""
+    players, problems = parse(path)
+    players.sort(key=lambda p: p[0])
+    complaints = check(players, problems)
+    if complaints:
+        raise SystemExit(f"{path}: " + "; ".join(complaints))
+    return players
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    src = args[0] if args else DEFAULT_SRC
+    out = args[1] if len(args) > 1 else DEFAULT_OUT
+
+    players = load(src)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write("// Generated from Hashtag Basketball export. Provider data - do not commit.\n")
+        f.write(f"// {len(players)} players. Column order matches Board columns A-D, AZ, F-T.\n")
+        f.write("// [rank, player, team, pos, adp, gp, mpg, fgm, fga, fgpct,\n")
+        f.write("//  ftm, fta, ftpct, tpm, pts, reb, ast, stl, blk, to]\n")
+        f.write("var PLAYERS = [\n")
+        for p in players:
+            f.write("  " + json.dumps(p) + ",\n")
+        f.write("];\n")
+
+    n_adp = sum(1 for p in players if p[4] != "")
+    gp = [p[5] for p in players[:156]]
+    print(f"wrote {out}: {len(players)} players, {n_adp} with ADP, {len(players) - n_adp} without")
+    print(f"pool GP: min {min(gp):g} max {max(gp):g} mean {st.mean(gp):.1f}")
+    print(f"pool avg PTS {st.mean(p[14] for p in players[:156]):.2f} (per-game gate)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
