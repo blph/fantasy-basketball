@@ -7,6 +7,16 @@ Basketball Monster's published value columns to display precision.
 Written 2026-08-30 on branch `durant-actual`. Nothing in this document changes the draft
 board; it is a record of how somebody else's numbers are built.
 
+**This is a reproduction manual, not a survey.** Every section that gives a procedure is meant to
+be followed literally and to produce Basketball Monster's published numbers. Sections that record
+a *finding* rather than a procedure — §7's non-reproducible columns, §9's open gaps — say so in
+their headings.
+
+**Every number here is quoted with the input path that produced it**, because the same
+calculation scored against a rounded input and a raw one gives different answers, and a figure
+without its path is not checkable. Where two figures appear side by side they were produced the
+same way; where they were not, the text says so.
+
 > **This repository is public.** Under
 > [ADR-0006](../decisions/ADR-0006-no-provider-data-redistribution.md) it publishes no
 > provider data, so no player appears here attached to a stat line and no export rows are
@@ -66,58 +76,65 @@ the two projection sources, and §12 the punt weights.
 
 ## 1. Inputs
 
-Two files. Pull both in the same session — they must describe the same projection snapshot.
+You need two exports, taken in the same session and **from the same projection source**:
 
-| File | What it is | Shape |
+| Export | What it is | How to get it |
 |---|---|---|
-| **The raw projections CSV** | Basketball Monster's projected **season totals**. This is the actual input to their valuation. | 569 rows, 22 columns |
-| **The rendered rankings table** | The Player Rankings page, saved as markdown. Carries the *outputs* — `Value`, `Rank`, the nine category columns — plus the editorial columns. | 234 players, 47 columns |
+| **The totals export** | Projected **season totals**, every player (569 under Josh, 584 under Bonus). The input to the valuation. | `projections.aspx` → `Stats Display Format` = **Total Stats**, `Filters` = **All Players** → `Export to CSV` |
+| **The rendered table** | The same page in its normal state, carrying the *outputs* — `Value`, `Rank`, the nine category columns. | `projections.aspx` → `Stats Display Format` = **Per Game Stats** → `Export to CSV` |
 
-The CSV alone cannot verify anything, because it holds no values. The rendered table alone
-gives you rounded inputs, which caps the accuracy you can reach on steals and blocks. **Use
-the CSV as the input and the rendered table as the verification target.**
+The totals export alone cannot verify anything, because it holds no values. The rendered table
+alone gives you inputs already rounded to one decimal, which caps the accuracy you can reach on
+steals and blocks. **Feed the totals into §3 and check the result against the rendered table.**
 
-Note which **projection source** was active when you pulled them — Basketball Monster carries two,
-and they differ enough to matter. §11.
+Use `projections.aspx`, not the Player Rankings page: rankings serves *actuals*, so for a season
+that has not started it returns "There are no results to display."
 
-The rendered table is on `projections.aspx`, not the Player Rankings page: rankings serves actuals,
-so for a season that has not started it returns "There are no results to display.
+### Both exports are per-source — this is the trap
 
-In this repo the rendered table lives at `data/player_data/BBM Projects.md`. Keep the CSV
-beside it. Both sit under `data/`, which is gitignored — that is deliberate, and required.
+`projections.aspx` carries **two projection sources**, `Josh Projections` and `Bonus
+Projections`, and *every* export follows whichever is selected. A totals file from one source and
+a rendered table from the other will not reconcile: across the 564 players common to both, only
+**123** share a games total, and projected minutes differ by an average of 194.
 
-### CSV columns
+**Set `Projection Source` first, take both exports, then record which source you used.** §11
+covers both and reproduces each.
 
-```
-player_id, last_name, first_name, games, minutes,
-field_goals_attempted, field_goals, free_throws_attempted, free_throws,
-threes, threes_attempted, offensive_rebounds, defensive_rebounds,
-assists, blocks, steals, turnovers, fouls, technicals,
-double_doubles, triple_doubles, comments
-```
+> If you already have a file called `Projections.csv` from Basketball Monster's standalone
+> projections download — 569 players, 22 columns of integer season totals, headed
+> `player_id,last_name,first_name,games,minutes,…` — it is a **Josh** file. It is interchangeable
+> with the Total Stats export for Josh: every total agrees within one unit, and games and minutes
+> match exactly. There is no equivalent standalone download for Bonus, which is why the Total
+> Stats route above is the one this document uses.
 
-All season totals, all integers.
+### Joining the two exports
 
-### Joining the two
+Join on **player id**, never on name — the rule in [AGENTS.md](../../CLAUDE.md) applies to this
+provider too. In the rendered table the id is the `i=` parameter of each player link
+(`playerinfo.aspx?i=NNNN`); in the standalone CSV it is the `player_id` column. On the 2026-08-30
+Josh exports the join is **234 of 234**.
 
-`player_id` in the CSV is the same integer as `i=` in the rendered table's player links
-(`playerinfo.aspx?i=NNNN`). Parse it out of the markdown link and join on it. Never join on
-name — the rule in [AGENTS.md](../../CLAUDE.md) applies to this provider too. On the
-2026-08-30 export the join is **234 of 234**.
+### Parsing traps
 
-### Two parsing traps
-
-**The table repeats its header.** The file has 255 pipe-delimited lines: one header, one
-separator, **19 repeated header rows**, and 234 players. Parse naively and you get 253 rows
+**The table repeats its header.** A 234-player export arrives as 254 delimited rows: one header,
+one separator, **19 repeated header rows**, and the players. Parse naively and you get 253 rows
 and a crash on the first `int()`. Filter on `Rank` matching `^\d+$`.
 
-**The CSV totals are quantised to integers.** Basketball Monster's internal projections are
-fractional; the export rounds them. This is not cosmetic — it is the floor on how exactly you
-can reproduce anything, and §8 quantifies it. The evidence: take each player's *displayed*
-percentage and multiply by their CSV attempt total to recover the makes total that percentage
-implies. The gap against the CSV integer has median 0.29 for FG% and 0.30 for FT%, with a
-maximum of 1.12 — exactly the budget you get from rounding makes, attempts, and the displayed
-percentage. The two files are the same snapshot, seen at different precision.
+**Totals are comma-formatted.** The Total Stats export writes `2,108.0` for minutes. Strip commas
+before parsing or every large total silently becomes unparseable.
+
+**The Total Stats export gives percentages, not makes.** It carries `fg%` and `fga` but no `fgm`,
+so makes must be reconstructed as `fg% × fga`. That is a three-decimal percentage times a total,
+carrying roughly half a make of rounding error — the same order as everything else here.
+
+**Every export quantises.** Basketball Monster's internal projections are fractional and all
+exports round them. This is the floor on how exactly you can reproduce anything, and §8
+quantifies it. The evidence: take a displayed percentage and multiply by the exported attempts to
+recover the makes it implies — the gap against the exported makes has median 0.29 for FG% and
+0.30 for FT%, maximum 1.12, exactly the budget from rounding makes, attempts and the percentage.
+
+In this repo the exports live under `data/player_data/`, which is gitignored — deliberately, and
+required.
 
 ---
 
@@ -159,21 +176,42 @@ Basketball Monster analysts' own rankings, sold as a separate view.
 
 ## 3. Step one — per-game rates
 
-Every rate is the season total divided by projected games. Three of them are not columns in
-the CSV and have to be built:
+Every rate is a season total divided by projected games. **Exclude players with `games = 0`** —
+the 2026-08-30 Josh set has 60 of them, leaving 509; the Bonus set leaves 521.
 
-```
-points   = 2 x field_goals + threes + free_throws
-rebounds = offensive_rebounds + defensive_rebounds
-minutes per game = minutes / games
-```
+The two exports of §1 carry different columns, so the arithmetic differs. Use whichever row of
+the table matches the file you have.
 
-**`field_goals` already includes three-pointers.** This is the single most likely first-attempt
-error, and it is silent: every made three is worth three points, counted as a two-point field
-goal plus one. Getting it wrong shifts every high-volume shooter down and every non-shooter up,
-and the result still looks plausible.
+| Quantity | From the **Total Stats** export | From the standalone **`Projections.csv`** |
+|---|---|---|
+| Points | `pts` — given directly | `2 × field_goals + threes + free_throws` |
+| Rebounds | `reb` — given directly | `offensive_rebounds + defensive_rebounds` |
+| Threes, assists, steals, blocks, turnovers | given directly | given directly |
+| FG attempts | `fga` | `field_goals_attempted` |
+| FG makes | `fg% × fga` — **not given** | `field_goals` |
+| FT attempts | `fta` | `free_throws_attempted` |
+| FT makes | `ft% × fta` — **not given** | `free_throws` |
+| Minutes | `min` | `minutes` |
 
-Exclude players with `games = 0`. The 2026-08-30 CSV has 60 of them; 509 remain.
+Then divide every one by games.
+
+**Two traps, one per file.**
+
+*Using `Projections.csv`:* **`field_goals` already includes three-pointers.** This is the single
+most likely first-attempt error, and it is silent — every made three is worth three points,
+counted as a two-point field goal plus one. Get it wrong and every high-volume shooter shifts
+down and every non-shooter up, and the result still looks plausible.
+
+*Using the Total Stats export:* it gives **percentages, not makes**, so makes must be
+reconstructed. It is also comma-formatted, so strip commas first (§1).
+
+**The two files do not agree exactly**, and that is expected: Basketball Monster's internal
+projections are fractional and each export rounds them differently. Compared player by player on
+Josh, every total agrees within one unit, and games and minutes match exactly — except points,
+which reaches a difference of 2 because the `Projections.csv` route derives it from three
+separately-rounded components while the Total Stats export publishes it directly. **Where they
+differ, the Total Stats export is the better input**, since it is one rounding step closer to the
+source.
 
 ---
 
@@ -318,7 +356,7 @@ z-score would have handed him. That asymmetry is the whole point of the volume w
 
 ---
 
-## 7. The other columns
+## 7. The other columns — findings, not procedures
 
 ### `USG` — the standard possession formula
 
@@ -487,6 +525,11 @@ For each of the nine columns, report mean absolute error against the published v
 maximum, and the share within ±0.05. Then compare the reconstructed ranking to the published
 one by Spearman correlation and by how many ranks players move.
 
+**State the input path with every number you report.** A figure scored against the rendered
+table's one-decimal columns is not comparable to one scored against a totals export, and a Tier 1
+figure is not comparable to a Tier 2 one. Both mistakes have been made in earlier drafts of this
+document, in §11 — both times producing a comparison that looked like a result and was not.
+
 There are two levels, and they are worth keeping separate because they answer different
 questions.
 
@@ -538,7 +581,7 @@ column at 17.5%.
 
 ---
 
-## 9. Open gaps
+## 9. Open gaps — findings, not procedures
 
 ### The pool's spread does not match any top-N
 
@@ -691,6 +734,11 @@ Those MAEs are the rounding floor: averaging eight values published to two decim
 better.
 
 ### The lambdas
+
+**Fitted on the Josh source.** The lambdas below, and every DURANT figure in this section, come
+from the Josh projections and their pool. They are not claimed to transfer to Bonus: a
+Yeo-Johnson lambda is fitted to a particular distribution, and §11 shows the two sources put
+players in materially different places. Re-fit before using them on Bonus, by the same procedure.
 
 Recovered by golden-section search on the R² of each published column regressed on
 `YeoJohnson(raw per-game stat, lambda)`. Turnovers are fitted on the negated column, keeping the
@@ -874,38 +922,64 @@ where our board makes you choose a build and values everyone against it.
 
 `Projection Source` on `projections.aspx` offers **Josh Projections** and **Bonus Projections**.
 
-**There is no difference in the math between them. None.** Same z-score construction, same
-156-player pool, same volume-weighted percentages, same arithmetic mean of nine, same `Rank` and
-`Round`. Everything in §§1–5 applies unchanged to both.
+**There is no difference in the math. None.** Same z-score construction, same 156-player pool,
+same volume-weighted percentages, same arithmetic mean of nine, same `Rank` and `Round`.
+Everything in §§3–5 applies to both, unchanged and with no substitutions.
 
-What differs is the **input**: the projected games, minutes and box-score rates fed into that
-identical machine. These are projection *sources*, not valuation methods, and the distinction is
-easy to miss because switching between them changes every number on the page.
+What differs is the **input** — the projected games, minutes and box-score totals fed into that
+identical machine. These are projection *sources*, not valuation methods.
 
-The `Josh Bonus '25 2m 3w` header block — a single five-part group, which the §2 inventory should
-be read as covering — carries **games and minutes** under each: the two projection sources, then
-last season (`'25`) and two recent windows (`2m`, `3w`). The displayed `g` and `m/g` track
-whichever source is selected.
+### How to reproduce either one
 
-### Verified, not assumed
+The procedure is the same for both. Only step 1 changes.
 
-Re-running §4's recovery against the Bonus export:
+```
+1. On projections.aspx, set Projection Source to Josh or Bonus.
+2. Set Stats Display Format = Total Stats, Filters = All Players.  Export to CSV.
+      -> the totals export: 569 players under Josh, 584 under Bonus
+3. Set Stats Display Format = Per Game Stats.                      Export to CSV.
+      -> the rendered table: the published Value and category columns
+4. Run sections 3, 4 and 5 exactly as written, using the step-2 totals as input.
+5. Check against the step-3 table.
+```
 
-| Check | Result under Bonus |
-|---|---|
-| Each category value linear in its own per-game stat | R² 0.9928 – 0.99996 |
-| `Value` = arithmetic mean of the nine | MAE **0.0027**, max 0.0067 |
-| Pool size where the published columns hit unit variance | **156**, SDs 0.977 – 1.005 |
+Step 2 needs the §1 handling: strip commas, and rebuild makes as `fg% × fga`.
 
-Same construction, same pool, same aggregation. Only the inputs move. The lower R² values are
-steals and blocks, exactly as under Josh, and for the same reason — one-decimal display rounding
-on small per-game counts.
+Do not mix sources between steps 2 and 3. Both exports follow the selector, and a mismatched
+pair will not reconcile — see the trap in §1.
 
-Worth noting for §9: under Bonus the published columns sit closer to unit variance at N = 156
-(0.977 – 1.005) than under Josh (0.96 – 1.06). The pool-spread gap is smaller here, which is a
-thread worth pulling when that question is next revisited.
+### Both sources verified, by that procedure
 
-### But the choice moves players a lot
+Run end to end from each source's own Total Stats export against its own rendered table — the
+same code, the same steps, the only difference being which source produced the files. Scored
+against §8's **Tier 2** bar, which is the one this procedure is subject to, because it rebuilds
+the pool rather than using recovered constants:
+
+| Check | Tier 2 bar | Josh | Bonus |
+|---|---|---|---|
+| Each category value linear in its raw per-game stat | R² ≥ 0.9998 | 0.99981 – 0.99999 | 0.99983 – 0.99999 |
+| `Value` = arithmetic mean of the nine | — | MAE 0.0075 | MAE **0.0043** |
+| Rank correlation | Spearman ≥ 0.999 | 0.99942 | **0.99970** |
+| Maximum rank displacement | ≤ 10 | 8 | **8** |
+| Pool size where published columns reach unit variance | — | 156 | **156** |
+| Those columns' SDs at N = 156 | — | 0.972 – 1.004 | 0.977 – 1.005 |
+
+Both pass. Same construction, same pool, same aggregation — demonstrated from raw totals on both
+sides rather than inferred, and Bonus is if anything the cleaner of the two.
+
+Note that Josh's Spearman here (0.99942) is below the **Tier 1** bar of 0.9995 quoted in §8. That
+is not a failure: Tier 1 uses constants recovered by regression and Tier 2 rebuilds the pool from
+scratch, so Tier 2 is the harder path and carries the looser bar. Compare like with like.
+
+> **A note on an earlier version of this section.** It reported R² of 0.9928–0.99996 for Bonus and
+> attributed the softness to "display rounding on small per-game counts". The real cause was that
+> no Bonus totals export had been found, so the check had quietly been run against the *rendered
+> table's* one-decimal per-game columns — a different and weaker input path than §4 prescribes,
+> and one the section did not disclose. It also set that figure beside Josh's Tier 1 numbers, so
+> the two columns were not comparable in the first place. Both faults are the same mistake: a
+> number is meaningless without the input path that produced it. §8 now says so explicitly.
+
+### The choice moves players a lot
 
 Comparing the same 212 players across both sources:
 
@@ -913,17 +987,22 @@ Comparing the same 212 players across both sources:
 - Roughly **130–140 of 212** move ten or more places.
 - Mean absolute `Value` difference **0.078**, maximum 0.31.
 
-The rank figures are quoted as ranges on purpose. `Value` is published to two decimals and 140 of
-230 players share theirs with somebody, so exact rank counts shift with how ties are broken. The
-ranges span 40 random tie-breaks plus the export's own order — and note that the export's order is
-itself sorted by baseline rank, which preserves ties in their original positions and so *understates*
-movement. Do not quote a single figure here. The `Value` differences, which need no ranking, are
-exact.
+The rank figures are ranges on purpose. `Value` is published to two decimals and 140 of 230
+players share theirs with somebody, so exact rank counts shift with how ties are broken. The
+ranges span 40 random tie-breaks plus the export's own order — and that order is itself sorted by
+baseline rank, which preserves ties in place and so *understates* movement. Do not quote a single
+figure. The `Value` differences, which need no ranking, are exact.
 
 That is a bigger reshuffle than most methodology choices produce, and larger than DURANT's own
-weighting decision. **Which projection source you read is a more consequential choice than which
-valuation you read.** Anyone comparing a Basketball Monster number against ours should establish
-which source produced it first.
+weighting decision. **Which projection source produced a number matters more than which valuation
+produced it.** Establish the source before comparing any Basketball Monster figure against ours.
+
+### Nothing here settles §9
+
+An earlier draft suggested the Bonus pool sat noticeably closer to unit variance than Josh's, and
+offered that as a lead on the §9 spread gap. Measured like-for-like from the totals exports, the
+two are 0.972–1.004 and 0.977–1.005 — indistinguishable. The lead was an artefact of comparing a
+rounded input path against a raw one. §9 stands exactly as written.
 
 ---
 
@@ -944,6 +1023,10 @@ Blank means "no punt". **A weight of `0` is read as blank and silently does noth
 not survive a refresh. Use a small non-zero value to model a hard punt.
 
 ### The mechanism
+
+**Measured on the Josh source**, with both the punted and baseline exports taken from it. The
+mechanism is structural rather than fitted, so it should hold under Bonus, but that has not been
+checked.
 
 Measured by setting one weight, exporting, and regressing every column against the unpunted
 baseline. Two builds were tested — turnovers at 0.50, and FT% at 0.25 — to confirm the rule
