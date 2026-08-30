@@ -526,8 +526,18 @@ for 26-27 it returns "There are no results to display." **Projections live on
 `projections.aspx`**, which carries its own independent column selection.
 
 There, `Edit Display and Value Columns` offers six DURANT entries — `DURANT`, `DURANT Category
-Values`, `DURANT Dollars`, and the same three for `DURANT H2H`. Enable the four non-Dollars
-ones, plus **`Minus 1 Value`** and **`Balance Value`**, and Apply. All are membership-gated.
+Values`, `DURANT Dollars`, and the same three for `DURANT H2H`. Type `durant` into the picker's
+`Find a column…` box to isolate them. Enable the four non-Dollars ones, plus **`Minus 1 Value`**
+and **`Balance Value`**. All are membership-gated.
+
+Two practical notes. The picker has both **`Save`** and **`Apply`**: `Apply` redraws the table
+for this visit only, and the selection is lost on reload — `Save` persists it. And the page has
+its own **`Export to CSV`** button, which is a better source than scraping the DOM.
+
+**There is no DURANT-based projection.** The `Projection Source` dropdown offers only *Josh
+Projections* and *Bonus Projections*. DURANT is a valuation applied on top of whichever of those
+is selected — the same games, minutes and box-score totals, scored a different way. Nothing in
+the projection itself changes when you switch DURANT on; only the value columns appear.
 
 ### The columns, and the gift hidden in them
 
@@ -535,14 +545,22 @@ The aggregate columns are composite strings, not plain numbers:
 
 ```
 DUR        ->  1.18#2to      value 1.18, DURANT rank 2, category dropped: turnovers
-DUR H2H    ->  0.99#23       value 0.99, rank 23, no second category dropped
-Minus1V    ->  1.66+0.22to   value 1.66, gain of 0.22, category dropped: turnovers
+DUR H2H    ->  0.99#23       value 0.99, rank 2,        category dropped: threes
+Minus1V    ->  1.66+0.22to   value 1.66, gain of 0.22,  category dropped: turnovers
 ```
 
 **Basketball Monster names the dropped category itself.** That converts the hardest part of the
-reconstruction from an inference into a read. Parse with
-`^(-?[\d.]+)#(\d+?)(pts|3|reb|ast|stl|blk|fg%|ft%|to)?$` — note the **non-greedy** rank group,
-or `#47` followed by the threes token `3` silently parses as rank 473.
+reconstruction from an inference into a read.
+
+The category token for three-pointers is the bare digit `3`, which runs straight into the rank
+and makes the string genuinely ambiguous: `0.99#23` is *rank 2, threes*, not *rank 23*. On screen
+it renders as `0.99 #23 3` and reads even more like rank 23. Parse with
+`^(-?[\d.]+)#(\d+?)(pts|3|reb|ast|stl|blk|fg%|ft%|to)?$` — the **non-greedy** rank group is
+what resolves it, and a greedy one turns `#47` plus a threes token into rank 473.
+
+Verify the parse rather than trusting it. Across both columns the recovered ranks are 234
+distinct values with **zero value-versus-rank inversions**, which the wrong split does not
+produce.
 
 The per-category columns are `DpV D3V DrV DaV DsV DbV Dfg%V Dft%V DtoV` and, for the H2H
 variant, the same with a `DH` prefix.
