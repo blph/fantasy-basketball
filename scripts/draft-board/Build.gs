@@ -469,8 +469,12 @@ function refreshWithReorder(ss, board, oldNames, newNames) {
 function step1_Settings() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   _guard('Settings', function () {
-    var sh = sheetByName(ss, 'Settings', 10, 75);
+    var sh = sheetByName(ss, 'Settings', 10, 90);
     writeSettingsSkeleton(sh);
+    // Named ranges are (re)declared here, not only in the full build: a step
+    // that adds a Settings block referencing new columns is useless if the
+    // names those formulas need only appear on a rebuild.
+    defineNames(ss);
     writeSettingsFormulas(sh);
     formatSettings(sh);
   });
@@ -484,6 +488,47 @@ function step1b_FormatBoard() {
     sh.clearConditionalFormatRules();
     detachBandings(sh);
     formatBoard(ensureGrid(sh, B_LAST, RN));
+  });
+}
+
+/**
+ * Step 1c: write ONLY the DURANT block on the Board, columns dFg..durRank.
+ *
+ * Surgical on purpose. Columns 1..73 are not touched, so `My GP Est` overrides,
+ * the GP history columns and Notes cannot be clobbered by adding a column --
+ * which a full `writeBoardFormulas` would do, because it reseeds `My GP Est`
+ * from Projected GP.
+ */
+function step1c_DurantColumns() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  _guard('DURANT columns', function () {
+    var sh = ensureGrid(ss.getSheetByName('Board'), B_LAST, RN);
+    var first = B.dFg, width = B.durRank - B.dFg + 1;
+
+    var dlab = ['d FG%', 'd FT%', 'd 3PM', 'd PTS', 'd REB', 'd AST', 'd STL', 'd BLK', 'd TO',
+                'DURANT H2H', 'DURANT rank'];
+    sh.getRange(2, first, 1, width).setNumberFormat('@').setValues([dlab]);
+
+    var out = [];
+    for (var i = 0; i < POOL_ROWS; i++) {
+      var r = R0 + i;
+      function bc(col) { return '$' + a1col(col) + r; }
+      var line = [];
+      for (var di = 0; di < DURANT_CATS.length; di++) {
+        var src = bc(B[DURANT_CATS[di].src]), lam = 'INDEX(DUR_LAM,' + (di + 1) + ')';
+        line.push('=LET(x,' + src + ',L,' + lam + ',IF(x>=0,IF(L=0,LN(1+x),((1+x)^L-1)/L),' +
+          'IF(L=2,-LN(1-x),-(((1-x)^(2-L)-1)/(2-L)))))');
+      }
+      line.push('=IF(' + bc(B.player) + '="","",LET(t,' + bc(B.dFg) + ':' + bc(B.dTo) +
+        ',v,ARRAYFORMULA(TRANSPOSE(DUR_W)*(t-TRANSPOSE(DUR_MEAN))/TRANSPOSE(DUR_SD)' +
+        '*{1,1,1,1,1,1,1,1,-1}),SUM(v)-INDEX(v,1,9)-MIN(ARRAY_CONSTRAIN(v,1,8))))');
+      line.push('=IF(' + bc(B.durTot) + '="","",RANK(' + bc(B.durTot) + ',B_DURTOT))');
+      out.push(line);
+    }
+    sh.getRange(R0, first, out.length, width).setFormulas(out);
+    sh.getRange(R0, B.dFg, POOL_ROWS, 9).setNumberFormat('0.00');
+    sh.getRange(R0, B.durTot, POOL_ROWS, 1).setNumberFormat('+0.00;-0.00;0.00');
+    sh.getRange(R0, B.durRank, POOL_ROWS, 1).setNumberFormat('0');
   });
 }
 
@@ -708,7 +753,7 @@ function writeSettingsSkeleton(sh) {
     ['Punt weight', 0.25]
   ];
   // Only the label columns need forcing to text ('3PM' would become 3:00 PM).
-  sh.getRange(1, 1, 75, 1).setNumberFormat('@');   // column A labels
+  sh.getRange(1, 1, 90, 1).setNumberFormat('@');   // column A labels
   sh.getRange(1, 4, 20, 1).setNumberFormat('@');   // column D multiplier labels
   sh.getRange(3, 1, league.length, 2).setValues(league);
 
@@ -1971,6 +2016,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Step 1 — Settings only', 'step1_Settings')
     .addItem('Step 1b — Reformat Board', 'step1b_FormatBoard')
+    .addItem('Step 1c — DURANT columns', 'step1c_DurantColumns')
     .addItem('Step 2 — Draft Board only', 'step2_DraftBoard')
     .addItem('Step 3 — Punts, Tracker, README', 'step3_Rest')
     .addToUi();
