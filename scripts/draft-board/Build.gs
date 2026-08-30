@@ -31,6 +31,7 @@ var COLOR = {
   market:   '#8C3B2B',
   punt:     '#7A2E52',
   notes:    '#546E7A',
+  durant:   '#4A5D23',
 
   headerText: '#FFFFFF',
   inputBg:    '#FFF8E1',
@@ -526,6 +527,25 @@ function step1d_BoardFormulas() {
     // optional -- see the hazard note on this function.
     writeBoardFormulas(board);
     if (settings) writeSettingsFormulas(settings);
+    // Headers and formatting too. Writing formulas into columns that carry no
+    // header leaves a block of unlabelled numbers, which on this board is worse
+    // than not shipping it: every other block says what it is, and a column you
+    // cannot name is a column you cannot check.
+    writeBoardHeaderRow(board);
+    board.clearConditionalFormatRules();
+    detachBandings(board);
+    formatBoard(board);
+    SpreadsheetApp.flush();
+
+    // The Draft Board and the Category Tracker read named ranges too (CAT_BAND,
+    // TIER_MULT, the tracker bands), so they are broken by the same removal and
+    // have to be rebuilt in the same pass. Rewriting only the Board and
+    // Settings leaves them full of #REF!. buildDraftTab carries the checkbox
+    // state across, so Gone, Mine and Notes survive.
+    var draft = ss.getSheetByName('Draft Board');
+    if (draft) buildDraftTab(ss, ensureGrid(draft, D_LAST, RN), board);
+    var tracker = ss.getSheetByName(TRACKER_TAB);
+    if (tracker) buildTrackerTab(tracker);
     SpreadsheetApp.flush();
   });
 }
@@ -561,7 +581,9 @@ function step1c_DurantColumns() {
       line.push('=IF(' + bc(B.player) + '="","",LET(t,' + bc(B.dFg) + ':' + bc(B.dTo) +
         ',v,ARRAYFORMULA(TRANSPOSE(DUR_W)*(t-TRANSPOSE(DUR_MEAN))/TRANSPOSE(DUR_SD)' +
         '*{1,1,1,1,1,1,1,1,-1}),SUM(v)-INDEX(v,1,9)-MIN(ARRAY_CONSTRAIN(v,1,8))))');
-      line.push('=IF(' + bc(B.durTot) + '="","",RANK(' + bc(B.durTot) + ',B_DURTOT))');
+      var dtc2 = a1col(B.durTot);
+      line.push('=IF(' + bc(B.durTot) + '="","",RANK($' + dtc2 + r +
+        ',$' + dtc2 + '$' + R0 + ':$' + dtc2 + '$' + RN + '))');
       out.push(line);
     }
     sh.getRange(R0, first, out.length, width).setFormulas(out);
@@ -601,7 +623,14 @@ function reorderTabs(ss, order) {
 
 // ---------------------------------------------------------------- the Board
 
-function writeBoardData(sh) {
+/**
+ * The Board's row-2 column labels.
+ *
+ * Split out of `writeBoardData` because that function also rewrites the raw
+ * data block across the full width, blanking the hand-edit columns with it. A
+ * step that only touches formulas still has to be able to label them.
+ */
+function writeBoardHeaderRow(sh) {
   var head = [];
   head[B.seed] = 'Seed\nRank'; head[B.player] = 'Player'; head[B.team] = 'Team';
   head[B.pos] = 'Pos'; head[B.inPool] = 'In\nPool';
@@ -635,6 +664,11 @@ function writeBoardData(sh) {
   for (var c = 1; c <= B_LAST; c++) row.push(head[c] || '');
   // '3PM' would otherwise be parsed as 3:00 PM.
   sh.getRange(2, 1, 1, B_LAST).setNumberFormat('@').setValues([row]);
+}
+
+
+function writeBoardData(sh) {
+  writeBoardHeaderRow(sh);
 
   // Raw values only. Everything derived is a formula, written separately.
   var vals = [];
@@ -733,7 +767,14 @@ function writeBoardFormulas(sh) {
     row[B.durTot] = '=IF(' + bc(B.player) + '="","",LET(t,' + bc(B.dFg) + ':' + bc(B.dTo) +
       ',v,ARRAYFORMULA(TRANSPOSE(DUR_W)*(t-TRANSPOSE(DUR_MEAN))/TRANSPOSE(DUR_SD)' +
       '*{1,1,1,1,1,1,1,1,-1}),SUM(v)-INDEX(v,1,9)-MIN(ARRAY_CONSTRAIN(v,1,8))))';
-    row[B.durRank] = '=IF(' + bc(B.durTot) + '="","",RANK(' + bc(B.durTot) + ',B_DURTOT))';
+    // Explicit range, derived from the map, exactly as the punt ranks do it.
+    // RANK() against the B_DURTOT *named* range returns #N/A for every row even
+    // though the name resolves to the right cells and the values are numeric.
+    // The punt ranks have always used the literal-range form and have always
+    // worked, so match them rather than keep debugging the named-range form.
+    var dtc = a1col(B.durTot);
+    row[B.durRank] = '=IF(' + bc(B.durTot) + '="","",RANK($' + dtc + r +
+      ',$' + dtc + '$' + R0 + ':$' + dtc + '$' + RN + '))';
 
     // Blank ADP means no market read. Zero would read as "fairly priced".
     row[B.gap] = '=IF(' + bc(B.adp) + '="","",' + bc(B.adp) + '-' + bc(B.adjRank) + ')';
@@ -1119,7 +1160,8 @@ function formatBoard(sh) {
     [B.gp1, B.adjRank, 'AVAILABILITY', COLOR.avail],
     [B.adp, B.gap, 'MARKET', COLOR.market],
     [B.pFt, B.rTriple, 'PUNT BUILDS', COLOR.punt],
-    [B.notes, B.notes, '', COLOR.notes]
+    [B.notes, B.notes, '', COLOR.notes],
+    [B.dFg, B.durRank, 'DURANT  (reconstruction — a second opinion, not the ranking)', COLOR.durant]
   ];
   blocks.forEach(function (b) {
     blockHeader(sh, b[0], b[1], b[2], b[3]);
@@ -1163,6 +1205,14 @@ function formatBoard(sh) {
   sh.getRange(R0, B.zfg, POOL_ROWS, B.gtot - B.zfg + 1).setNumberFormat('+0.00;−0.00;0.00');
   sh.getRange(R0, B.vor, POOL_ROWS, 1).setNumberFormat('0.00');
   sh.getRange(R0, B.vorRank, POOL_ROWS, 1).setNumberFormat('0');
+  // The nine d-columns are the TRANSFORMED statistic, not a z-score -- they are
+  // standardised inside DURANT H2H, not here -- so they get a plain format
+  // rather than the signed one the z and g blocks use.
+  sh.getRange(R0, B.dFg, POOL_ROWS, 9).setNumberFormat('0.000');
+  sh.getRange(R0, B.durTot, POOL_ROWS, 1).setNumberFormat('+0.00;−0.00;0.00');
+  sh.getRange(R0, B.durRank, POOL_ROWS, 1).setNumberFormat('0');
+  sh.setColumnWidth(B.durTot, 74);
+  sh.setColumnWidth(B.durRank, 62);
   sh.getRange(R0, B.gp1, POOL_ROWS, 4).setNumberFormat('0');
   sh.getRange(R0, B.adj, POOL_ROWS, 1).setNumberFormat('0.000').setFontWeight('bold');
   sh.getRange(R0, B.adjRank, POOL_ROWS, 1).setNumberFormat('0');
