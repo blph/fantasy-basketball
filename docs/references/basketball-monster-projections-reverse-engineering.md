@@ -59,7 +59,8 @@ column set on `projections.aspx`, pulled on 2026-08-30 and reverse-engineered in
 Yeo-Johnson layer, its lambdas are recovered, and its minus-one rule is confirmed exactly.
 
 The two metrics therefore split cleanly, and this document does too. **§§1–9 are the standard
-`Value` layer. §10 is DURANT.** They share the per-game inputs of §3 and nothing else.
+`Value` layer. §10 is DURANT.** They share the per-game inputs of §3 and nothing else. §11 covers
+the two projection sources, and §12 the punt weights.
 
 ---
 
@@ -75,6 +76,12 @@ Two files. Pull both in the same session — they must describe the same project
 The CSV alone cannot verify anything, because it holds no values. The rendered table alone
 gives you rounded inputs, which caps the accuracy you can reach on steals and blocks. **Use
 the CSV as the input and the rendered table as the verification target.**
+
+Note which **projection source** was active when you pulled them — Basketball Monster carries two,
+and they differ enough to matter. §11.
+
+The rendered table is on `projections.aspx`, not the Player Rankings page: rankings serves actuals,
+so for a season that has not started it returns "There are no results to display.
 
 In this repo the rendered table lives at `data/player_data/BBM Projects.md`. Keep the CSV
 beside it. Both sit under `data/`, which is gitignored — that is deliberate, and required.
@@ -386,8 +393,37 @@ order, so a `#2` outranks its own `#1`. Someone is placing these by hand.
 `Role` is a depth-chart call — `ST` starter, `mST` marginal starter, `BN` bench, with the
 position. 57 of 234 are bench.
 
-`Conf` is a 1–10 confidence grade, correlating with `Value` at only +0.21. It carries
-information the valuation does not.
+### `Conf` — drafting confidence, not reproducible
+
+An integer 1–10 spread across the whole range. A natural hypothesis is that it measures how much
+the various metrics disagree about a player — if Josh, Bonus, DURANT and DURANT H2H all say the
+same thing, be confident. **Tested directly, that is not what it is.**
+
+| Feature | Correlation with `Conf` |
+|---|---|
+| `Value` level, as a control | **+0.223** |
+| \|Value − DUR\| | +0.162 |
+| \|Josh rank − Bonus rank\| | −0.131 |
+| spread of Josh / Bonus / DUR / DUR H2H | +0.118 |
+| \|Josh Value − Bonus Value\| | **−0.074** |
+| \|DUR − DUR H2H\| | +0.023 |
+
+The disagreement measures are the *weakest* things in the table. The most direct one — how far
+the two projection sources' values differ — comes in at −0.074, indistinguishable from nothing,
+and several carry the wrong sign, with more disagreement going with slightly *higher* confidence.
+The plain level of `Value` beats every one of them, which says `Conf` mostly rises with player
+quality rather than with agreement.
+
+A multivariate fit on 25 numeric features returns **R² = 0.148** — weaker even than `FrV`.
+
+What it does separate on looks like judgement:
+
+- Players with no NBA history: mean 5.47, against 6.26 for those with a full history block.
+- `Inj Risk` low 8.00, med 6.34, high 5.94, unset 3.88.
+- Settled starters slightly above marginal starters.
+
+Read `Conf` as an analyst's grade for how sure they are about a player's role and health, not as
+a computed dispersion statistic. Like `FrV` and `Tier`, take it as an input you cannot rebuild.
 
 `1W+-` is the one-week change in `Value`, spanning −0.21 to +0.72. Reproducing it needs last
 week's export, so archive each pull if you want the series.
@@ -504,6 +540,7 @@ Basketball Monster derived them.
 
 - What `FrV` measures, and on what data. Pulling it as a member column (it is one) changes
   nothing: the values are identical to those in the default export, and the R² of 0.31 stands.
+  `Conf` is now tested and closed the same way — see §7; it is judgement, not arithmetic.
 - Whether `Tier` is analyst-set or clustered by some rule not visible in the export.
 - `USG`, pending a complete player-to-team mapping.
 - DURANT's percentage categories — the one part of §10 not reproduced. `BalV` (Balance Value)
@@ -567,17 +604,29 @@ variant, the same with a `DH` prefix.
 
 ### The algorithm
 
+Both metrics share the first three steps and diverge after that.
+
 ```
-1. Per-game rate for each category, exactly as in §3.
-2. Yeo-Johnson transform each category with its own lambda.
-3. Standardise the transformed column against the pool.  -> the D*V columns
-4. Drop each player's single lowest D*V.
-5. DURANT = the arithmetic mean of the eight survivors.
+Shared:
+  1. Per-game rate for each category, exactly as in §3.
+  2. Yeo-Johnson transform each category with its own lambda.
+  3. Standardise the transformed column against the pool.  -> the D*V columns
+
+DURANT:
+  4. Drop each player's single lowest D*V.
+  5. DURANT = the arithmetic mean of the eight survivors.  (all nine equally weighted)
+
+DURANT H2H:
+  4. Multiply each D*V by a fixed category weight.         -> the DH*V columns
+     Turnovers carry weight 0, which is how they are "removed".
+  5. Drop the lowest of the remaining eight weighted values.
+  6. DURANT H2H = the arithmetic mean of the seven survivors.
 ```
 
-`DURANT H2H` is the same with one change at step 4: **turnovers are dropped for every player
-first**, then the lowest of the remaining eight is dropped too, and the mean is taken over the
-seven that survive.
+**The two metrics do not share their category columns.** `DH*V` is `D*V` scaled by a fixed
+per-category weight — only points passes through unchanged. This is the difference that matters
+and the one an earlier draft of this document got wrong; see *Where the category weights are*
+below.
 
 ### Confirmed, exactly
 
@@ -623,23 +672,52 @@ where Lloyd's argument says it should:
 - **FT% impact +1.50** — the only λ above 1, *expanding* rather than compressing, because FT%
   impact is the one category skewed **left**.
 
-### There are no category weights
+### Where the category weights are
 
 The most-repeated claim about DURANT is that it applies fixed, unpublished category weights.
-**As implemented in the 2026-27 projections, it does not.**
+The truth is split, and both halves matter.
 
-Two independent lines of evidence:
+**Plain `DURANT` has none.** Two independent lines of evidence:
 
-- A plain unweighted mean of the survivors reproduces `DUR` to the rounding floor. Any non-equal
-  weighting would show up as a systematic residual, and there is none.
-- The weights cannot be hiding inside the `D*V` columns either. Over the top ~150 by `DUR`,
-  every one of the nine has SD between 0.96 and 1.04 and mean within 0.08 of zero. They are all
-  plain unit-variance z-scores.
+- An unweighted mean of the survivors reproduces `DUR` to the rounding floor. Any non-equal
+  weighting would leave a systematic residual, and there is none.
+- The weights are not hiding inside the `D*V` columns either. Over the top ~150 by `DUR`, every
+  one of the nine has SD between 0.96 and 1.04 and mean within 0.08 of zero. They are plain
+  unit-variance z-scores.
 
-Lloyd has described weighting as a component in interviews, and his pre-DURANT manual method
-weighted threes, steals and blocks at 0.8. Neither survives into this build. Whatever "category
-weighting" meant, it is not a step in the arithmetic here — the transform *is* the reweighting,
-since compressing a category's tail is what changes its influence.
+**`DURANT H2H` has them, and they are recoverable exactly.** Regressing each `DH*V` column on
+its `D*V` counterpart gives a clean proportional relationship with no intercept:
+
+| Category | Fitted slope | Weight | R² |
+|---|---|---|---|
+| Points | 1.00000 | **1.00** | 1.0000000 |
+| Rebounds | 0.93997 | **0.94** | 0.9999833 |
+| Assists | 0.75037 | **0.75** | 0.9999772 |
+| Threes | 0.59959 | **0.60** | 0.9999643 |
+| Steals | 0.60024 | **0.60** | 0.9999741 |
+| Blocks | 0.60006 | **0.60** | 0.9999674 |
+| FG% | 0.60011 | **0.60** | 0.9999713 |
+| FT% | 0.60015 | **0.60** | 0.9999617 |
+| Turnovers | 0.00000 | **0.00** | — |
+
+Every intercept is below 0.0005 and every maximum residual below 0.0093, which is two-decimal
+display rounding. `DHtoV` is literally `0.00` for all 234 players: turnovers are removed by
+carrying weight zero, not by a special case in the drop logic.
+
+Read the vector plainly. Points are the reference at 1.00; rebounds nearly match them; assists
+count three-quarters; and threes, steals, blocks and both percentages all count **0.60**. So a
+point of steals edge is worth 60% of a point of scoring edge before the drop rule does anything.
+
+Lloyd's pre-DURANT manual method weighted threes, steals and blocks at 0.8 and punted turnovers.
+The shape survives — those three are still the discounted ones and turnovers are still gone —
+but the values do not, and FG%/FT% have joined the discounted group.
+
+**A correction to an earlier version of this document.** It claimed DURANT applied no category
+weights at all, generalising a result that only held for `DUR`. The error came from a test with
+a blind spot: the aggregation check consumed the *published* `DH*V` columns, so it validated the
+arithmetic given those columns and structurally could not detect that they differed from `D*V`.
+The end-to-end reconstruction from raw stats — run for `DUR` but not, at the time, for
+`DUR H2H` — would have caught it immediately. It is now run for both.
 
 ### Full reconstruction accuracy
 
@@ -658,10 +736,23 @@ minimum, average:
 | `Dfg%V` | 0.0345 | 0.1632 | 79.1% |
 | `Dft%V` | 0.0273 | 0.1517 | 88.9% |
 
-`DUR` itself: **MAE 0.0048**, max 0.0165, Spearman **0.999657**, mean rank movement 2.63 places.
+Aggregates, both built end to end from the raw CSV:
+
+| Metric | MAE | Max | Spearman | Mean rank move |
+|---|---|---|---|---|
+| `DUR` | **0.0048** | 0.0165 | **0.999657** | 2.63 |
+| `DUR H2H` | **0.0038** | 0.0168 | **0.999846** | 3.59 |
+
+`DUR H2H` reconstructs slightly *better* than `DUR`, because zeroing turnovers removes the
+noisiest of the nine columns from the average.
+
+**The control that matters.** Rebuilding `DUR H2H` with equal weights — the way an earlier
+version of this document described it — gives **MAE 0.0963, max 0.3257**, about 38× worse. If a
+reconstruction lands near 0.10 rather than 0.004, the weight vector is missing.
 
 **Acceptance for a DURANT reconstruction: the seven counting columns at MAE ≤ 0.015 and ≥99%
-within ±0.05, and `DUR` at MAE ≤ 0.010 with Spearman ≥ 0.9995.**
+within ±0.05, and each aggregate at MAE ≤ 0.010 with Spearman ≥ 0.9995.** Both metrics pass;
+run the check for both, not just `DUR`.
 
 ### What is still open: the percentages
 
@@ -681,8 +772,10 @@ that a reader should not treat as reproduced.
 
 ### Corrections this section makes
 
-- **"DURANT applies fixed category weights."** Not in this build. The survivors are averaged
-  equally, and the `D*V` columns carry no embedded scaling.
+- **"DURANT applies fixed category weights."** Half right, and the half matters. Plain `DURANT`
+  applies none — the survivors are averaged equally and the `D*V` columns carry no embedded
+  scaling. `DURANT H2H` applies them, and they are now recovered exactly: 1.00 points, 0.94
+  rebounds, 0.75 assists, 0.60 for threes, steals, blocks, FG% and FT%, and 0.00 turnovers.
 - **"You switch the value type to DURANT."** No — it is a column, on `projections.aspx`, and the
   `Value Type` dropdown is unrelated.
 - **"The coefficients are unpublished, and nobody has replicated it."** The coefficients are
@@ -702,7 +795,119 @@ it is per-game throughout, and our `Adjusted Value` models something it does not
 punting is **automatic and per player**, deciding for you which category each player concedes,
 where our board makes you choose a build and values everyone against it.
 
-## 11. Cheat sheet
+## 11. The two projection sources
+
+`Projection Source` on `projections.aspx` offers **Josh Projections** and **Bonus Projections**.
+These are projection *inputs*, not valuation methods, and the distinction is easy to miss.
+
+The `Josh Bonus '25 2m 3w` header block — a single five-part group, which the §2 inventory should
+be read as covering — carries **games and minutes** under each: the two projection sources, then
+last season (`'25`) and two recent windows (`2m`, `3w`). The displayed `g` and `m/g` track
+whichever source is selected.
+
+### The valuation math is identical
+
+Verified rather than assumed, by re-running §4's recovery against the Bonus export:
+
+| Check | Result under Bonus |
+|---|---|
+| Each category value linear in its own per-game stat | R² 0.9928 – 0.99996 |
+| `Value` = arithmetic mean of the nine | MAE **0.0027**, max 0.0067 |
+| Pool size where the published columns hit unit variance | **156**, SDs 0.977 – 1.005 |
+
+Same construction, same pool, same aggregation. Only the inputs move. The lower R² values are
+steals and blocks, exactly as under Josh, and for the same reason — one-decimal display rounding
+on small per-game counts.
+
+Worth noting for §9: under Bonus the published columns sit closer to unit variance at N = 156
+(0.977 – 1.005) than under Josh (0.96 – 1.06). The pool-spread gap is smaller here, which is a
+thread worth pulling when that question is next revisited.
+
+### But the choice moves players a lot
+
+Comparing the same 212 players across both sources:
+
+- Mean rank movement **about 20 places** (19.8–20.6 depending on tie-break), maximum 93–98.
+- Roughly **130–140 of 212** move ten or more places.
+- Mean absolute `Value` difference **0.078**, maximum 0.31.
+
+The rank figures are quoted as ranges on purpose. `Value` is published to two decimals and 140 of
+230 players share theirs with somebody, so exact rank counts shift with how ties are broken. The
+ranges span 40 random tie-breaks plus the export's own order — and note that the export's order is
+itself sorted by baseline rank, which preserves ties in their original positions and so *understates*
+movement. Do not quote a single figure here. The `Value` differences, which need no ranking, are
+exact.
+
+That is a bigger reshuffle than most methodology choices produce, and larger than DURANT's own
+weighting decision. **Which projection source you read is a more consequential choice than which
+valuation you read.** Anyone comparing a Basketball Monster number against ours should establish
+which source produced it first.
+
+---
+
+## 12. Punt weights
+
+Basketball Monster's punt support is a **per-category weight**, not a binary punt — the same
+shape as our own [ADR-0009](../decisions/ADR-0009-soft-punt-weighting.md) soft weighting.
+
+### The control
+
+`Punt Settings` on `projections.aspx` opens nine numeric inputs, one per category, `min=0`,
+`step=0.01`, no maximum. They are named `PuntCategoriesControl_weight_N`, where N is Basketball
+Monster's own category id — `1` pts, `2` threes, `3` reb, `4` ast, `5` stl, `6` blk, `7` fg%,
+`8` ft%, `25` to. Those are the same ids that appear in the rendered table's sort links
+(`SortC_1`, `SortV_25`), which is a useful cross-check.
+
+Blank means "no punt". **A weight of `0` is read as blank and silently does nothing** — it will
+not survive a refresh. Use a small non-zero value to model a hard punt.
+
+### The mechanism
+
+Measured by setting one weight, exporting, and regressing every column against the unpunted
+baseline. Two builds were tested — turnovers at 0.50, and FT% at 0.25 — to confirm the rule
+generalises across a counting category and a percentage, and across two different weights.
+
+```
+1. Weight the category's standardised value:  V_punted = w x V
+2. Re-derive the pool and re-standardise, because Value changed and so did who is in the top 156.
+3. Value = the arithmetic mean of the nine columns.  The denominator stays 9.
+```
+
+| Build | Punted column slope vs baseline | Other eight | `Value` = mean of nine |
+|---|---|---|---|
+| `to` at 0.50 | 0.523 | 1.009 – 1.024 | MAE 0.0025 |
+| `ft%` at 0.25 | 0.246 | 0.983 – 1.023 | MAE 0.0025 |
+
+The punted column scales by the weight, as intended. The other eight drift by one to two percent
+— not a rounding artefact but the pool re-standardising: under the turnovers punt, **six players
+enter or leave the top 156**, which shifts every category's mean and SD slightly.
+
+Two consequences worth stating plainly.
+
+**The denominator does not change.** Value is the mean of nine even when a category is weighted
+to a fraction, so punting *lowers* everyone's Value rather than redistributing it. It is not a
+renormalised weighted average.
+
+**Punting is not local to the punted category.** Because the pool re-derives, a punt moves
+players who have nothing to do with the punted category. Under a half-punt on turnovers, mean
+rank movement is **about 8 places** (7.7–8.4 by tie-break), with a maximum of 52–58 and roughly
+**69–82 of 230 players moving ten or more** — again a range, for the tie reason given in §11.
+
+### How this compares to our board
+
+The shape matches ADR-0009 — a fractional weight, not a deletion — which is reassuring, since we
+adopted soft punting on the argument that a conceded category is still won by accident some
+weeks.
+
+Two differences are worth carrying into any future revision of that ADR. Basketball Monster
+**re-standardises the pool after punting**; our board does not, and that is the more
+consequential of the two, because it means their punt build changes the replacement level itself.
+And their denominator stays at nine, so their punted values are not comparable in magnitude to
+their unpunted ones — a trap when reading the two side by side.
+
+---
+
+## 13. Cheat sheet
 
 The whole thing in plain language. No formulas.
 
@@ -804,10 +1009,16 @@ That second rule is why DURANT flatters specialists. It assumes you will punt wh
 player is bad at — which is a real strategy, but it decides it for you, player by player, rather
 than letting you pick one build and stick to it.
 
-Two things worth knowing before trusting it. It has **no sense of injuries** — it is a per-game
-number throughout, so a player who will miss thirty games looks identical to one who will not.
-And its handling of shooting percentages is the one piece that is still not fully understood,
-which matches what its own author says about it.
+The two versions also **count the categories differently**, which is easy to miss. Plain DURANT
+treats all nine equally. DURANT H2H throws turnovers away entirely and then counts steals,
+blocks, threes and both shooting percentages at 60% of what a point of scoring is worth, with
+rebounds at 94% and assists at 75%. So the H2H version is not just "DURANT minus turnovers" — it
+is a noticeably more scoring-and-rebounding-led ranking.
+
+Two things worth knowing before trusting either. Neither has **any sense of injuries** — both are
+per-game numbers throughout, so a player who will miss thirty games looks identical to one who
+will not. And their handling of shooting percentages is the one piece still not fully understood,
+which matches what their author says about it.
 
 ### The three mistakes to avoid
 
@@ -822,7 +1033,7 @@ which matches what its own author says about it.
 
 ---
 
-## 12. Sources
+## 14. Sources
 
 **Basketball Monster.** Three pulls, all 2026-08-30 with a member account: the projections CSV
 of season totals, the default `projections.aspx` table (§§1–9), and the same table re-pulled with
