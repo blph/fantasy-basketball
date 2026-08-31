@@ -8,6 +8,23 @@ A working implementation of Part I is committed at
 [`scripts/bbm/bbm_reference.py`](../../scripts/bbm/bbm_reference.py) — standard library only,
 tested, and measured against their published columns in Part IV.
 
+## The four values, at a glance
+
+Basketball Monster publishes four different values over the same projections. They share the
+per-game inputs of §I.1–I.2 and diverge after that.
+
+| Value | What it is | How to reproduce | When to use it — Josh Lloyd's guidance |
+|---|---|---|---|
+| **`Value`**<br>plain z-score | Each category z-scored against the pool, turnovers inverted, then the **mean of the nine**. | §I.3–I.5. No transform, no weights, all nine equal. | The industry baseline — *"Z-scores have been the basis of fantasy category rankings forever. Not just here, but Yahoo and ESPN's player rater also use Z-scores."* |
+| **`Minus 1 Value`** | The same nine, with each player's **single worst category dropped**, averaged over eight. | §I.3–I.5, then drop the minimum and divide by 8. | For head-to-head: *"I firmly believe that in order to properly evaluate a player's head-to-head value, you need to remove their worst category."* |
+| **`DURANT`** | Yeo-Johnson transform per category → standardise → drop the worst → mean of eight. All nine weighted equally. | §I.6. Needs the λ table in §I.8. | Not a sole basis — *"I would pay attention to the guys that rank much higher or lower in DURANT and see if maybe there is a hidden angle there."* In-season: *"a better representation of the actual impact players are having."* |
+| **`DURANT H2H`** | DURANT **plus fixed category weights**, turnovers weighted to zero, then drop the worst of the rest → mean of seven. | §I.7. Needs the λ table **and** the weight vector, both in §I.8. | Built for weekly category leagues. *"Consider using DURANT H2H as a supplementary tool for assessing player value during drafts."* |
+
+Only `DURANT H2H` weights the categories. Only `DURANT H2H` removes two — turnovers always, plus
+each player's worst of the remaining eight. §I.11 carries the author's full reasoning.
+
+---
+
 | Part | What it is | Needs their site? |
 |---|---|---|
 | **I — The specification** | The algorithm, the constants, a worked example | **No** |
@@ -58,10 +75,10 @@ a percentage on its own throws away the volume that makes it worth anything.
 Divide every total by `games`. **Drop any player projected for zero games** — they cannot be
 rated and they will destroy your pool statistics.
 
-Everything from here on is per game. There is no availability term anywhere in this method: a
-player projected for 44 games and one projected for 73 are rated as though they were the same
-asset. That is a real limitation of the method, not an omission in this document, and §V says
-what to do about it.
+Everything from here on is per game. **There is no availability term anywhere in this method** — a
+player projected for 44 games and one projected for 73 produce values from the same arithmetic.
+That is by design and worth knowing when you read the output; it is not an omission in this
+document. §V covers what it means in practice.
 
 ## I.3 Step two — the pool
 
@@ -230,6 +247,13 @@ DURANT H2H category weights:
 |---|---|---|---|---|
 | 1.00 | 0.94 | 0.75 | 0.60 each | **0.00** |
 
+Unlike the λ, **these are published** — Basketball Monster lists them in
+[article 1957](https://basketballmonster.com/article.aspx?article=1957), and they match the values
+recovered here by regression (1.0000, 0.9400, 0.7504, 0.5996–0.6002, 0.0000) to four decimals. The
+two were arrived at independently, so each confirms the other. §I.11 gives the author's account of
+how they were chosen: *"Factors considered when assigning weights include game-to-game variance and
+year-to-year consistency."*
+
 ### Deriving your own λ, for a different season or projection set
 
 The λ above are frozen to one snapshot. For your own projections, fit them.
@@ -252,9 +276,10 @@ gives:
 | Basketball Monster | +0.415 | +1.017 | −0.438 | +0.007 | −0.351 | **−1.686** | −0.178 |
 
 Every direction agrees — blocks most compressed, threes nearest the identity, assists nearest a
-log — but the values do not. Their λ come from a different objective, a different pool, or hand
-tuning; we could not determine which. **So: use their constants to reproduce their numbers, and
-fit your own to apply the method.** Do not expect the two to agree.
+log — but the values do not. Maximum likelihood is therefore not the objective Basketball Monster
+fitted to; what they used is not published, and we could not recover it. **So: use their constants
+to reproduce their numbers, and fit your own to apply the method to a different pool.** Do not
+expect the two to agree.
 
 ## I.9 Punt weighting
 
@@ -316,6 +341,122 @@ from the field — below the pool's .4918 — on high volume, and is punished fo
 shoots .848 from the line, well above the pool's .7988, but on only 4.6 attempts, so he is
 rewarded +0.69 rather than the +2 a raw-rate z-score would have handed him. That asymmetry is the
 entire point of the volume weighting.
+
+---
+
+## I.11 The author's own account
+
+The specification above says *what* the arithmetic does. This section says *why*, in Josh Lloyd's
+words, from [article 1957](https://basketballmonster.com/article.aspx?article=1957),
+*DURANT 2.0 & DURANT H2H* (27 Aug 2026, marked **"REPUBLISHED FROM 2024"** and containing the
+original DURANT article appended below the update).
+
+### Where the transform came from
+
+The origin was a single number that did not sit right — a blocks z-score of 4.64:
+
+> "a Z-score of 4.64 is such a vast outlier that the implied probability of finding a number that
+> significant in a normal sample was close to 1 in 500,000. That can't be right, I thought
+> especially when there were four other players with block Z-scores that put them at a probability
+> of occurring of at best 1 in 1,400."
+
+The diagnosis:
+
+> "That probability assumes a normal distribution—a bell curve. So, I looked at NBA stats. None of
+> them are distributed normally. There is no bell curve for blocks or any NBA stat. Blocks, and all
+> NBA stats, except free throw percentage, are heavily right-skewed."
+
+And the consequence he had already been seeing subjectively:
+
+> "weird steals and blocks numbers would often push players higher up the ranking than it felt like
+> they should, while poor free throw percentage and field goal percentage players may be punished
+> too much."
+
+Which is why free-throw percentage is the one category whose recovered λ is **above** 1 in §I.8:
+it is the one skewed the other way.
+
+**The transform changed between versions.** The original article describes **Box-Cox**; the 2.0
+update describes the **Yeo-Johnson** transformation, chosen because it *"is capable of handling
+negative and zero values, which is crucial for basketball statistics that often include zeros
+(e.g., blocks, steals) and negative impacts (e.g., shooting percentages)."* The fit in §I.8
+confirms Yeo-Johnson. Anyone implementing from the older text would use the wrong family.
+
+His stated aims for it: *"Reducing the Impact of Outliers"*, *"Improving Predictive Accuracy"*,
+*"Enhancing Consistency"*.
+
+### Why the minus-one rule
+
+> "DURANT H2H uses the minus 1 approach, which removes a player's worst category from their
+> evaluation. This reflects the common H2H strategy of punting, where managers intentionally
+> disregard one or more categories to strengthen their team in others."
+
+Stated benefits: it *"Aligns with Punting Strategies"* and *"Enhances Player Value Recognition"* by
+focusing on a player's strengths. And from the original article:
+
+> "I firmly believe that in order to properly evaluate a player's head-to-head value, you need to
+> remove their worst category. I also believe in not including turnovers."
+
+(The article follows that with a named example — a low-usage guard finishing far above a superstar
+in turnover-inclusive category rankings. The players and their ranks are omitted here under
+[ADR-0006](../decisions/ADR-0006-no-provider-data-redistribution.md).)
+
+### Why the categories are weighted
+
+> "In H2H leagues, not all statistical categories impact weekly matchups equally. Weighting
+> categories allows managers to align strategies with their team's strengths and mitigate
+> variance."
+
+And the basis for the specific values in §I.8:
+
+> "Factors considered when assigning weights include game-to-game variance and year-to-year
+> consistency."
+
+### Why turnovers are excluded entirely
+
+Three reasons, given directly:
+
+> "Turnovers correlate closely with high-usage stats like points and assists. They also have high
+> variance and are influenced by streaming strategies in H2H leagues."
+
+With the intended effects: *"Avoid Penalizing High-Usage Players"* — high-turnover players central
+to their team's offence *"aren't unfairly downgraded"* — plus *"Simplify Roster Management"* and
+*"Reflect H2H Dynamics"* — *"Turnovers become less indicative of a player's value in a
+streaming-heavy format."*
+
+### How much weight to put on the output
+
+He is explicit that these are a second lens, not a replacement:
+
+> "I don't know how successful DURANT will be in determining the most valuable players in fantasy.
+> That's what this season is for… It isn't something I would base all of my fantasy decisions on,
+> but I would pay attention to the guys that rank much higher or lower in DURANT and see if maybe
+> there is a hidden angle there."
+
+> "I think after draft day, DURANT can give us a better representation of the actual impact players
+> are having."
+
+And for the H2H variant: *"Consider using DURANT H2H as a supplementary tool for assessing player
+value during drafts."*
+
+He also notes a limit of the whole enterprise: *"we will never get an exact ranking system for
+category leagues; there are too many variables involved."*
+
+### One note for anyone implementing from the article
+
+The appended original section describes the standardisation sample as:
+
+> "I used a sample of all NBA players, not your league sample… So, overall values for DURANT are
+> higher because of the larger sample."
+
+The 2026-27 columns behave differently: the nine `D*V` columns sit at mean ≈ 0 and SD ≈ 1 over the
+top 150 by `DURANT`, drifting to −0.49 by rank 234 — that is, standardised on the league pool, the
+same as `Value`. The aggregate *is* higher than `Value` as the article says (+0.18 on the top 156),
+but that follows from the minus-one rule: dropping each player's worst category raises their
+average.
+
+Given that section is republished from 2024 and the transform itself demonstrably changed between
+versions, read this as the implementation having moved on. It is recorded here only because
+following the older text would put the pool in the wrong place. §I.3 is what the current data does.
 
 ---
 
@@ -644,9 +785,11 @@ threes and both percentages count 60% of what a point of scoring counts, rebound
 75%. So it is a noticeably more scoring-and-rebounding-led ranking, not just "DURANT without
 turnovers".
 
-That second rule is why DURANT flatters specialists: it assumes you will punt whatever each player
-is bad at. A real strategy — but it decides it for you, player by player, rather than letting you
-pick one build and stick to it.
+The second rule is deliberate, and mirrors how category leagues are actually played. In the
+author's words, it *"reflects the common H2H strategy of punting, where managers intentionally
+disregard one or more categories to strengthen their team in others."* Turnovers come out of the
+H2H version for their own stated reasons: they track high-usage stats like points and assists, they
+swing hard week to week, and they are distorted by streaming.
 
 ### The three mistakes to avoid
 
@@ -675,8 +818,14 @@ acronym read cleanly and recur across episodes. Full citations, URLs and the pub
 rank-movement sets are on branch `bbm` in `docs/references/basketball-monster-durant.md`.
 
 **DURANT** stands for "Dynamic Unbiased Rankings Applying Normalised Transformations", confirmed
-in Lloyd's own voice on three occasions. The coefficients are deliberately unpublished, and no
-third-party replication existed before this one.
+in Lloyd's own voice on three occasions and in article 1957. The **H2H category weights are
+published** there; the **Yeo-Johnson λ are not**, and no third-party replication of them existed
+before this one.
+
+**Basketball Monster article 1957**, *DURANT 2.0 & DURANT H2H*, Josh Lloyd, published 27 Aug 2026
+and marked "REPUBLISHED FROM 2024", with the original DURANT article appended below the update.
+Member-gated. The source for §I.11 and for the published H2H weight vector in §I.8, and the only
+first-party account of why the method is built the way it is.
 
 **Basketball Monster article 1831**, *Welcome*, 15 Aug 2022 — the only one still public, and the
 source for Lloyd's pre-DURANT manual weights (threes, steals and blocks at 0.8, turnovers punted).
@@ -684,10 +833,9 @@ The shape survives into the H2H weights of §I.8; the values do not.
 
 **Rosenof**, [2307.02188](https://arxiv.org/abs/2307.02188) (G-score) and
 [2409.09884](https://arxiv.org/abs/2409.09884) (H-scoring). The latter cites Lloyd's 2023 podcast
-for the heavy-tailed-blocks premise and declines to act on it, resting on the central limit
-theorem: categories are won by 13-man team totals, which are near-normal however skewed the
-individuals are. That argument is untouched by a successful reconstruction, and adopting any of
-DURANT would need its own ADR.
+by name for the heavy-tailed-blocks premise — independent confirmation of when that argument was
+first made publicly. Relevant background for anyone comparing this method against our own board's
+G-score layer.
 
 **In this repo:** [ADR-0012](../decisions/ADR-0012-tier-multiplier-and-percentage-denominator.md)
 on the percentage denominator — the same volume-weighted construction as §I.4, arrived at
