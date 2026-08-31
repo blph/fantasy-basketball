@@ -13,12 +13,23 @@ tested, and measured against their published columns in Part IV.
 Basketball Monster publishes four different values over the same projections. They share the
 per-game inputs of §I.1–I.2 and diverge after that.
 
-| Value | What it is | How to reproduce | When to use it — Josh Lloyd's guidance |
+| Value | What it is | How to reproduce | When to use it |
 |---|---|---|---|
-| **`Value`**<br>plain z-score | Each category z-scored against the pool, turnovers inverted, then the **mean of the nine**. | §I.3–I.5. No transform, no weights, all nine equal. | The industry baseline — *"Z-scores have been the basis of fantasy category rankings forever. Not just here, but Yahoo and ESPN's player rater also use Z-scores."* |
-| **`Minus 1 Value`** | The same nine, with each player's **single worst category dropped**, averaged over eight. | §I.3–I.5, then drop the minimum and divide by 8. | For head-to-head: *"I firmly believe that in order to properly evaluate a player's head-to-head value, you need to remove their worst category."* |
-| **`DURANT`** | Yeo-Johnson transform per category → standardise → drop the worst → mean of eight. All nine weighted equally. | §I.6. Needs the λ table in §I.8. | Not a sole basis — *"I would pay attention to the guys that rank much higher or lower in DURANT and see if maybe there is a hidden angle there."* In-season: *"a better representation of the actual impact players are having."* |
-| **`DURANT H2H`** | DURANT **plus fixed category weights**, turnovers weighted to zero, then drop the worst of the rest → mean of seven. | §I.7. Needs the λ table **and** the weight vector, both in §I.8. | Built for weekly category leagues. *"Consider using DURANT H2H as a supplementary tool for assessing player value during drafts."* |
+| **`Value`**<br>plain z-score | Each category z-scored against the pool, turnovers inverted, then the **mean of the nine**. | §I.3–I.5. No transform, no weights, all nine equal. | The industry baseline — *"Z-scores have been the basis of fantasy category rankings forever. Not just here, but Yahoo and ESPN's player rater also use Z-scores."* Not what Lloyd recommends for category leagues. |
+| **`Minus 1 Value`** | The same nine, with each player's **single worst category dropped**, averaged over eight. | §I.3–I.5, then drop the minimum and divide by 8. | *"I firmly believe that in order to properly evaluate a player's head-to-head value, you need to remove their worst category."* |
+| **`DURANT`** | Yeo-Johnson transform per category → standardise → drop the worst → mean of eight. All nine weighted equally. | §I.6. Needs the λ table in §I.8. | **Roto category leagues.** *"Roto requires you to accumulate value across the full set of selected categories over the entire season, so the standard DURANT calculation is better suited to that format."* |
+| **`DURANT H2H`** | DURANT **plus fixed category weights**, turnovers weighted to zero, then drop the worst of the rest → mean of seven. | §I.7. Needs the λ table **and** the weight vector, both in §I.8. | **Head-to-head category leagues — this league.** *"DURANT H2H is specifically designed for head-to-head category leagues."* |
+
+**Lloyd's recommendation, in his own words** (article 2310, 14 Aug 2026):
+
+> "My general recommendation is simple: Use DURANT for roto category leagues. Use DURANT H2H for
+> head-to-head category leagues. Use your league's customised fantasy-points calculation for points
+> leagues."
+
+With the caveat attached in the same article:
+
+> "This does not mean you should blindly draft from the DURANT H2H order. It also does not mean the
+> system has automatically created the correct punt build for your particular team."
 
 Only `DURANT H2H` weights the categories. Only `DURANT H2H` removes two — turnovers always, plus
 each player's worst of the remaining eight. §I.11 carries the author's full reasoning.
@@ -347,9 +358,73 @@ entire point of the volume weighting.
 ## I.11 The author's own account
 
 The specification above says *what* the arithmetic does. This section says *why*, in Josh Lloyd's
-words, from [article 1957](https://basketballmonster.com/article.aspx?article=1957),
-*DURANT 2.0 & DURANT H2H* (27 Aug 2026, marked **"REPUBLISHED FROM 2024"** and containing the
-original DURANT article appended below the update).
+words, from two Basketball Monster articles. Both are member-gated.
+
+- **[Article 2310](https://basketballmonster.com/article.aspx?article=2310)**, *Welcome to a new
+  season at Basketball Monster*, **14 Aug 2026** — the current guidance. Says which value to use
+  for which format.
+- **[Article 1957](https://basketballmonster.com/article.aspx?article=1957)**, *DURANT 2.0 &
+  DURANT H2H*, 27 Aug 2026 but marked **"REPUBLISHED FROM 2024"**, with the original DURANT article
+  appended below the update — the fullest account of the *reasoning*, and the source of the weight
+  vector.
+
+**Where they differ, 2310 is the newer word.** 1957 calls DURANT H2H *"a supplementary tool"* and
+says DURANT *"isn't something I would base all of my fantasy decisions on"*; that is the 2023–24
+stance. By 2026 the recommendation is direct and format-specific — see *Which one to use* below.
+
+### Which one to use
+
+> "My general recommendation is simple: Use DURANT for roto category leagues. Use DURANT H2H for
+> head-to-head category leagues. Use your league's customised fantasy-points calculation for points
+> leagues."
+
+On the roto case: *"Roto requires you to accumulate value across the full set of selected categories
+over the entire season, so the standard DURANT calculation is better suited to that format."*
+
+On the H2H case: *"DURANT H2H is specifically designed for head-to-head category leagues… It is a
+stronger starting point for head-to-head leagues because it removes turnovers, accounts for the
+different behaviour of each category and recognises that you do not need to dominate every category
+to win a weekly matchup."*
+
+And on what it is not:
+
+> "This does not mean you should blindly draft from the DURANT H2H order. It also does not mean the
+> system has automatically created the correct punt build for your particular team."
+
+> "Overall value is a guide, not a draft list… The numerical gap between two players may be
+> extremely small. One player might be ranked 15 spots higher because of a fraction of a steal, a
+> slight field-goal percentage difference or one category that does not fit your team. Look at the
+> categories. Look at your build. Look at what becomes difficult to find later in the draft. The
+> overall number is useful, but the individual statistical profile is usually more important."
+
+He also confirms DURANT is not editorialised: *"It is still based entirely on our projections. It is
+not a separate set of hand rankings or an adjustment based on whether we like a player."*
+
+### Per game or totals
+
+Neither DURANT variant carries an availability term (§I.2), and that is a display choice on their
+side rather than an omission:
+
+> "Per-game rankings show how valuable a player is whenever he plays. Total rankings combine that
+> production with projected games played. If you want injuries and expected absences incorporated
+> directly into the order, switch to Totals. If you want to compare players based on their nightly
+> production, use Per Game."
+
+> "Games played is also the least predictable part of any projection. I produce our games-played
+> estimates, but I do not personally draft straight from total-value rankings."
+
+### Projected minutes are deliberately inflated
+
+Important if you build anything on their projections, and easy to mistake for an error:
+
+> "You may also notice that a team's projected minutes add up to more than 240 per game. That is
+> intentional. We include approximately 5 to 10 per cent additional playing time to account for
+> injuries, absences and the reality that the same rotation will not remain healthy for the entire
+> season."
+
+So team minutes will not sum to 240, bench players carry more minutes than a healthy opening-night
+rotation would give them, and any per-minute work built on these numbers inherits that 5–10%
+padding.
 
 ### Where the transform came from
 
@@ -423,9 +498,11 @@ to their team's offence *"aren't unfairly downgraded"* — plus *"Simplify Roste
 *"Reflect H2H Dynamics"* — *"Turnovers become less indicative of a player's value in a
 streaming-heavy format."*
 
-### How much weight to put on the output
+### How his own framing changed
 
-He is explicit that these are a second lens, not a replacement:
+Worth reading in order, because the tone shifted between the two articles.
+
+**2023–24 (article 1957), when DURANT was new** — a second lens, held tentatively:
 
 > "I don't know how successful DURANT will be in determining the most valuable players in fantasy.
 > That's what this season is for… It isn't something I would base all of my fantasy decisions on,
@@ -438,8 +515,13 @@ He is explicit that these are a second lens, not a replacement:
 And for the H2H variant: *"Consider using DURANT H2H as a supplementary tool for assessing player
 value during drafts."*
 
-He also notes a limit of the whole enterprise: *"we will never get an exact ranking system for
-category leagues; there are too many variables involved."*
+**2026 (article 2310)** — a direct recommendation by format, quoted under *Which one to use* above.
+DURANT H2H is no longer "supplementary" but *"a stronger starting point for head-to-head leagues"*.
+
+The caution that survives both is about how the number is applied, not whether to trust the method:
+overall value is a guide, not a draft list. And from 1957, a limit on the whole enterprise:
+*"we will never get an exact ranking system for category leagues; there are too many variables
+involved."*
 
 ### One note for anyone implementing from the article
 
@@ -822,10 +904,19 @@ in Lloyd's own voice on three occasions and in article 1957. The **H2H category 
 published** there; the **Yeo-Johnson λ are not**, and no third-party replication of them existed
 before this one.
 
+**Basketball Monster article 2310**, *Welcome to a new season at Basketball Monster*, Josh Lloyd,
+14 Aug 2026. Member-gated. The **current** first-party guidance: which value to use for which league
+format, the per-game versus totals choice, the deliberate 5–10% minutes overage, and a second
+independent publication of the H2H weight vector. Where it and 1957 differ, this is the newer word.
+
 **Basketball Monster article 1957**, *DURANT 2.0 & DURANT H2H*, Josh Lloyd, published 27 Aug 2026
 and marked "REPUBLISHED FROM 2024", with the original DURANT article appended below the update.
-Member-gated. The source for §I.11 and for the published H2H weight vector in §I.8, and the only
-first-party account of why the method is built the way it is.
+Member-gated. The fullest account of *why* the method is built the way it is, and the first
+publication of the H2H weight vector. Its usage guidance is the 2023–24 stance, superseded by 2310.
+
+**Basketball Monster article 2185**, *Welcome To Basketball Monster 2025/26*, Josh Lloyd,
+14 Aug 2025. Member-gated. The 2025 predecessor of 2310, and the first to say *"Use DURANT (or
+DURANT H2H) for category leagues."*
 
 **Basketball Monster article 1831**, *Welcome*, 15 Aug 2022 — the only one still public, and the
 source for Lloyd's pre-DURANT manual weights (threes, steals and blocks at 0.8, turnovers punted).
