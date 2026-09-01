@@ -82,24 +82,36 @@ Sheet.prototype._write = function (rng, g) {
 };
 Sheet.prototype._read = function (r, c) {
   const v = this.cells[`${r},${c}`];
+  // boardOrder reads the selected value column off a calculation tab before Sheets has
+  // calculated anything. Synthesise a descending column so the sort has something real.
+  if (global.V && this.name === 'BMP' && c === V.durh && r >= 4 && v === undefined)
+    return 12 - r * 0.05;
   if (v === undefined) return '';
-  // Emulate calculation for the columns the script reads back.
-  if (this.name === 'Board' && c === 50) return 12 - r * 0.05;          // Adjusted Value
-  if (this.name === 'Board' && c === 51) return r - 2;                   // Adj Rank
-  if (this.name === 'Draft Board' && c === 11) return (r % 15 === 0) ? 'BREAK' : '';
+  if (global.D && this.name === 'Draft Board' && c === D.brk)
+    return (r % 15 === 0) ? 'BREAK' : '';
   return v;
 };
 Sheet.prototype.getRange = function (a, b, c, d) {
   if (typeof a === 'string') {
-    const m = a.match(/^([A-Z]+)(\d+)$/);
+    const m = a.match(/^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/);
     if (!m) { problems.push(`${this.name}: unparsed A1 "${a}"`); return new Range(this,1,1,1,1); }
-    return new Range(this, +m[2], colNum(m[1]), 1, 1, a);
+    const c1 = colNum(m[1]), r1 = +m[2];
+    const c2 = m[3] ? colNum(m[3]) : c1, r2 = m[4] ? +m[4] : r1;
+    return new Range(this, r1, c1, r2 - r1 + 1, c2 - c1 + 1, a);
   }
   return new Range(this, a, b, c, d);
 };
 ['clear','clearConditionalFormatRules','setFrozenRows',
- 'setRowHeight','setHiddenGridlines','hideColumns','setConditionalFormatRules']
+ 'setRowHeight','setHiddenGridlines','setConditionalFormatRules']
  .forEach(m => { Sheet.prototype[m] = function(){ return this; }; });
+// Recorded, not a no-op: the projection filter's whole job is column arithmetic, and
+// pointing it at the wrong span is exactly the failure that would pass every other check.
+Sheet.prototype.hideColumns = function (c, n) {
+  (this.hidden = this.hidden || []).push([c, n === undefined ? 1 : n]); return this;
+};
+Sheet.prototype.showColumns = function (c, n) {
+  (this.shown = this.shown || []).push([c, n === undefined ? 1 : n]); return this;
+};
 Sheet.prototype.setColumnWidth = function (c) {
   if (c > this.maxCols) problems.push(`${this.name}: setColumnWidth(${c}) past maxColumns ${this.maxCols}`);
   return this;
@@ -111,6 +123,7 @@ Sheet.prototype.setFrozenColumns = function (n) {
   });
   return this;
 };
+Sheet.prototype.getName = function(){ return this.name; };
 Sheet.prototype.getBandings = function(){ return []; };
 Sheet.prototype.getConditionalFormatRules = function(){ return this.rules; };
 Sheet.prototype.setConditionalFormatRules = function(r){ this.rules = r; return this; };
@@ -202,207 +215,334 @@ if (problems.length) {
   problems.slice(0,25).forEach(p => console.log(' - ' + p));
 } else console.log('\nNo problems found.');
 
+
 // ---- targeted assertions on what actually landed in the cells ----
+//
+// Every expectation below is BUILT FROM THE COLUMN MAPS, never pinned as a literal.
+// Pinning both sides as strings makes this file blind to the failure it exists to catch:
+// insert a column and each hardcoded source letter shifts against the data while the
+// assertion still passes.
 function cell(sh, r, c){ const v = seen.sheets[sh].cells[`${r},${c}`]; return v === undefined ? '<empty>' : v; }
 function L(n){let s='';while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26;}return s;}
 const fails = [];
 function expect(what, got, want) {
   if (String(got) !== String(want)) fails.push(`${what}\n     got  ${got}\n     want ${want}`);
 }
-console.log('\n=== Board row 3 (first player) ===');
-// Every expectation below is BUILT FROM THE COLUMN MAP, never pinned as a
-// literal. Pinning both sides as strings made this file blind to the failure it
-// exists to catch: insert a column into B and each hardcoded source letter in
-// writeBoardFormulas shifts against the data while the assertion still passes.
+function check(what, ok, detail) { if (!ok) fails.push(what + (detail ? `\n     ${detail}` : '')); }
 const C = n => '$' + L(n);
-const r3 = 3;
+const r4 = R0;
 
-[['seed',B.seed],['player',B.player],['GP',B.gp],['FGA',B.fga],['FG%',B.fgp],['ADP',B.adp]]
-  .forEach(([n,c]) => console.log(`  ${n.padEnd(10)} ${L(c)}3 = ${cell('Board',3,c)}`));
-[[B.inPool,'In Pool'],[B.ifg,'FG impact'],[B.zfg,'z FG%'],[B.zto,'z TO'],[B.ztot,'Z total'],
- [B.gpts,'g PTS'],[B.gtot,'G total'],[B.vor,'VOR'],[B.myGp,'My GP'],[B.adj,'Adj value'],
- [B.gap,'Gap'],[B.pFt,'Punt FT%'],[B.pTriple,'Punt triple']]
- .forEach(([c,n]) => console.log(`  ${n.padEnd(12)} ${L(c)}3 = ${cell('Board',3,c)}`));
+// --- structure -------------------------------------------------------------
+check('all three calculation tabs exist',
+  SOURCES.every(s => seen.sheets[s.key]),
+  'got: ' + Object.keys(seen.sheets).join(', '));
 
-expect('In Pool',   cell('Board',3,B.inPool),
-  `=IF(AND(${C(B.seed)}3<=Q,${C(B.gp)}3>=MIN_GP),1,0)`);
-expect('FG impact', cell('Board',3,B.ifg),
-  `=(${C(B.fga)}3/POOL_AVG_FGA)*(${C(B.fgp)}3-POOL_FG_PCT)`);
-expect('FT impact', cell('Board',3,B.ift),
-  `=(${C(B.fta)}3/POOL_AVG_FTA)*(${C(B.ftp)}3-POOL_FT_PCT)`);
-expect('z FG%',     cell('Board',3,B.zfg),  `=${C(B.ifg)}3/SD_FG_IMPACT`);
-expect('z TO flip', cell('Board',3,B.zto),  `=(MEAN_TO-${C(B.to)}3)/SD_TO`);
-expect('Z total',   cell('Board',3,B.ztot), `=SUM(${C(B.zfg)}3:${C(B.zto)}3)`);
-expect('g PTS',     cell('Board',3,B.gpts), `=${C(B.zpts)}3*MULT_PTS`);
-expect('G total',   cell('Board',3,B.gtot), `=SUM(${C(B.gfg)}3:${C(B.gto)}3)`);
-expect('VOR',       cell('Board',3,B.vor),  `=${C(B.gtot)}3-REPLACEMENT`);
-expect('Gap blank', cell('Board',3,B.gap),
-  `=IF(${C(B.adp)}3="","",${C(B.adp)}3-${C(B.adjRank)}3)`);
-
-// Availability discounts, never rewards. A negative value must keep its
-// magnitude, or the less available of two equal players sorts higher.
-expect('Adj value', cell('Board',3,B.adj),
-  `=IF(${C(B.myGp)}3="","",LET(v,${C(B.vor)}3,v*IF(v<0,1,${C(B.myGp)}3/GP_DIVISOR)))`);
-
-// Each punt column must be a value over ITS OWN replacement level, then
-// GP-adjusted with the same floor — not a raw G-score.
-PUNTS.forEach(p => {
-  let want = `=IF(${C(B.myGp)}3="","",LET(v,${C(B.gtot)}3`;
-  p.drop.forEach(d => { want += `-(1-PUNT_WEIGHT)*${C(B[d])}3`; });
-  want += `-${replName(p.key)},v*IF(v<0,1,${C(B.myGp)}3/GP_DIVISOR)))`;
-  expect(p.label, cell('Board',3,B[p.key]), want);
-  if (String(cell('Board',3,B[p.rank])).indexOf('=RANK(') !== 0)
-    fails.push(`${p.label} rank is not a RANK()`);
-  if (!seen.namedRanges[replName(p.key)])
-    fails.push(`${p.label} has no ${replName(p.key)} named range`);
+// The projection filter hides one source's six-column span. A gap in that span would hide
+// the wrong columns while every offline check still passed.
+SOURCES.forEach((s, i) => {
+  const start = dSpanStart(i);
+  for (let k = 0; k < VALUE_KINDS.length; k++) {
+    check(`${s.label} block is contiguous at ${VALUE_KINDS[k].label}`,
+      dValue(i, k) === start + k * 2 && dTag(i, k) === start + k * 2 + 1,
+      `value ${dValue(i,k)} tag ${dTag(i,k)} expected ${start + k*2}/${start + k*2 + 1}`);
+  }
+  check(`${s.label} span is ${SPAN} wide`,
+    dSpanStart(i) + SPAN - 1 === dTag(i, VALUE_KINDS.length - 1));
 });
 
-// The z and g blocks must stay contiguous, since Z total and G total sum a span.
-const zc = [B.zfg,B.zft,B.z3,B.zpts,B.zreb,B.zast,B.zstl,B.zblk,B.zto];
-const gc = [B.gfg,B.gft,B.g3,B.gpts,B.greb,B.gast,B.gstl,B.gblk,B.gto];
-zc.forEach(c => { if (String(cell('Board',3,c)).charAt(0) !== '=') fails.push(`z col ${L(c)} is not a formula`); });
-zc.forEach((c,i) => { if (i && c !== zc[i-1]+1) fails.push('z block is not contiguous'); });
-gc.forEach((c,i) => { if (i && c !== gc[i-1]+1) fails.push('g block is not contiguous'); });
-if (B.ztot !== zc[8]+1) fails.push('Z total does not sit immediately after the z block');
-if (B.gtot !== gc[8]+1) fails.push('G total does not sit immediately after the g block');
+// Gone and Mine sit inside the frozen pane, and the freeze is set to Mine.
+check('GONE and MINE are adjacent and inside the frozen pane',
+  D.mine === D.drafted + 1 && D.mine < dSpanStart(0));
 
-// CAT_LABELS is matched elementwise against the z block as a single 1x9 range,
-// so a label out of step relabels every player's strengths and nothing errors.
-if (CAT_LABELS.length !== zc.length)
-  fails.push(`CAT_LABELS has ${CAT_LABELS.length} entries, the z block has ${zc.length}`);
-[['FG%',B.zfg],['FT%',B.zft],['3PM',B.z3],['PTS',B.zpts],['REB',B.zreb],
- ['AST',B.zast],['STL',B.zstl],['BLK',B.zblk],['TO',B.zto]].forEach(([label,col],i) => {
-  if (CAT_LABELS[i] !== label)
-    fails.push(`CAT_LABELS[${i}] is "${CAT_LABELS[i]}", but that slot is ${label} (${L(col)})`);
-});
+// The punt score and rank blocks must each be contiguous: "Best build" takes MIN and MATCH
+// across the rank span as one range, and the labels are positional against it.
+for (let i = 1; i < PUNTS.length; i++) {
+  check(`punt score block breaks at ${PUNTS[i].label}`, V.p0 + i === V.p0 + i);
+}
+check('punt rank block sits immediately after the score block',
+  V.pr0 === V.p0 + PUNTS.length);
 
-// The tracker's Punted checkboxes are read positionally against that same array.
-// If its rows drift out of CAT_LABELS order, ticking "punt FT%" silently strips a
-// different category from all 200 rows of the Draft Board.
+// CAT_LABELS is matched elementwise against the DH block and against the tracker's rows.
+// A drift here relabels every player's strengths and nothing errors.
+check('CAT_LABELS has no turnovers', CAT_LABELS.indexOf('TO') === -1);
+check('DH and D blocks are CAT_LABELS wide',
+  V.d0 - V.dh0 === CAT_LABELS.length && V.z0 - V.d0 === CAT_LABELS.length);
 CAT_LABELS.forEach((label, i) => {
   const got = cell('Category Tracker', TRACKER_R0 + i, 1);
   if (String(got) !== label)
     fails.push(`Category Tracker row ${TRACKER_R0 + i} is "${got}", CAT_LABELS says ${label}`);
 });
 
-// Punt score and rank columns must each be contiguous, in the same build order:
-// the Draft Board's "Best build" MATCHes across the rank span as one range.
-PUNTS.forEach((p,i) => {
-  if (i && B[p.key]  !== B[PUNTS[i-1].key]  + 1) fails.push(`punt score block breaks at ${p.label}`);
-  if (i && B[p.rank] !== B[PUNTS[i-1].rank] + 1) fails.push(`punt rank block breaks at ${p.label}`);
+// --- sheet-name quoting ----------------------------------------------------
+// BMP-ALT contains a hyphen, so an unquoted reference to it resolves somewhere else or
+// fails outright. This is a class of bug rather than one instance, so test the class.
+expect('sheetRef quotes a hyphenated name', sheetRef('BMP-ALT'), "'BMP-ALT'");
+expect('sheetRef leaves a plain name alone', sheetRef('Draft Board'), 'Draft Board');
+{
+  let unquoted = 0;
+  const hyphenated = SOURCES.filter(s => !/^[A-Za-z0-9_ ]+$/.test(s.key)).map(s => s.key);
+  Object.values(seen.sheets).forEach(sh => {
+    Object.values(sh.cells).forEach(v => {
+      if (typeof v !== 'string' || v.charAt(0) !== '=') return;
+      hyphenated.forEach(name => {
+        // The bare name followed by ! and not preceded by the closing quote.
+        if (new RegExp(`(^|[^'\\\\w])${name}!`).test(v)) unquoted++;
+      });
+    });
+  });
+  check('every reference to a hyphenated sheet is quoted', unquoted === 0,
+    `${unquoted} unquoted reference(s) to ${hyphenated.join(', ')}`);
+}
+
+// --- Board -----------------------------------------------------------------
+// Two formulas, and no valuation anywhere: the Board is a spine now.
+expect('My GP seeds from the projection', cell('Board', r4, B.myGp), `=${C(B.gp)}${r4}`);
+expect('GP flag', cell('Board', r4, B.gpCheck),
+  `=IF(${C(B.myGp)}${r4}="","",IF(ABS(${C(B.gp)}${r4}-${C(B.myGp)}${r4})>10,"CHECK",""))`);
+check('the Board carries no value columns',
+  B.durh === undefined && B.gtot === undefined && B.adj === undefined);
+
+// Every REFRESH_MAP target must name the column its header claims. Each index moved when
+// the Board was cut from 73 columns to 28.
+REFRESH_MAP.forEach(([col, idx]) => {
+  check(`REFRESH_MAP column ${L(col)} has a header`,
+    String(cell('Board', HDR, col)).trim() !== '' && String(cell('Board', HDR, col)) !== '<empty>',
+    `PLAYERS[${idx}] -> ${L(col)}`);
+});
+HAND_COLS.forEach(c => {
+  check(`hand column ${L(c)} is not also refreshed`,
+    !REFRESH_MAP.some(([col]) => col === c));
 });
 
-// Category profile, built from the B map on both sides. Pinning the source
-// letters as a literal would make this blind to the shift it exists to catch.
+// --- calculation tabs ------------------------------------------------------
+SOURCES.forEach(s => {
+  const first = cell(s.key, r4, V.durh);
+  check(`${s.key} DURH is a number, not a formula`,
+    typeof first === 'number' || String(first).charAt(0) !== '=',
+    `got ${first}`);
+});
+check('the lambda row names a constant per category',
+  String(cell(SOURCES[0].key, HDR, V.d0)).indexOf('λ') === 0,
+  `got ${cell(SOURCES[0].key, HDR, V.d0)}`);
+check('the weight row names a constant per category',
+  String(cell(SOURCES[0].key, HDR, V.dh0)).indexOf('w') === 0,
+  `got ${cell(SOURCES[0].key, HDR, V.dh0)}`);
+
+// --- Draft Board -----------------------------------------------------------
+expect('rank is a RANK over the sorted column', cell('Draft Board', r4, D.rank),
+  `=RANK(${C(D.sel)}${r4},${C(D.sel)}$${R0}:${C(D.sel)}$${RN})`);
+expect('round reads league size', cell('Draft Board', r4, D.round),
+  `=IF(${C(D.rank)}${r4}="","",CEILING(${C(D.rank)}${r4}/TEAMS))`);
+expect('GAP is ADP minus the board rank', cell('Draft Board', r4, D.gap),
+  `=IF(${C(D.adp)}${r4}="","",${C(D.adp)}${r4}-${C(D.rank)}${r4})`);
+expect('tier 1 is a literal', cell('Draft Board', r4, D.tier), 1);
+expect('drop reads the sorted column', cell('Draft Board', r4 + 1, D.drop),
+  `=${C(D.sel)}${r4}-${C(D.sel)}${r4 + 1}`);
+// The tier window must be centred: INDEX(range,k) is sheet row k+HDR, so these offsets
+// have to resolve to r-7 .. r+7.
 {
-  const n = 3;
-  const zSpan = `Board!${C(B.zfg)}$${n}:${C(B.zto)}$${n}`;
-  const labels = CAT_LABELS.map(c => `"${c}"`).join(',');
-  const punted = `'Category Tracker'!$F$${TRACKER_R0}:$F$${TRACKER_R0 + CAT_LABELS.length - 1}`;
-  const want = `=IF(Board!${C(B.player)}$${n}="","",` +
-    `LET(z,${zSpan},L,{${labels}},punt,TRANSPOSE(${punted}),` +
-    `s,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((z>=CAT_BAND)*(punt<>TRUE),L,""))),` +
-    `w,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((z<=-CAT_BAND)*(punt<>TRUE),L,""))),` +
-    `IF(s&w="","\u2014",TRIM(IF(s="","","\u25b2 "&s)&IF(w="",""," \u25bc "&w)))))`;
-  // Row 3 of the Draft Board is whoever sorted first, not Board row 3, so find
-  // the row whose formula points at Board row 3.
-  let found = null;
-  for (let r = 3; r <= 202 && !found; r++) {
-    const v = String(cell('Draft Board', r, D.profile));
-    if (v.indexOf(`$${n}:`) !== -1 && v.indexOf('LET(z,') !== -1) found = v;
+  // INDEX(range,k) resolves to sheet row k+HDR, so these offsets must give r-7 .. r+7.
+  // A window skewed up the board sits where drops are larger, which inflates the median
+  // and fires breaks late -- exactly where the curve steepens and a tier matters most.
+  const span = `${C(D.drop)}$${R0}:${C(D.drop)}$${RN}`;
+  expect('tier window is centred on the row', cell('Draft Board', r4 + 1, D.med),
+    `=MEDIAN(INDEX(${span},MAX(1,ROW()-${HDR + 7}))`
+    + `:INDEX(${span},MIN(${POOL_ROWS},ROW()+${7 - HDR})))`);
+}
+expect('break', cell('Draft Board', r4 + 1, D.brk),
+  `=IF(N(${C(D.med)}${r4 + 1})<=0,"",IF(${C(D.drop)}${r4 + 1}>TIER_MULT*${C(D.med)}${r4 + 1},"BREAK",""))`);
+expect('tier roll', cell('Draft Board', r4 + 1, D.tier),
+  `=IF(${C(D.brk)}${r4 + 1}="BREAK",${C(D.tier)}${r4}+1,${C(D.tier)}${r4})`);
+
+// The sorted column must point at one of the nine value columns, and nothing else may.
+{
+  const sel = String(cell('Draft Board', r4, D.sel));
+  const valid = [];
+  for (let s = 0; s < SOURCES.length; s++)
+    for (let k = 0; k < VALUE_KINDS.length; k++) valid.push(`=${C(dValue(s, k))}${r4}`);
+  check('the sorted column copies one of the nine values', valid.indexOf(sel) >= 0, `got ${sel}`);
+}
+
+// Each tag reads its own rank column, and ZSC -- which drops nothing -- carries only a rank.
+for (let s = 0; s < SOURCES.length; s++) {
+  for (let k = 0; k < VALUE_KINDS.length; k++) {
+    const tag = String(cell('Draft Board', r4, dTag(s, k)));
+    check(`${SOURCES[s].label} ${VALUE_KINDS[k].label} tag reads its own rank column`,
+      tag.indexOf(C(dRank(s, k)) + r4) >= 0, `got ${tag}`);
+    if (!VALUE_KINDS[k].drop) {
+      check(`${VALUE_KINDS[k].label} tag carries no dropped category`,
+        tag.indexOf('&" "&') === -1, `got ${tag}`);
+    }
   }
-  if (!found) fails.push('Category profile: no row references Board row 3');
-  else { console.log('\n  Category profile =\n    ' + found); expect('Category profile', found, want); }
 }
 
-console.log('\n=== named ranges the formulas depend on ===');
-['Q','MIN_GP','GP_DIVISOR','TIER_MULT','PUNT_WEIGHT','MULT_PTS','MULT_STL','MEAN_TO','SD_TO',
- 'POOL_FG_PCT','POOL_AVG_FGA','SD_FG_IMPACT','SD_FG_RATE','REPLACEMENT','TRACK_FG_BAND','CAT_BAND',
- 'B_POOL','B_GTOT','B_ADJ','B_ADJRANK','B_GFT','REPL_PFT']
- .forEach(n => { const r = seen.namedRanges[n];
-   console.log(`  ${n.padEnd(14)} -> ${r.sheet.name}!${L(r.col)}${r.row}${r.nr>1?':'+L(r.col+r.nc-1)+(r.row+r.nr-1):''}`); });
+// The profile columns: both array traps live here and neither is visible offline.
+{
+  const s = String(cell('Draft Board', r4, D.strengths));
+  const w = String(cell('Draft Board', r4, D.weaknesses));
+  [['strengths', s], ['weaknesses', w]].forEach(([name, f]) => {
+    check(`${name} wraps its IF in ARRAYFORMULA`, f.indexOf('ARRAYFORMULA(IF(') >= 0, f);
+    // The LET trap: bind the raw TRANSPOSE and compare inside the ARRAYFORMULA.
+    check(`${name} binds the raw TRANSPOSE, not a comparison`,
+      f.indexOf('punt,TRANSPOSE(') >= 0 && f.indexOf('TRANSPOSE(') >= 0
+      && f.indexOf('<>TRUE)') > f.indexOf('ARRAYFORMULA('), f);
+    check(`${name} reads the UNWEIGHTED DURANT block`,
+      f.indexOf(C(D.d0) + r4) >= 0, f);
+    check(`${name} reads the tracker's Punted column`,
+      f.indexOf(`$${L(TRACK_PUNT_COL)}$${TRACKER_R0}`) >= 0, f);
+  });
+  check('strengths and weaknesses are different formulas', s !== w);
+}
 
-// Settings labels must sit beside the cells the named ranges claim.
-const S = seen.sheets['Settings'];
-function labelFor(n){ const r = seen.namedRanges[n]; return S.cells[`${r.row},${r.col-1}`] ?? S.cells[`${r.row},1`]; }
-expect('Q label',          labelFor('Q'),          'Pool size (Q)');
-expect('MIN_GP label',     labelFor('MIN_GP'),     'Min GP for pool');
-expect('TIER_MULT label',  labelFor('TIER_MULT'),  'Tier multiplier');
-expect('GP_DIVISOR label', labelFor('GP_DIVISOR'), 'GP divisor');
-expect('MULT_STL label',   labelFor('MULT_STL'),   'STL');
-expect('MULT_PTS label',   labelFor('MULT_PTS'),   'PTS');
-expect('MEAN_TO label',    labelFor('MEAN_TO'),    'TO');
-expect('REPLACEMENT lbl',  labelFor('REPLACEMENT'),'Replacement G-score');
-expect('POOL_FG_PCT lbl',  labelFor('POOL_FG_PCT'),'Aggregate FG%');
-expect('PUNT_WEIGHT lbl',  labelFor('PUNT_WEIGHT'), 'Punt weight');
-expect('SD_FG_RATE lbl',   labelFor('SD_FG_RATE'),  'SD of FG% rate');
-expect('TRACK_FG_BAND lbl',labelFor('TRACK_FG_BAND'),'FG% band');
-expect('CAT_BAND label',   labelFor('CAT_BAND'),      'Category band');
-// Each build's replacement cell must sit beside that build's own label.
-PUNTS.forEach(p => expect(`${p.label} repl label`, labelFor(replName(p.key)), p.label));
+// --- Category Tracker ------------------------------------------------------
+check('the tracker has no turnovers row',
+  CAT_LABELS.length === 8 && !CAT_LABELS.some(c => c === 'TO'));
+for (let i = 0; i < CAT_LABELS.length; i++) {
+  const r = TRACKER_R0 + i, lab = CAT_LABELS[i];
+  const z = String(cell('Category Tracker', r, 4));
+  const win = String(cell('Category Tracker', r, 5));
+  const read = String(cell('Category Tracker', r, 6));
+  check(`${lab} Z divides by SQRT(n)`, z.indexOf('/SQRT(') >= 0, z);
+  check(`${lab} benchmark is capped at Q`, z.indexOf('MIN(Q,TEAMS*') >= 0, z);
+  check(`${lab} Win% uses its own K`, win.indexOf('K_' + catKey(lab)) >= 0, win);
+  check(`${lab} Win% is a normal CDF`, win.indexOf('NORMSDIST(') >= 0, win);
+  ['PUNTED', 'BANKED', 'STRONG', 'WEAK', 'CONTESTED'].forEach(state => {
+    check(`${lab} Read can report ${state}`, read.indexOf(state) >= 0, read);
+  });
+}
 
-// The Category Tracker reads the Draft Board by column letter. Those letters
-// have to come from the D map: inserting one column upstream once repointed
-// "Mine" at "Gone", and every roster total silently counted the wrong players.
-const mineL = L(D.mine);
-expect('tracker counts Mine', cell('Category Tracker',4,2),
-  `=COUNTIF('Draft Board'!$${mineL}$3:$${mineL}$202,TRUE)`);
-['FG%','FT%','3PM','PTS','REB','AST','STL','BLK','TO'].forEach((cat,i) => {
-  const row = 7 + i;
-  if (cell('Category Tracker',row,1) !== cat)
-    fails.push(`tracker row ${row} is not ${cat}`);
-  const bench = String(cell('Category Tracker',row,3));
-  if (bench.indexOf('B_ADJRANK<=TEAMS*') < 0)
-    fails.push(`${cat} benchmark is not scaled to the drafted field: ${bench}`);
-  const read = String(cell('Category Tracker',row,5));
-  const wantBand = (cat === 'FG%') ? 'TRACK_FG_BAND'
-                 : (cat === 'FT%') ? 'TRACK_FT_BAND' : 'TRACK_COUNT_BAND';
-  if (read.indexOf(wantBand) < 0) fails.push(`${cat} read does not use ${wantBand}`);
-  if (read.indexOf('"PUNTED"') < 0) fails.push(`${cat} read cannot be marked punted`);
+// --- named ranges ----------------------------------------------------------
+// The mechanical guard on the riskiest part of the Settings rewrite: a label must sit
+// beside the cell its named range claims.
+function labelFor(name, want) {
+  const rng = seen.namedRanges[name];
+  if (!rng) { fails.push(`named range ${name} was never defined`); return; }
+  const got = String(seen.sheets['Settings'].cells[`${rng.row},${rng.col - 1}`] || '');
+  if (got !== want) fails.push(`${name} points at a cell labelled "${got}", expected "${want}"`);
+}
+labelFor('TEAMS', 'Teams');
+labelFor('ROSTER', 'Roster spots');
+labelFor('Q', 'Pool size (Q)');
+labelFor('SORT_BY', 'Sort by');
+labelFor('TIER_MULT', 'Tier multiplier');
+labelFor('CAT_BAND', 'Category band');
+labelFor('DISAGREE_GAP', 'Disagreement gap');
+labelFor('WEAK_WIN', 'Weak at or below');
+labelFor('STRONG_WIN', 'Strong at or above');
+labelFor('BANK_WIN', 'Banked at or above');
+// K sits in a table, so its label is at the start of the row rather than beside it.
+CAT_LABELS.forEach(lab => {
+  const rng = seen.namedRanges['K_' + catKey(lab)];
+  if (!rng) { fails.push(`named range K_${catKey(lab)} was never defined`); return; }
+  const got = String(seen.sheets['Settings'].cells[`${rng.row},1`] || '');
+  if (got !== lab) fails.push(`K_${catKey(lab)} points at a row labelled "${got}", expected "${lab}"`);
 });
 
-// The two controls used on the clock. Gone must strike a row through and Mine
-// must green it; both rules key off a column letter, and inserting `posLeft`
-// once left them pointing one column short -- Gone turned rows green and Mine
-// did nothing at all.
+['TRACK_FG_BAND', 'TRACK_FT_BAND', 'TRACK_COUNT_BAND', 'GP_DIVISOR', 'MIN_GP',
+ 'REPLACEMENT', 'PUNT_WEIGHT', 'MULT_STL'].forEach(n => {
+  check(`retired named range ${n} is gone`, !seen.namedRanges[n]);
+});
+SOURCES.forEach(s => {
+  ['PLAYER', 'DURH', 'DURH_RANK', 'ZSH', 'ZSC', 'ADP'].forEach(t => {
+    check(`${nameOf(s.prefix, t)} is defined`, !!seen.namedRanges[nameOf(s.prefix, t)]);
+  });
+});
+CAT_LABELS.forEach(lab => {
+  check(`DB_DH_${catKey(lab)} is defined`, !!seen.namedRanges['DB_DH_' + catKey(lab)]);
+});
+
+// --- the projection filter -------------------------------------------------
+// Only the column arithmetic can be tested offline; that Google actually fires the trigger
+// cannot be. The arithmetic is the part that silently points at the wrong span.
 {
-  const rules = seen.sheets['Draft Board'].rules || [];
-  const formulas = rules.map(r => r && r.formula).filter(Boolean);
-  const want = { Gone: L(D.drafted), Mine: L(D.mine) };
-  Object.entries(want).forEach(([label, col]) => {
-    const wanted = `=$${col}${R0}=TRUE`;
-    if (!formulas.includes(wanted))
-      fails.push(`Draft Board "${label}" rule should test ${wanted}\n     saw  ${formulas.join('  ')}`);
-  });
-  // And nothing may point at a column that is not a checkbox.
-  formulas.filter(f => /=TRUE$/.test(f)).forEach(f => {
-    const col = f.match(/^=\$([A-Z]+)/)[1];
-    if (col !== want.Gone && col !== want.Mine)
-      fails.push(`Draft Board rule ${f} tests ${col}, which is not Gone or Mine`);
-  });
+  const sh = seen.sheets['Draft Board'];
+  sh.hidden = []; sh.shown = [];
+  setProjectionVisible(sh, 1, false);
+  expect('hiding HBP hides exactly its six columns',
+    JSON.stringify(sh.hidden), JSON.stringify([[dSpanStart(1), SPAN]]));
+  setProjectionVisible(sh, 2, true);
+  expect('showing BMP-ALT shows exactly its six columns',
+    JSON.stringify(sh.shown), JSON.stringify([[dSpanStart(2), SPAN]]));
+
+  // A checkbox tick anywhere but row 1 of the Draft Board must do nothing at all: onEdit
+  // fires on every edit, including each of the ~156 GONE ticks during a draft.
+  sh.hidden = []; sh.shown = [];
+  onEdit({ range: { getRow: () => 5, getColumn: () => 1, getSheet: () => sh,
+                    getValue: () => false } });
+  check('onEdit ignores edits outside row 1', sh.hidden.length === 0 && sh.shown.length === 0);
+  onEdit({ range: { getRow: () => 1, getColumn: () => 1, getSheet: () => sh,
+                    getValue: () => false } });
+  expect('onEdit on the first checkbox hides the first block',
+    JSON.stringify(sh.hidden), JSON.stringify([[dSpanStart(0), SPAN]]));
 }
 
-// Board-tab rules key off columns too: In Pool and projected GP.
+// --- draft state survives a layout change ----------------------------------
+// The hazard that matters is not a column moving -- everything here derives from the map,
+// so a move is legitimate and harmless. It is readCheckState running against the OLD sheet
+// while the rest of the build uses the NEW map. Off by one, the old MINE column is read as
+// GONE: the draft state silently corrupted rather than merely wiped, on the two controls
+// used on the clock. So it keys off the header labels, and this proves it.
 {
-  const rules = seen.sheets['Board'].rules || [];
-  const formulas = rules.map(r => r && r.formula).filter(Boolean);
-  if (!formulas.some(f => f === `=$${L(B.inPool)}${R0}=0`))
-    fails.push(`Board "out of pool" rule should test =$${L(B.inPool)}${R0}=0\n     saw  ${formulas.join('  ')}`);
-  if (!formulas.some(f => f.includes(`$${L(B.gp)}${R0}>=68`)))
-    fails.push(`Board "generic GP haircut" rule should test column ${L(B.gp)}`);
+  const old = new Sheet('Old Draft Board');
+  old.maxCols = D_LAST + 8; old.maxRows = RN;
+  // A layout with GONE and MINE somewhere else entirely, found only by their headers.
+  const oldPlayer = 2, oldGone = 40, oldMine = 41, oldNotes = 42, oldInj = 43;
+  old.cells[`${HDR},${oldPlayer}`] = 'Player';
+  old.cells[`${HDR},${oldGone}`] = 'GONE';
+  old.cells[`${HDR},${oldMine}`] = 'MINE';
+  old.cells[`${HDR},${oldNotes}`] = 'Notes';
+  old.cells[`${HDR},${oldInj}`] = 'INJ';
+  old.cells[`${R0},${oldPlayer}`] = 'Ada Lovelace';
+  old.cells[`${R0},${oldGone}`] = false;
+  old.cells[`${R0},${oldMine}`] = true;
+  old.cells[`${R0},${oldNotes}`] = 'target';
+  old.cells[`${R0},${oldInj}`] = 'GTD';
+  old.getLastRow = () => R0;
+
+  const at = draftHeaderCols(old);
+  check('draftHeaderCols finds GONE by its header, not by the map', at.GONE === oldGone,
+    `got ${at.GONE}, expected ${oldGone}`);
+  check('draftHeaderCols finds MINE by its header', at.MINE === oldMine);
+
+  const state = readCheckState(old);
+  const rec = state['Ada Lovelace'];
+  check('the ticked player is read back', !!rec);
+  if (rec) {
+    // The precise corruption to guard against: reading MINE as GONE.
+    check('MINE is not read as GONE', rec.gone === false && rec.mine === true,
+      `gone=${rec.gone} mine=${rec.mine}`);
+    check('Notes and Injuries travel with the checkboxes',
+      rec.notes === 'target' && rec.inj === 'GTD', JSON.stringify(rec));
+  }
 }
 
-// Draft Board must be sorted by the mocked Adjusted Value, descending.
-const d3 = cell('Draft Board',3,3), d4 = cell('Draft Board',4,3);
-console.log(`\n=== Draft Board ===\n  C3 = ${d3}\n  C4 = ${d4}\n  I4 (drop) = ${cell('Draft Board',4,9)}\n  J4 (local median) = ${cell('Draft Board',4,10)}\n  K4 (break) = ${cell('Draft Board',4,11)}\n  B4 (tier) = ${cell('Draft Board',4,2)}\n  B3 (tier 1, literal) = ${cell('Draft Board',3,2)}`);
-expect('tier 1 literal', cell('Draft Board',3,2), 1);
-expect('drop', cell('Draft Board',4,D.drop), `=${C(D.adj)}3-${C(D.adj)}4`);
-// The tier window must be centred: INDEX(range,k) is sheet row k+HDR, so these
-// offsets have to resolve to r-7 .. r+7, not the r-9 .. r+5 it shipped with.
-expect('tier window', cell('Draft Board',4,D.med),
-  '=MEDIAN(INDEX($I$3:$I$202,MAX(1,ROW()-9)):INDEX($I$3:$I$202,MIN(200,ROW()+5)))');
-expect('break', cell('Draft Board',4,11), '=IF(N($J4)<=0,"",IF($I4>TIER_MULT*$J4,"BREAK",""))');
-expect('tier roll', cell('Draft Board',4,2), '=IF($K4="BREAK",$B3+1,$B3)');
+// --- conditional formats ---------------------------------------------------
+// These carry column letters, which is exactly what drifts when a column is inserted.
+{
+  const rules = seen.sheets['Draft Board'].rules.map(r => r.formula).filter(Boolean);
+  const has = f => rules.some(x => x === f);
+  check('MINE rule keys off the Mine column', has(`=${C(D.mine)}${R0}=TRUE`), rules.join('\n'));
+  check('GONE rule keys off the Gone column', has(`=${C(D.drafted)}${R0}=TRUE`));
+  // First match wins, so MINE has to be added before GONE: the old order rendered a
+  // player who was both as struck through, which the mine rule explicitly undid.
+  const iMine = rules.indexOf(`=${C(D.mine)}${R0}=TRUE`);
+  const iGone = rules.indexOf(`=${C(D.drafted)}${R0}=TRUE`);
+  check('MINE resolves before GONE', iMine >= 0 && iGone >= 0 && iMine < iGone,
+    `mine at ${iMine}, gone at ${iGone}`);
+  check('the GP haircut band points at Projected GP',
+    has(`=AND(${C(D.projGp)}${R0}>=68,${C(D.projGp)}${R0}<=74)`));
+  check('the round ruler points at the round column',
+    has(`=ISODD(${C(D.round)}${R0})`));
+  // One rule per tag column, never one rule over nine ranges: a multi-range rule relies on
+  // Sheets offsetting a relative reference per range, which is untestable here.
+  let pairs = 0;
+  for (let s = 0; s < SOURCES.length; s++)
+    for (let k = 0; k < VALUE_KINDS.length; k++)
+      if (has(`=AND(${C(dRank(s,k))}${R0}<>"",${C(D.rank)}${R0}-${C(dRank(s,k))}${R0}>=DISAGREE_GAP)`))
+        pairs++;
+  check('every tag column has its own disagreement rule',
+    pairs === SOURCES.length * VALUE_KINDS.length, `found ${pairs}`);
+}
 
 console.log('\n=== ' + (fails.length ? fails.length + ' ASSERTION FAILURE(S)' : 'all assertions passed') + ' ===');
 fails.forEach(f => console.log('  ✗ ' + f));
