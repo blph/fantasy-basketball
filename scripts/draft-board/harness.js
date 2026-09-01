@@ -38,6 +38,14 @@ Range.prototype.merge = function () {
   (this.sheet.merges = this.sheet.merges || []).push([this.col, this.col + this.nc - 1, this.row]);
   return this;
 };
+// Merges SURVIVE clear(). Modelled, because a leftover merge from the previous layout
+// straddling the new frozen boundary is what "You can't merge frozen and non-frozen
+// columns" means, and it only appears when rebuilding over an existing sheet.
+Range.prototype.breakApart = function () {
+  const c1 = this.col, c2 = this.col + this.nc - 1;
+  this.sheet.merges = (this.sheet.merges || []).filter(m => m[1] < c1 || m[0] > c2);
+  return this;
+};
 
 Range.prototype._check = function (grid, what) {
   if (!Array.isArray(grid)) { problems.push(`${this.sheet.name}: ${what} got non-array`); return; }
@@ -101,11 +109,12 @@ Sheet.prototype.getRange = function (a, b, c, d) {
   }
   return new Range(this, a, b, c, d);
 };
-['clear','clearConditionalFormatRules','setFrozenRows',
+['clear','clearConditionalFormatRules',
  'setRowHeight','setHiddenGridlines','setConditionalFormatRules']
  .forEach(m => { Sheet.prototype[m] = function(){ return this; }; });
 // Recorded, not a no-op: the projection filter's whole job is column arithmetic, and
 // pointing it at the wrong span is exactly the failure that would pass every other check.
+Sheet.prototype.setFrozenRows = function (n) { this.frozenRows = n; return this; };
 Sheet.prototype.hideColumns = function (c, n) {
   (this.hidden = this.hidden || []).push([c, n === undefined ? 1 : n]); return this;
 };
@@ -117,6 +126,7 @@ Sheet.prototype.setColumnWidth = function (c) {
   return this;
 };
 Sheet.prototype.setFrozenColumns = function (n) {
+  this.frozenCols = n;
   (this.merges || []).forEach(([c1, c2]) => {
     if (n >= c1 && n < c2)
       problems.push(`${this.name}: setFrozenColumns(${n}) splits the merge spanning cols ${c1}-${c2}`);
@@ -277,10 +287,15 @@ CAT_LABELS.forEach((label, i) => {
 // BMP-ALT contains a hyphen, so an unquoted reference to it resolves somewhere else or
 // fails outright. This is a class of bug rather than one instance, so test the class.
 expect('sheetRef quotes a hyphenated name', sheetRef('BMP-ALT'), "'BMP-ALT'");
-expect('sheetRef leaves a plain name alone', sheetRef('Draft Board'), 'Draft Board');
+// A space does not parse unquoted -- the whole formula returns #ERROR!.
+expect('sheetRef quotes a name containing a space', sheetRef('Category Tracker'),
+  "'Category Tracker'");
+expect('sheetRef leaves a bare identifier alone', sheetRef('Board'), 'Board');
 {
   let unquoted = 0;
-  const hyphenated = SOURCES.filter(s => !/^[A-Za-z0-9_ ]+$/.test(s.key)).map(s => s.key);
+  // Every sheet name that is not a bare identifier: hyphens AND spaces.
+  const hyphenated = SOURCES.map(s => s.key).concat(['Draft Board', 'Category Tracker'])
+    .filter(n => !/^[A-Za-z0-9_]+$/.test(n));
   Object.values(seen.sheets).forEach(sh => {
     Object.values(sh.cells).forEach(v => {
       if (typeof v !== 'string' || v.charAt(0) !== '=') return;
@@ -504,6 +519,7 @@ CAT_LABELS.forEach(lab => {
     `got ${at.GONE}, expected ${oldGone}`);
   check('draftHeaderCols finds MINE by its header', at.MINE === oldMine);
 
+  check('readCheckState tolerates a missing sheet', readCheckState(null) && true);
   const state = readCheckState(old);
   const rec = state['Ada Lovelace'];
   check('the ticked player is read back', !!rec);
@@ -538,12 +554,54 @@ CAT_LABELS.forEach(lab => {
   let pairs = 0;
   for (let s = 0; s < SOURCES.length; s++)
     for (let k = 0; k < VALUE_KINDS.length; k++)
-      if (has(`=AND(${C(dRank(s,k))}${R0}<>"",${C(D.rank)}${R0}-${C(dRank(s,k))}${R0}>=DISAGREE_GAP)`))
+      if (has(`=AND(${C(dRank(s,k))}${R0}<>"",${C(D.rank)}${R0}-${C(dRank(s,k))}${R0}>=${disagreeGap()})`))
         pairs++;
   check('every tag column has its own disagreement rule',
     pairs === SOURCES.length * VALUE_KINDS.length, `found ${pairs}`);
+
+  // A conditional format rule MAY NOT reference another sheet, and every named range in
+  // this workbook lives on Settings. Referencing one takes down the entire rule set for
+  // that tab -- "Conditional format rule cannot reference a different sheet" -- which is
+  // how the Draft Board build failed on its first live run.
+  const named = ['DISAGREE_GAP','CAT_BAND','TIER_MULT','TEAMS','Q','WEAK_WIN','STRONG_WIN',
+                 'BANK_WIN','SORT_BY','ROSTER','SCORING'];
+  ['Draft Board','Board','Category Tracker','Punts','BMP','HBP','BMP-ALT','Settings']
+    .forEach(name => {
+      const sh = seen.sheets[name];
+      if (!sh) return;
+      sh.rules.forEach(r => {
+        const f = r.formula || '';
+        named.concat(CAT_LABELS.map(c => 'K_' + catKey(c))).forEach(n => {
+          if (new RegExp(`\\b${n}\\b`).test(f))
+            fails.push(`${name}: a conditional format rule references the named range ${n}, `
+                       + `which lives on another sheet\n     ${f}`);
+        });
+        if (/[A-Za-z0-9_ ]+!\$?[A-Z]/.test(f) || /'[^']+'!/.test(f))
+          fails.push(`${name}: a conditional format rule references another sheet\n     ${f}`);
+      });
+    });
+}
+
+// --- rebuilding over an existing sheet --------------------------------------
+// The failure this caught live: clear() does NOT remove merges, so a merged block header
+// from the previous layout survives, and the next build's frozen boundary lands inside it.
+// Only reproducible by building TWICE over the same sheets, which is what every rebuild
+// after the first actually does.
+{
+  // Seed a merge from a DIFFERENT layout -- the pre-refactor board merged its first block
+  // across columns 1-5, and the new layout freezes at 4. Building from scratch twice with
+  // the same map cannot reproduce this; only a layout change can, which is precisely when
+  // it bites.
+  const board = seen.sheets['Board'];
+  board.merges = (board.merges || []).concat([[1, 5, 1]]);
+  const before = problems.length;
+  try { buildDraftBoard(); } catch (e) { problems.push('SECOND BUILD THREW: ' + e.message); }
+  const introduced = problems.slice(before);
+  check('a rebuild clears merges left by the previous layout',
+    introduced.length === 0, introduced.slice(0, 3).join('\n     '));
 }
 
 console.log('\n=== ' + (fails.length ? fails.length + ' ASSERTION FAILURE(S)' : 'all assertions passed') + ' ===');
 fails.forEach(f => console.log('  ✗ ' + f));
 process.exit(fails.length || problems.length ? 1 : 0);
+

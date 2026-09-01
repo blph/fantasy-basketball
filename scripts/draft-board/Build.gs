@@ -238,13 +238,18 @@ function a1col(n) {
 /**
  * A sheet name as it must appear inside a formula.
  *
- * `BMP-ALT` contains a hyphen, so an unquoted reference to it either resolves somewhere
- * else or fails outright. Anything outside [A-Za-z0-9_ ] gets quoted; the harness asserts
- * that every generated reference obeys this, because it is a whole class of bug rather
- * than one instance.
+ * Quote anything that is not a bare identifier. TWO separate live failures come from
+ * getting this wrong, and neither is visible offline:
+ *
+ *   `BMP-ALT`          a hyphen reads as subtraction, so the reference resolves elsewhere
+ *                      or fails outright
+ *   `Category Tracker` a SPACE does not parse at all -- the whole formula returns #ERROR!
+ *
+ * A space is the one that bites, because a name with a space looks harmless. Only
+ * letters, digits and underscores may go unquoted.
  */
 function sheetRef(name) {
-  return /^[A-Za-z0-9_ ]+$/.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'";
+  return /^[A-Za-z0-9_]+$/.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'";
 }
 function cellRef(sheetName, col, row) {
   return sheetRef(sheetName) + '!$' + a1col(col) + '$' + row;
@@ -262,6 +267,19 @@ function ensureGrid(sh, cols, rows) {
 function sheetByName(ss, name, cols, rows) {
   var sh = ss.getSheetByName(name);
   if (sh) {
+    // Unfreeze and unmerge FIRST, before anything else touches the sheet.
+    //
+    // `clear()` does not remove merges. A merged block header left over from the PREVIOUS
+    // layout survives the wipe, and the moment the new layout freezes at a different
+    // column Google throws "You can't merge frozen and non-frozen columns" -- from
+    // setFrozenColumns, with the rebuild already half-written and the tab unusable. This
+    // is exactly how the first live deploy of the refactor failed.
+    //
+    // Dropping the freeze before breaking the merges matters too: a merge that currently
+    // spans the frozen boundary cannot be broken while the freeze is still in place.
+    sh.setFrozenRows(0);
+    sh.setFrozenColumns(0);
+    sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).breakApart();
     sh.clear();
     sh.clearConditionalFormatRules();
     sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).clearDataValidations();
@@ -371,6 +389,8 @@ function buildDraftBoard() {
     calcs.push(sheetByName(ss, SOURCES[i].key, V_LAST, RN));
   }
   var settings = sheetByName(ss, 'Settings', 10, 90);
+  // Captured before the wipe -- see buildDraftTab.
+  var priorDraft = readCheckState(ss.getSheetByName('Draft Board'));
   var draft    = sheetByName(ss, 'Draft Board', D_LAST, RN);
   var punts    = sheetByName(ss, 'Punts', PUNTS.length * 6, 60);
   var tracker  = sheetByName(ss, TRACKER_TAB, 8, 60);
@@ -388,7 +408,7 @@ function buildDraftBoard() {
     formatBoard(board);
     for (var i = 0; i < SOURCES.length; i++) formatCalcSheet(calcs[i], i);
   });
-  _guard('Draft',    function () { buildDraftTab(ss, draft, board); });
+  _guard('Draft',    function () { buildDraftTab(ss, draft, board, priorDraft); });
   _guard('Punts',    function () { buildPuntsTab(punts); });
   _guard('Tracker',  function () { buildTrackerTab(tracker); });
   _guard('README',   function () { buildReadme(readme); });
@@ -580,6 +600,12 @@ function writeCalcSheet(sh, si) {
     }
     grid.push(line);
   }
+  // Format the dropped-category columns as text BEFORE writing them. Sheets reads "3PM"
+  // as a time -- 3:00 PM, stored as 0.625 -- so the tag beside a value would read
+  // "#1 0.625" instead of "#1 3PM". It is the only category label that parses as anything
+  // else, which is exactly why it survived every offline check.
+  sh.getRange(R0, V.durhDrop, POOL_ROWS, 1).setNumberFormat('@');
+  sh.getRange(R0, V.zshDrop, POOL_ROWS, 1).setNumberFormat('@');
   sh.getRange(R0, 1, grid.length, V_LAST).setValues(grid);
 }
 
@@ -769,7 +795,11 @@ function step3_Board() {
 function step4_DraftBoard() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   _guard('Draft Board', function () {
-    buildDraftTab(ss, sheetByName(ss, 'Draft Board', D_LAST, RN), ss.getSheetByName('Board'));
+    // Read the draft state before sheetByName wipes the tab, or the rebuild silently
+    // discards every GONE and MINE tick.
+    var prior = readCheckState(ss.getSheetByName('Draft Board'));
+    var sh = sheetByName(ss, 'Draft Board', D_LAST, RN);
+    buildDraftTab(ss, sh, ss.getSheetByName('Board'), prior);
   });
 }
 function step5_Rest() {
@@ -857,6 +887,12 @@ function writeSettingsSkeleton(sh) {
     ['Strong at or above', 0.65],
     ['Banked at or above', 0.75]
   ]);
+  sh.getRange(S_LEAGUE + 10, 1).setValue(
+    'Disagreement gap is applied when the Draft Board is built, not live: a conditional '
+    + 'format rule may not reference another sheet, so the number is baked into the rule. '
+    + 'Change it, then run Rebuild & re-sort.')
+    .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
+
   sh.getRange(S_WINRATE + 4, 1).setValue(
     'The return on the next unit of edge peaks at a coin flip and is down to 80% of peak '
     + 'by 75%, so a nearly-lost category and a nearly-won one are both places to stop '
@@ -1022,8 +1058,17 @@ function boardOrder(ss, si, ki) {
   return idx.map(function (i) { return R0 + i; });
 }
 
-function buildDraftTab(ss, sh, board) {
-  var prior = readCheckState(sh);
+/**
+ * Build the draft-day tab.
+ *
+ * `prior` is the draft state captured BEFORE the sheet was cleared. It has to be passed in
+ * rather than read here: every caller that rebuilds from scratch goes through
+ * `sheetByName`, which wipes the tab, so reading it at this point would find nothing and
+ * silently lose every GONE and MINE tick. `Rebuild & re-sort` passes the live sheet and
+ * omits it, which is why re-sorting has always kept the state and a rebuild has not.
+ */
+function buildDraftTab(ss, sh, board, prior) {
+  if (prior === undefined) prior = readCheckState(sh);
   var sel = selectedSort(ss);
   var si = sel[0], ki = sel[1];
   var order = boardOrder(ss, si, ki);
@@ -1305,7 +1350,7 @@ function draftHeaderCols(sh) {
 function readCheckState(sh) {
   var state = {};
   try {
-    if (sh.getLastRow() < R0) return state;
+    if (!sh || sh.getLastRow() < R0) return state;
     var n = Math.min(POOL_ROWS, sh.getLastRow() - HDR);
     if (n <= 0) return state;
     var at = draftHeaderCols(sh);
@@ -1533,7 +1578,7 @@ function formatDraftTab(sh, si, ki) {
   var activeCol = dValue(si, ki);
 
   blockHeader(sh, D.rank, D.inj, 'WHO', COLOR.identity);
-  blockHeader(sh, D.drafted, D.mine, 'ON THE CLOCK', COLOR.value);
+  blockHeader(sh, D.drafted, D.mine, 'CLOCK', COLOR.value);
   for (var s = 0; s < SOURCES.length; s++) {
     blockHeader(sh, dSpanStart(s), dSpanStart(s) + SPAN - 1,
                 SOURCES[s].label, s === si ? SOURCES[s].head : SOURCES[s].off);
@@ -1577,7 +1622,7 @@ function formatDraftTab(sh, si, ki) {
   sh.setColumnWidth(D.rank, 34); sh.setColumnWidth(D.tier, 36);
   sh.setColumnWidth(D.round, 34); sh.setColumnWidth(D.player, 168);
   sh.setColumnWidth(D.team, 40); sh.setColumnWidth(D.pos, 68); sh.setColumnWidth(D.inj, 56);
-  sh.setColumnWidth(D.drafted, 36); sh.setColumnWidth(D.mine, 36);
+  sh.setColumnWidth(D.drafted, 46); sh.setColumnWidth(D.mine, 46);
   for (var s3 = 0; s3 < SOURCES.length; s3++) {
     for (var k3 = 0; k3 < VALUE_KINDS.length; k3++) {
       var vc = dValue(s3, k3);
@@ -1646,7 +1691,7 @@ function formatDraftTab(sh, si, ki) {
   sh.getRange(R0, D.notes, POOL_ROWS, 1).setFontWeight('normal');
   sh.getRange(R0, D.weaknesses, POOL_ROWS, 1).setBackground(COLOR.negBg);
 
-  addDraftRules(sh, si, ki, activeCol);
+  addDraftRules(sh, si, ki, activeCol, disagreeGap());
 
   resetColumnGroups(sh, D_LAST);
   groupAndCollapse(sh, D.drop, D.med);
@@ -1658,8 +1703,28 @@ function formatDraftTab(sh, si, ki) {
   sh.setHiddenGridlines(true);
 }
 
+/**
+ * How far apart two ranks have to be before the tag is highlighted.
+ *
+ * Read at build time and inlined into the rule as a literal, because **a conditional
+ * format rule may not reference another sheet** -- and every named range lives on
+ * Settings. Referencing DISAGREE_GAP directly fails the whole rule set with
+ * "Conditional format rule cannot reference a different sheet", which takes the Draft
+ * Board build down with it.
+ *
+ * The cost is that changing the cell does not repaint until the next re-sort. Settings
+ * says so beside it.
+ */
+function disagreeGap() {
+  try {
+    var v = Number(SpreadsheetApp.getActiveSpreadsheet().getRangeByName('DISAGREE_GAP').getValue());
+    if (v > 0) return v;
+  } catch (e) { /* first build: the named range does not exist yet */ }
+  return 15;
+}
+
 /** Conditional formats, in the order they must resolve. Banding is added last. */
-function addDraftRules(sh, si, ki, activeCol) {
+function addDraftRules(sh, si, ki, activeCol, gap) {
   var rowsAll = sh.getRange(R0, 1, POOL_ROWS, D.notes);
 
   // MINE before GONE. First match wins, and the old order rendered a player who was both
@@ -1700,11 +1765,11 @@ function addDraftRules(sh, si, ki, activeCol) {
       var mine = '$' + a1col(D.rank) + R0;
       var tagRange = [sh.getRange(R0, dTag(s, k), POOL_ROWS, 1)];
       addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied('=AND(' + rc + '<>"",' + mine + '-' + rc + '>=DISAGREE_GAP)')
+        .whenFormulaSatisfied('=AND(' + rc + '<>"",' + mine + '-' + rc + '>=' + gap + ')')
         .setBackground(COLOR.posBg).setFontColor(COLOR.posText).setBold(true)
         .setRanges(tagRange).build());
       addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied('=AND(' + rc + '<>"",' + rc + '-' + mine + '>=DISAGREE_GAP)')
+        .whenFormulaSatisfied('=AND(' + rc + '<>"",' + rc + '-' + mine + '>=' + gap + ')')
         .setBackground(COLOR.negBg).setFontColor(COLOR.negText).setBold(true)
         .setRanges(tagRange).build());
     }
@@ -1913,7 +1978,7 @@ function buildTrackerTab(sh) {
   // Capped at Q. Uncapped, this reached rank 168 of a 156-player pool at fourteen ticks.
   var drafted = 'DB_RANK<=MIN(Q,TEAMS*' + n + ')';
 
-  sh.getRange(4, 1).setValue('Players on my roster');
+  sh.getRange(4, 1).setValue('Players ticked');
   sh.getRange(4, 2).setFormula('=' + n);
 
   sh.getRange(6, 1, 1, 7).setValues(
@@ -1980,12 +2045,26 @@ function buildTrackerTab(sh) {
   sh.getRange(last + 2, 1, 1, 7).merge();
   sh.setRowHeight(last + 2, 44);
 
-  sh.getRange(last + 4, 1).setValue('MY ROSTER').setFontWeight('bold')
+  // Raw totals and Z can point in OPPOSITE directions, and blocks is where it shows.
+  // Trust the Z: it is what the board ranks on, and it is the quantity the win
+  // probability is derived from.
+  sh.getRange(last + 3, 1).setValue(
+    'My team and Average team are raw per-game totals; Z and Win % are the DURANT H2H '
+    + 'values. They can disagree in DIRECTION, and blocks is where you will see it — a '
+    + 'roster can sit below the average team\'s raw blocks and still show a positive Z. '
+    + 'That is the transform doing its job: blocks are compressed hardest, so a handful of '
+    + 'elite shot blockers no longer drag "average" up out of reach. The Z is the number '
+    + 'the board ranks on, and the one the Win % comes from.')
+    .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
+  sh.getRange(last + 3, 1, 1, 7).merge();
+  sh.setRowHeight(last + 3, 44);
+
+  sh.getRange(last + 5, 1).setValue('MY ROSTER').setFontWeight('bold')
     .setBackground(COLOR.identity).setFontColor(COLOR.headerText);
-  sh.getRange(last + 4, 1, 1, 3).merge();
-  sh.getRange(last + 5, 1, 1, 3).setValues([['#', 'Player', 'Pos']])
+  sh.getRange(last + 5, 1, 1, 3).merge();
+  sh.getRange(last + 6, 1, 1, 3).setValues([['#', 'Player', 'Pos']])
     .setFontWeight('bold').setBackground(COLOR.band);
-  sh.getRange(last + 6, 1).setFormula(
+  sh.getRange(last + 7, 1).setFormula(
     '=IFERROR(SORT(FILTER({DB_RANK,DB_PLAYER,DB_POS},DB_MINE=TRUE),1,TRUE),'
     + '"Nothing ticked yet")');
 
