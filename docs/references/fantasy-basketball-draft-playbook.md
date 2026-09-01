@@ -1,5 +1,17 @@
 # 9-Cat H2H Draft Playbook
 
+> **Sections 5, 6 and 6a are no longer what the board runs on.** The G-score volatility
+> discount, the value-over-replacement chain and the games-played adjustment were replaced
+> by Basketball Monster's DURANT H2H in
+> [ADR-0015](../decisions/ADR-0015-durant-h2h-primary-value.md) and
+> [ADR-0017](../decisions/ADR-0017-no-games-played-adjustment.md).
+>
+> They are kept here unchanged, and deliberately not rewritten. This document is the record
+> of how the board was reasoned about, and the argument for the G-score is what makes the
+> argument against it legible. `scripts/draft-board/valuation.py` still implements the model
+> below, and Phase 2 inherits it.
+
+
 Yahoo head-to-head, nine categories. Built from expert guidance and the published research on category-league valuation.
 
 ---

@@ -2,7 +2,9 @@
 
 **A living document.** This is the initial sketch, not a complete plan. Phases will be added, reordered, and rewritten as the season approaches.
 
-Current position: **Phase 0 complete.** The pipeline is not built. Two things are: the 2026-27 draft board, shipped ahead of the pipeline because the draft would not wait (see Phase 3 below and [ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)), and the valuation itself in Python — [`valuation.py`](../scripts/draft-board/valuation.py), written from the playbook and covered by tests, which Phase 2 inherits rather than rewrites.
+Current position: **Phase 0 complete.** The pipeline is not built. Two things are: the 2026-27 draft board, shipped ahead of the pipeline because the draft would not wait (see Phase 3 below and [ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)), and the valuation itself in Python.
+
+**Two valuation implementations now exist, and Phase 2 has to choose.** [`scripts/bbm/bbm_reference.py`](../scripts/bbm/bbm_reference.py) is Basketball Monster's DURANT H2H and is what the board runs on ([ADR-0015](decisions/ADR-0015-durant-h2h-primary-value.md)); it is validated against their published numbers and assembled into the board by [`build_data.py`](../scripts/draft-board/build_data.py). [`valuation.py`](../scripts/draft-board/valuation.py) is the playbook's older z/G/VOR model, written from the spec and covered by tests, no longer live but the one this roadmap originally had Phase 2 inheriting. Decide which one Phase 2 ports before porting either.
 
 ---
 

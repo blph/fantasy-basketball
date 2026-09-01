@@ -4,6 +4,11 @@
 - Date: 2026-08-27
 - Owner: Bryan
 
+> **Superseded in part by [ADR-0019](ADR-0019-punt-builds-restandardise.md).** The soft
+> weight and `PUNT_WEIGHT = 0.25` stand. What changed is where the discount lands: it now
+> applies to the standardised category value BEFORE the pool is re-derived, rather than
+> being subtracted from a finished total against a fixed pool.
+
 ## Context
 
 The draft board's six punt columns were the G-score total with the punted

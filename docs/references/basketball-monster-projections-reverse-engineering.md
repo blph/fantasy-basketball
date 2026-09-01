@@ -49,7 +49,7 @@ each player's worst of the remaining eight. §I.11 carries the author's full rea
 > data, so no player appears here attached to a stat line. The worked example uses an invented
 > player. The constants in §I.8 are aggregate statistics we derived.
 
-Written 2026-08-30 on branch `durant-actual`. Nothing here changes the draft board.
+Written 2026-08-30 on branch `durant-actual`. **This is now what the draft board runs on** (ADR-0015). It was research when written.
 
 ---
 

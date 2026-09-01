@@ -8,12 +8,16 @@ between what the sheet holds and what Yahoo reads:
   - Team codes are the provider's, not Yahoo's. Four differ (GS, NO, NY, SA).
   - `Pos` is comma-separated multi-eligibility ("SG,SF,PF"), which collides with
     the CSV delimiter. Only the primary position survives.
-  - Below replacement level, Adjusted Value inverts and the board's tail is
-    ordered by fragility rather than value (methodology review, finding F9), so
-    the export stops at the drafted pool.
+  - Only the drafted pool is exported. Past Q the ordering carries no
+    information worth importing: everyone there is below replacement, the gaps
+    between them are inside the noise of the projection, and the tail is where
+    the three sources disagree most.
 
-Input is the raw `Draft Board!A3:E202` range, five columns wide, as fetched by
-the playwright-cli step in docs/draft-board/build-and-maintenance.md.
+Input is the raw `Draft Board!A4:G203` range, seven columns wide, as fetched by
+the playwright-cli step in docs/draft-board/build-and-maintenance.md. That range
+moved when the control strip was added (data now starts at row 4) and when Round
+and Injuries were inserted — an old A3:E202 pull silently yields the wrong
+columns rather than failing, which is why the header check below is strict.
 
 Output lands in `data/exports/`, dated, beside the provider exports that fed the
 board. Provider data in, provider data out — `data/` and `*.csv` are both
@@ -36,10 +40,9 @@ SEASON = "2026-27"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXPORT_DIR = REPO_ROOT / "data" / "exports"
 
-# 12 teams x 13 roster spots. Past this the board's ordering is not trustworthy
-# (finding F9): VOR goes negative, and scaling a negative by GP/72 < 1 moves it
-# toward zero, i.e. up. Nothing sub-replacement can outrank an above-replacement
-# player, so ranks 1..DRAFTED_POOL are unaffected — but the tail is scrambled.
+# 12 teams x 13 roster spots -- everyone who actually gets drafted. Nothing below
+# this is worth importing: the values there are all sub-replacement and separated
+# by less than the disagreement between the three projections.
 DRAFTED_POOL = 156
 
 # Hashtag Basketball abbreviations that Yahoo spells differently. Everything else
@@ -57,13 +60,17 @@ YAHOO_TEAMS = {
     "OKC", "ORL", "PHI", "PHO", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
 }
 
-# Column offsets within the fetched A3:E202 range: A=#, B=TIER, C=Player,
-# D=Team, E=Pos. The board's own rank in column A is read for validation only —
-# the exported rank is re-derived from row order.
-COL_PLAYER = 2
-COL_TEAM = 3
-COL_POS = 4
-RANGE_WIDTH = 5
+# Column offsets within the fetched A4:G203 range: A=#, B=TIER, C=RND, D=Player,
+# E=Tm, F=Pos, G=INJ. The board's own rank in column A is read for validation
+# only -- the exported rank is re-derived from row order.
+#
+# These are positions in the D map (Build.gs), zero-indexed from the start of the
+# fetched range. If a column is inserted ahead of Player, the pull silently
+# yields team names in the name column, so the shape check is not optional.
+COL_PLAYER = 3
+COL_TEAM = 4
+COL_POS = 5
+RANGE_WIDTH = 7
 
 
 class ExportError(Exception):
@@ -96,7 +103,9 @@ def convert(rows, limit=DRAFTED_POOL):
     cannot punch a hole in the sequence.
     """
     out = []
-    for lineno, row in enumerate(rows, start=3):  # sheet row numbers, for errors
+    # Sheet row numbers, so an error names a cell you can go and look at. Data starts at
+    # row 4: row 1 is the control strip, 2 the block headers, 3 the column headers.
+    for lineno, row in enumerate(rows, start=4):
         if not any(cell.strip() for cell in row):
             continue  # trailing blank row in the 200-row grid
         if len(row) != RANGE_WIDTH:
@@ -142,7 +151,7 @@ def main(argv=None):
         "src",
         nargs="?",
         default="-",
-        help="raw Draft Board!A3:E202 CSV, or - for stdin (default: -)",
+        help="raw Draft Board!A4:G203 CSV, or - for stdin (default: -)",
     )
     ap.add_argument(
         "-o",

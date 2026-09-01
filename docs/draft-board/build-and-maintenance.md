@@ -12,35 +12,49 @@ work, and the traps worth knowing before you change anything.
 - The method it implements: [the draft playbook](../references/fantasy-basketball-draft-playbook.md).
 
 ---
+---
 
 ## How it was built
 
-**Why a spreadsheet.** The draft arrives before the Phase 2 pipeline does. The
-valuation method was already fully specified in the playbook; what was missing
-was an implementation, not a design. A sheet gets there in time, and — more
-importantly — it is auditable cell by cell, which matters more than elegance
-when a pick is on a sixty-second clock.
+**Why a spreadsheet.** The draft arrives before the Phase 2 pipeline does. A sheet gets
+there in time, and it puts the board in front of you on the clock in a form you can read
+and tick ([ADR-0008](../decisions/ADR-0008-google-sheet-draft-board.md)).
 
-**Why Apps Script.** The board is roughly 200 rows by 73 columns, plus formulas,
-number formats, frozen panes, column groups and conditional formatting. That is
-not buildable by hand through the UI, and pasting values would throw away the
-one property that makes the board trustworthy.
+**Where the numbers come from.** Every value a player is judged on is computed in Python
+and arrives as a *number*
+([ADR-0016](../decisions/ADR-0016-values-computed-in-python.md)). DURANT H2H needs a pool
+iterated to a fixed point, and Sheets cannot express a fixed point without a circular
+reference — nine of them, across three projections, was never going to work in formulas.
 
-**Why every value is a live formula.** `Build.gs` writes formulas, never
-computed numbers. Click any cell and you can read what produced it. The
-constants — pool size, the nine G-score multipliers, the tier threshold, the
-games-played divisor — live on the Settings tab as named ranges, so the model
-can be retuned without touching code.
+What stays a live formula is everything that has to react while you are drafting: rank,
+tier, round, GAP, the strengths and weaknesses columns, `Left @pos`, and the whole Category
+Tracker. Ticking `MINE` still updates the tracker instantly.
+
+> **The consequence to keep in mind: changing a constant on Settings does not recalculate
+> the board.** Weights, lambdas and the punt weight are applied upstream. Edit the pipeline
+> and re-run it. Those cells are grey rather than input-yellow for exactly that reason;
+> yellow still means "you may type here".
+
+**Three projections, three values.** BMP and BMP-ALT are Basketball Monster's two
+projection sources; HBP is Hashtag Basketball and supplies the board's 200 rows, team,
+position and ADP ([ADR-0014](../decisions/ADR-0014-three-projection-sources.md)). Each
+carries DURH, ZSH and ZSC ([ADR-0015](../decisions/ADR-0015-durant-h2h-primary-value.md)).
+`BMP · DURH` is the default sort.
+
+**Nothing scales by games played**
+([ADR-0017](../decisions/ADR-0017-no-games-played-adjustment.md)). The GP columns are
+context for a judgement call, not a multiplier.
 
 **The tabs.**
 
 | Tab | What it is |
 |---|---|
-| `Draft Board` | The one you use on the clock. Sorted by Adjusted Value, static row order, Gone/Mine checkboxes. `Best build` and `Category profile` say what a player is *for*, as opposed to what he is worth. |
-| `Board` | The audit. One row per player, every intermediate number visible. |
-| `Punts` | Nine builds, each listing who it gets at a discount. |
-| `Category Tracker` | Sums live from the Mine checkboxes, against what an average team holds at your current roster size. Tick `Punted` to concede a category and drop it from the read — and from the Draft Board's `Category profile` column, which reads these checkboxes. That is the one cross-tab dependency running *into* the Draft Board; keep `F7:F15` literal checkboxes or it becomes a circular reference. |
-| `Settings` | Every constant, plus the pool statistics and sanity checks. |
+| `Draft Board` | The one you use on the clock. Row 1 is the control strip — the sort dropdown and the three projection checkboxes. `GONE` and `MINE` sit inside the frozen pane because they are the only cells you write during a draft. |
+| `BMP`, `HBP`, `BMP-ALT` | One calculation tab per projection: raw line, the three values with their ranks and dropped categories, the DURANT H2H columns, plain z, and the punt builds. All numbers, no formulas. |
+| `Board` | The spine. Identity, the HBP raw line, the GP block, market, and every column you edit by hand. `Refresh data` writes here and nowhere else. |
+| `Punts` | Nine builds, each listing who it gets at a discount. Computed on BMP · DURH. |
+| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of the Draft Board's Strengths and Weaknesses columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. |
+| `Settings` | Every constant. Yellow cells are yours; grey cells record what the pipeline used. |
 | `README` | The cheat sheet, mirrored to [cheat-sheet.md](cheat-sheet.md). |
 
 **The files.**
@@ -48,195 +62,216 @@ can be retuned without touching code.
 | File | What it is | Committed |
 |---|---|---|
 | `scripts/draft-board/Build.gs` | Layout, every formula, all formatting, the menu | yes |
-| `scripts/draft-board/gen_data.py` | Parses a provider export into `Data.gs` | yes |
+| `scripts/draft-board/build_data.py` | Runs the pipeline and writes `Data.gs` | yes |
+| `scripts/draft-board/sources.py` | Reads the three exports and joins them | yes |
+| `scripts/draft-board/board_values.py` | The three values, per projection | yes |
+| `scripts/bbm/bbm_reference.py` | The valuation engine, validated against Basketball Monster | yes |
 | `scripts/draft-board/harness.js` | Mocks the Sheets API and dry-runs the build | yes |
+| `scripts/draft-board/verify.py` | Re-checks `Data.gs` and diffs a pull of the live board | yes |
 | `scripts/draft-board/export_readme.js` | Regenerates `cheat-sheet.md` | yes |
 | `scripts/draft-board/export_yahoo_rankings.py` | Turns the board into a Yahoo rankings CSV | yes |
-| `scripts/draft-board/valuation.py` | The playbook's math in Python, independent of the sheet | yes |
-| `scripts/draft-board/verify.py` | Recomputes the board and diffs it against the sheet | yes |
-| `scripts/draft-board/Data.gs` | The players. Provider data — **gitignored** | no |
+| `scripts/draft-board/valuation.py` | The playbook's older z/G/VOR model. Not what the board runs on; kept because Phase 2 inherits it | yes |
+| `scripts/draft-board/Data.gs` | The players and their values. Provider data — **gitignored** | no |
 
 ---
 
 ## Bringing in new data
 
-There is no schedule. Run this whenever a fresh export is worth having — daily,
-weekly, or once a month. Because the refresh only writes cells whose values
-actually moved, running it often costs nothing.
+A refresh is **three files moving together**. All three must carry the same date.
 
-1. **Drop the export** in `data/player_data/` (gitignored, and it stays that way).
+```
+data/player_data/
+  BMP Projections - YYYY-MM-DD.csv        Basketball Monster, Josh's source
+  BMP-ALT Projections - YYYY-MM-DD.csv    Basketball Monster, bonus source
+  HBP Projections - YYYY-MM-DD.csv        Hashtag Basketball
+```
 
-2. **Generate the data file.**
-   ```bash
-   python3 scripts/draft-board/gen_data.py \
-           data/player_data/player_data_MMDD.md \
-           scripts/draft-board/Data.gs
-   ```
-   It asserts contiguous ranks, no duplicate names and no unparsed rows, and
-   fails loudly rather than skipping a bad row. A silently dropped player is a
-   wrong board.
+**HBP is the spine.** It decides which 200 players are on the board and supplies team,
+position and ADP. If it is missing there is no board. The two vendor files supply stat
+lines only.
 
-3. **Dry-run before touching Google.**
-   ```bash
-   cd scripts/draft-board && node harness.js
-   ```
-   The harness builds every formula the real script would and asserts them
-   against expectations derived from the column map, so a column inserted in
-   `B` or `D` fails here rather than silently repointing a formula at the wrong
-   data. It synthesises its own players if `Data.gs` is absent. CI runs it on
-   every push too, along with `ruff` and `pytest`
-   ([checks.yml](../../.github/workflows/checks.yml)) — but locally is where you
-   want the failure, before anything reaches Google.
+### The procedure
 
-4. **Check the numbers independently.**
-   ```bash
-   python3 scripts/draft-board/verify.py
-   ```
-   Recomputes the pool constants, Z and G totals, VOR and Adjusted Value from
-   `valuation.py` — written from the playbook, not from the sheet — and prints
-   the constants to compare against the Settings tab. Two implementations that
-   agree are evidence; one checking itself is not. Pass `--sheet` a JSON dump of
-   the Settings values to have it do the diff for you.
+**1. Drop the three exports in `data/player_data/`.** Gitignored, and the pre-commit hook
+blocks them if you try.
 
-   It **iterates the pool to convergence** by default, the same thing
-   `Re-seed pool from current ranks` does on the sheet, and prints the pass count.
-   That matters because a converged board and a single pass legitimately disagree:
-   compare a re-seeded sheet against one pass and you will read a difference that
-   is not an error. `--no-converge` gives the single pass if you want it.
+**2. See what would change.**
 
-5. **Paste `Data.gs`** into the bound Apps Script project, then run
-   **`Draft Board ▸ Refresh data`**. Not a full rebuild — see the table below
-   for why.
+```bash
+python3 scripts/draft-board/build_data.py --dry-run
+```
 
-6. **Read the change report.** It lands in a toast and in `Settings!A61`, and
-   says how many cells moved in which columns, or which players were added and
-   dropped. `Settings!A64` and `A65` list the names when the roster changed.
+Reads the newest complete set, scores it, prints a change report, and writes nothing. The
+report names players added and dropped since the last generation and flags anyone who moved
+25 or more places in any source. **This is the step that tells you whether the refresh is
+worth pushing at all.**
 
-7. **Check the sanity block** on Settings: the per-game gate, the GP spread
-   test, pool shortfall, Z-total ≈ 0, and ADP coverage. Pool count is Q minus
-   the shortfall, not necessarily 156 — a seeded player below `MIN_GP` sits out
-   the averages, and the shortfall cell says how many did. If the per-game check
-   ever says *season totals*, stop — the games-played adjustment would
-   double-count and the whole board would be wrong.
+**3. Write `Data.gs`.**
 
-8. **Re-do games-played overrides for new arrivals only.** Existing ones survive
-   the refresh untouched.
+```bash
+python3 scripts/draft-board/build_data.py
+```
 
-9. **Re-sort the Draft Board** when you want the new order:
-   `Draft Board ▸ Rebuild & re-sort`. Deliberately manual, so nothing shifts
-   under you mid-draft. Your checkboxes and your notes survive it — both are
-   re-attached by player name, so they follow the player rather than staying on
-   the row he left. A full rebuild keeps neither.
+Add `--date YYYY-MM-DD` to pick a specific set.
+
+**4. Dry-run the build.**
+
+```bash
+cd scripts/draft-board && node harness.js
+```
+
+**5. Check the numbers independently.**
+
+```bash
+python3 scripts/draft-board/verify.py
+```
+
+Re-checks every invariant the sheet depends on: row alignment across the four tabs, ranks
+being a permutation with no gaps, the weighted column being the unweighted one times its
+weight, and `K × w = k`.
+
+**6. Push `Data.gs` into the bound script** — see [Changing the sheet
+itself](#changing-the-sheet-itself). It is about 185KB, so roughly fifteen chunks.
+
+**7. Run `Draft Board ▸ Refresh data`.** Read the toast and the build log on Settings.
+
+**8. Check the Settings sanity block.** In particular the **names line up across tabs** row:
+anything but `aligned` means the calculation tabs are out of step with the Board, and every
+value on the Draft Board is attached to the wrong player. Stop there.
+
+**9. Re-do any `My GP Est` overrides for new arrivals.**
+
+**10. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes, notes and
+injuries reattach by player name.
+
+**11. Look at it.** Screenshot the Draft Board and the Category Tracker. Two real defects on
+the tracker were invisible in the cell values and obvious on sight.
+
+### When it refuses to run
+
+`build_data.py` fails loudly rather than producing a subtly wrong board. Each message names
+its own cause:
+
+| Failure | What to do |
+|---|---|
+| A source file is missing | Export it. All three are required. |
+| Mixed dates | Re-export so all three match. `--allow-mixed-dates` forces it and stamps the mismatch onto Settings — scoring a fresh vendor file against a two-week-old Hashtag file is wrong everywhere and looks wrong nowhere. |
+| `HBP: N players, the board is built for 200` | The export is truncated or over-long. |
+| `R# is not contiguous` | The export is missing rows. |
+| `UnresolvedPlayer` | A player on the board has no stat line in one of the vendor files. Add an entry to `ALIASES` in `sources.py`. Never a skipped row: a dropped player is a hole in the board that looks like a player nobody rates. |
+| `AmbiguousName` | Two players normalise to the same key. |
+| A pool will not settle | The projection has a degenerate category. Look at the export. |
 
 ### What a refresh touches, and what it never touches
 
-| | |
-|---|---|
-| **Updated, where the value changed** | Seed rank, player, team, position, GP, MPG, FGM/FGA/FG%, FTM/FTA/FT%, 3PM, PTS, REB, AST, STL, BLK, TO, ADP |
-| **Never touched** | `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Notes` — every yellow input column |
-| **Never touched** | All formulas, all formatting, column widths, named ranges, conditional formatting |
-| **Never touched** | Punts, Category Tracker, Settings, README |
-| **Rebuilt only if row positions moved** | Draft Board |
+**Rewritten:** every value, rank, dropped-category tag and per-category column on all three
+calculation tabs; the raw stat lines; ADP; seed rank; the reported pool constants.
 
-**One exception, and it is a hard one.** `Refresh data` writes into a fixed
-column layout. Adding or removing a punt build changes that layout, so a build
-set change needs a **full rebuild**, not a refresh — and a full rebuild does not
-preserve `Notes`. Copy that column out first if it holds anything.
+**Never touched:** `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Injuries`, `Notes`, the
+`Punted` ticks, the `GONE` and `MINE` checkboxes, the `Sort by` selection, the projection
+filter state — and every formula, format, column width and named range.
+
+An untouched `My GP Est` still holds its seeding formula, and the refresh reads *formulas*
+rather than values to tell an override from an untouched cell. No bookkeeping column.
+
+### The reorder path is now the normal one
+
+A player can enter or leave Hashtag's top 200 between refreshes while staying in both vendor
+files. That changes the row set, which routes the refresh through `refreshWithReorder`: the
+whole Board is rewritten and every hand edit is re-keyed by player name.
+
+This used to be the exception. With Hashtag driving the row set it is the ordinary case, and
+it is worth knowing that a refresh which reports "order changed" has done considerably more
+work than one which does not. The change report at step 2 tells you in advance.
 
 ### Two different layouts, and only one of them breaks a refresh
 
-Easy to get backwards, and the failure is silent either way.
+Moving a **Board** column breaks `Refresh data`, because `REFRESH_MAP` writes into fixed
+positions.
 
-- Moving a column on the **Board** tab breaks `Refresh data`, because the refresh
-  writes into fixed Board positions. A punt-build change does this
-  ([ADR-0010](../decisions/ADR-0010-punt-build-set.md)).
-- Moving a column on the **Draft Board** tab does not touch the refresh at all —
-  that tab is regenerated wholesale from the `D` map every time. Adding
-  `Category profile` did this
-  ([ADR-0013](../decisions/ADR-0013-category-profile-column.md)).
+Moving a **Draft Board** column does not touch the refresh — but the **Category Tracker
+bakes in Draft Board column letters at write time**, and `Rebuild & re-sort` rebuilds only
+the Draft Board. An un-rebuilt tracker reports wrong totals with no error.
 
-But a Draft Board column move has its own casualty: the **Category Tracker**
-sums Draft Board columns through formulas that bake in A1 letters at write time.
-`Rebuild & re-sort` rebuilds only the Draft Board, so a tracker left un-rebuilt
-keeps summing the old positions and reports **wrong category totals with no
-error**. After any change that moves a Draft Board column, run a **full
-rebuild**, in this order:
+After any Draft Board column change, do a **full rebuild**, in this order:
 
-1. Copy the `Notes` column out — a full rebuild destroys it.
-2. Write down which categories are ticked `Punted`; the rebuild clears them.
+1. Copy `Notes` and `Injuries` out.
+2. Write down which categories are ticked `Punted`.
 3. `Draft Board ▸ Full rebuild`.
-4. Re-tick `Punted`, paste `Notes` back.
+4. Re-tick `Punted`, paste `Notes` and `Injuries` back.
 
-Do not "fix" this by making `Rebuild & re-sort` rebuild the tracker too. It
-advertises that it keeps checkboxes and notes, and rebuilding the tracker would
-silently clear the `Punted` ticks the Draft Board now depends on.
+Do **not** make `Rebuild & re-sort` rebuild the tracker. It runs on the clock, and the
+tracker is not what you are waiting on.
+
+### Sorting and filtering
+
+The `Sort by` dropdown in row 1 offers nine choices — three projections × three values.
+**Changing it does not re-sort the board on its own**; run `Rebuild & re-sort`. Until you
+do, the block header reads `SORT STALE`.
+
+The three checkboxes beside it hide and show each projection's six value columns. That runs
+on a simple `onEdit`, so there is nothing to install. If a checkbox ever stops responding,
+`Draft Board ▸ Apply projection filter` does the same job by hand.
+
+All three projections showing is a **comparison** view, not a draft-day view — it fills the
+screen. The steady state on the clock is one projection expanded.
 
 ### Where the league settings come from
 
-Settings `B4` (Teams), `B5` (Roster spots) and `B10` (Scoring format) are
-transcribed from [config/league.yaml](../../config/league.yaml), which is in turn
-transcribed from Yahoo's own Scoring & Settings page. Change them there first.
+Settings `Teams`, `Roster spots` and `Scoring format` are transcribed from
+[config/league.yaml](../../config/league.yaml), itself from Yahoo's Scoring & Settings page.
+Two traps: Yahoo reports **Max Teams**, which is capacity rather than the number of managers
+who actually drafted, and the format is **Head-to-Head Categories**, not Yahoo's *One Win*
+or ESPN's *Most Categories*.
 
-Two traps worth knowing. Yahoo reports **Max Teams**, which is league capacity
-and not necessarily how many managers play — the number that sets `Q` is how
-many actually drafted. And Yahoo's format here is **Head-to-Head Categories**,
-where all nine categories settle separately every week; that is not the same as
-Yahoo's *One Win*, which ESPN confusingly calls *Most Categories*. The board used
-to ship the ESPN wording, which pointed the Punts tab at the wrong advice.
+### The pool no longer needs re-seeding
 
-Everything downstream of the raw stats is a live formula, so z-scores, G-scores,
-VOR, Adjusted Value, tiers, gaps and the punt columns all update themselves.
-
-**How your GP overrides are protected.** A `My GP Est` cell that you have never
-touched still holds its seeding formula, `=$F3`. One you have typed a number
-into does not. The refresh reads formulas rather than values to tell the two
-apart, so an untouched cell re-seeds from the new projection — which is correct
-— and an overridden one keeps your number. No bookkeeping column, nothing to
-remember.
-
-**When to use a full rebuild instead.** Only for structural change: a different
-number of players, new columns, a changed layout. It clears the sheet and
-**will** destroy hand-edited columns. If you must, copy the yellow columns out
-first.
-
-### When to re-seed the pool
-
-The pool is "the top 156 by value", but you need values to know who those are.
-`Seed Rank` breaks that circle: pool membership keys off a static rank rather
-than a live one, which avoids a circular reference that Sheets cannot resolve.
-
-Run `Draft Board ▸ Re-seed pool from current ranks` after an import that moves
-players meaningfully across the 156 line. It copies current Adj Rank into Seed
-Rank — one iteration of the playbook's convergence step. Run it twice; the set
-stops changing.
-
----
+`Re-seed pool from current ranks` is gone. Pool membership was a static `Seed Rank` you
+iterated by hand until it stopped moving; it is now a fixed point computed in Python, seeded
+deterministically so two runs produce byte-identical output.
 
 ## Traps worth knowing
 
-**The export has two quirks.** Both are handled by `gen_data.py`, and both will
+**The Hashtag export has three quirks**, all handled by `sources.py`, all of which will
 silently corrupt a hand-rolled parser:
 
 - Header rows repeat roughly every 13 players, interleaved through the file.
-- `R#` sometimes holds two numbers (`18 38`) — the rank plus a rank-movement
-  indicator. Only the first is the rank.
+- `R#` sometimes holds two numbers (`18 38`) — the rank plus a rank-movement indicator.
+  Only the first is the rank.
+- Percentages arrive as a rate, a **literal newline**, then makes and attempts, inside one
+  quoted field: `"0.573\n(10.5/18.3)"`. So the line count is not the row count, and a
+  line-based parser gets it wrong twice over.
 
-Percentages arrive as `0.573(10.5/18.3)`, so makes and attempts are available.
-They are required: FG% and FT% are volume-weighted, and valuing them as bare
-rates is silently wrong.
+Makes and attempts are required, not optional: FG% and FT% are volume-weighted, and valuing
+them as bare rates is silently wrong.
+
+**The vendor exports have two of their own.** Season totals, not per game — and **made field
+goals already include threes**, so points must be derived as `2×FG + 3PM + FT`. Counting a
+made three as three points plus a two-point field goal is the most common way to get this
+wrong, and it breaks exactly the high-volume shooters you most need to rank correctly.
+Rows projected at zero games are dropped: they cannot be rated and they drag every pool mean
+toward zero.
+
+**The two vendors share an id space; Hashtag shares nothing.** BMP and BMP-ALT join on
+`player_id`. Hashtag has no id at all, so it joins on a normalised name — diacritics folded,
+generational suffixes stripped — plus a short explicit alias table for the players where the
+two vendors disagree on the name itself rather than its spelling.
 
 **Six Apps Script constraints**, each of which broke a build during
 development:
 
 - A **frozen column may not split a merged cell**. Block headers are merged
   across their columns, so `setFrozenColumns` must land on a block boundary.
-- A **new sheet is 26 columns**. The Board needs 73 and the Draft Board 33.
+- A **new sheet is 26 columns**. The Draft Board needs 77 and a calculation tab 66.
   `ensureGrid()` grows it first; `setColumnWidth` past the last column throws.
-- A **formula naming a sheet that does not exist yet is a permanent `#REF!`**. It
-  does not heal when the sheet is created later. `Category profile` references
-  the Category Tracker, so `buildDraftTab()` creates that tab if it is missing —
-  `buildDraftBoard()` makes all six up front, but `Step 2` and
-  `Rebuild & re-sort` do not.
+- A **formula naming a sheet that does not exist yet is a permanent `#REF!`**. It does not
+  heal when the sheet is created later. The Strengths and Weaknesses columns reference the
+  Category Tracker, and every Draft Board row references a calculation tab, so a full build
+  makes all nine tabs up front — `Step 4` and `Rebuild & re-sort` assume they exist.
+- A **sheet name containing a hyphen must be quoted inside a formula**: `'BMP-ALT'!$Q$4`,
+  never `BMP-ALT!$Q$4`. `sheetRef()` handles it and the harness asserts that every generated
+  reference obeys it, because it is a class of bug rather than one instance. Named ranges
+  cannot contain a hyphen at all, which is why that source's ranges are prefixed `ALT_`.
 - A **string starting with `=` is stored as a formula**, whatever the cell's
   number format. The README tab's formula column leads each entry with a space.
 - **Conditional format rules resolve in order.** A general row-banding rule
@@ -250,17 +285,22 @@ steps that each finish well under it:
 
 | Menu item | Rebuilds |
 |---|---|
-| `Refresh data` | only the cells that changed — the normal path |
-| `Rebuild & re-sort` | Draft Board order, keeping checkboxes and notes |
-| `Re-seed pool from current ranks` | one pool iteration |
+| `Refresh data` | the Board's changed cells, plus all three calculation tabs — the normal path |
+| `Rebuild & re-sort` | Draft Board order, keeping GONE / MINE / Notes / Injuries |
+| `Apply projection filter` | shows and hides the value blocks by hand |
 | `Full rebuild (from Data.gs)` | everything, destroying hand edits |
-| `Step 1 — Settings only` | Settings |
-| `Step 1b — Reformat Board` | Board formatting, leaving data and formulas |
-| `Step 2 — Draft Board only` | the draft-day tab |
-| `Step 3 — Punts, Tracker, README` | the rest, then tab order |
+| `Step 1 — Settings only` | Settings and the named ranges |
+| `Step 2 — Calculation tabs` | the three projection tabs |
+| `Step 3 — Board (spine)` | the Board |
+| `Step 4 — Draft Board only` | the draft-day tab |
+| `Step 5 — Punts, Tracker, README` | the rest, then tab order |
 
-Each step writes its outcome to `Settings!A61`, which survives a thrown
-exception. The Apps Script execution log does not.
+Step 4 is the expensive one: 200 rows of formulas, a long list of conditional formats, and
+one `setBorder` call per tier break. If it ever times out, everything before it has already
+landed.
+
+Each step writes its outcome to the build log on Settings, which survives a thrown exception.
+The Apps Script execution log does not.
 
 ---
 
@@ -286,14 +326,18 @@ the board into it is two steps: pull the tab out of Google, then convert it.
 
    ```bash
    playwright-cli -s=fantasy eval \
-     "() => fetch('https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:csv&sheet=Draft%20Board&range=A3:E202&headers=0', {credentials:'include'}).then(r => r.text())"
+     "() => fetch('https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:csv&sheet=Draft%20Board&range=A4:G203&headers=0', {credentials:'include'}).then(r => r.text())"
    ```
 
-   `gviz/tq?tqx=out:csv` returns the range as CSV directly. Rows 3–202 are the
-   data rows — row 1 is merged block headers and row 2 is column headers
-   (`HDR = 2` in `Build.gs`), and `headers=0` stops gviz guessing. Columns come
-   back as `#`, `TIER`, `Player`, `Team`, `Pos`. Save the result somewhere
-   outside the repo; it is provider data.
+   `gviz/tq?tqx=out:csv` returns the range as CSV directly. Rows 4–203 are the data rows —
+   row 1 is the control strip, row 2 the merged block headers, row 3 the column headers
+   (`HDR = 3` in `Build.gs`) — and `headers=0` stops gviz guessing. Columns come back as
+   `#`, `TIER`, `RND`, `Player`, `Tm`, `Pos`, `INJ`. Save the result somewhere outside the
+   repo; it is provider data.
+
+   > **This range moved.** It was `A3:E202` before the control strip and before `Round` and
+   > `Injuries` were inserted. An old pull does not fail — it hands the converter team codes
+   > where it expects names, which is why the converter checks the row width strictly.
 
    Do **not** use Drive's file-content reader for this. It renders the sheet as
    prose and truncates the tab at about rank 77 of 200, silently.
@@ -303,7 +347,7 @@ the board into it is two steps: pull the tab out of Google, then convert it.
    python3 scripts/draft-board/export_yahoo_rankings.py raw.csv
    ```
    With no `-o` it writes `data/exports/yahoo-rankings-2026-27-MMDD.csv`, dated
-   like the `player_data_MMDD.md` exports beside it, and creates the directory if
+   like the projection exports beside it, and creates the directory if
    it is missing. One file per export rather than one per season: the board moves
    on every refresh, and keeping them apart is what lets you diff two boards or
    recover the rankings you actually drafted from. The path resolves off the repo
@@ -316,14 +360,15 @@ Three things the converter reconciles, each of which is a wrong file if skipped:
 |---|---|
 | **Team codes** | The provider's, not Yahoo's. Four differ: `GS→GSW`, `NO→NOP`, `NY→NYK`, `SA→SAS`. An unrecognised code is an error, not a pass-through. |
 | **Position** | `Pos` holds comma-separated multi-eligibility (`SG,SF,PF`), which collides with the CSV delimiter. Only the primary position is written. |
-| **Depth** | Stops at 156 — teams × roster spots, the players who actually get drafted. Below that the ordering is real but the rankings are noise you would be importing into Yahoo for no reason. (This row used to say Adjusted Value *inverts* below replacement and that the tail was ordered by fragility. That was true and is not any more: the scaling is switched off where VOR is negative, so availability can only ever discount. The cap is a judgment about usefulness now, not a workaround.) `--limit` overrides it. |
+| **Depth** | Stops at 156 — teams × roster spots, the players who actually get drafted. Below that everyone is sub-replacement and separated by less than the disagreement between the three projections, so importing the tail into Yahoo would be importing noise. `--limit` overrides it. |
 
-Rank is renumbered from row order rather than copied from column `A`. Row order
-*is* the Adjusted Value order, so re-deriving it means a blank or an `#N/A` in
-`A` cannot punch a hole in the sequence.
+Rank is renumbered from row order rather than copied from column `A`. Row order *is* the
+order of whatever you sorted by, so re-deriving it means a blank or an `#N/A` in `A` cannot
+punch a hole in the sequence.
 
-Export **after** `Rebuild & re-sort`, never between a refresh and a re-sort —
-in that window the row order is still the previous board's.
+Export **after** `Rebuild & re-sort`, never between a refresh and a re-sort — in that window
+the row order is still the previous board's. The same applies after changing `Sort by`: the
+dropdown does not move any rows until you re-sort.
 
 The output is provider-derived, so it stays out of version control — but it does
 live in the project, in `data/exports/`. In the working tree and in a commit are
@@ -339,8 +384,14 @@ and CI. The file is there when you need it and cannot be committed by accident.
 Node and assert what actually breaks: range and array dimension mismatches,
 writes past the grid, frozen columns splitting merges, and calls to methods that
 do not exist. It also checks that generated formula strings land in the right
-cells. It runs without `Data.gs`, synthesizing a 200-player pool, so it works on
-a clean clone.
+cells. It runs without `Data.gs`, synthesizing a 200-player pool, so it works on a clean clone.
+
+It also checks the things this refactor made easy to get wrong: that each projection's six
+value columns are contiguous, that no reference to a hyphenated sheet name is left
+unquoted, that `MINE` resolves before `GONE`, that the projection filter's column
+arithmetic hides exactly one block, and that `readCheckState` finds the draft state by
+header label rather than by the current column map. Each of those is verified by
+deliberately breaking it and confirming the harness fails.
 
 Run it before every paste into Google. It caught three real bugs that would each
 have cost a round-trip through the authorization flow.
@@ -371,8 +422,9 @@ Synthetic `Cmd+V` does **not** trigger Chromium's native paste, so the clipboard
 route silently does nothing. Drive the editor's Monaco model directly instead:
 
 1. Open the project: `Extensions ▸ Apps Script`, or `script.google.com/home`.
-2. Ship the file in ~12KB chunks onto a page global, because a 104KB shell
-   argument is fragile. The page persists between `playwright-cli eval` calls:
+2. Ship the file in ~12KB chunks onto a page global, because a large shell argument is
+   fragile. `Build.gs` is about 90KB and `Data.gs` about 185KB, so expect roughly eight and
+   fifteen chunks. The page persists between `playwright-cli eval` calls:
    ```js
    () => { window.__buf = (window.__buf || '') + <JSON chunk>; return window.__buf.length; }
    ```

@@ -25,6 +25,8 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0015](ADR-0015-durant-h2h-primary-value.md) | DURANT H2H replaces the G-score sum as the board's value | Accepted | 2026-09-01 | Bryan | ADR-0008 (in part), ADR-0012 (in part) |
 | [ADR-0016](ADR-0016-values-computed-in-python.md) | Values are computed in Python; the sheet holds numbers | Accepted | 2026-09-01 | Bryan | ADR-0008 (in part) |
 | [ADR-0017](ADR-0017-no-games-played-adjustment.md) | No games-played adjustment | Accepted | 2026-09-01 | Bryan | ADR-0008 (in part), ADR-0011 |
+| [ADR-0018](ADR-0018-tracker-on-durant-basis.md) | The Category Tracker moves to a win-probability model on the DURANT H2H basis | Accepted | 2026-09-01 | Bryan | ADR-0013 |
+| [ADR-0019](ADR-0019-punt-builds-restandardise.md) | Punt builds discount before standardising and re-derive the pool | Accepted | 2026-09-01 | Bryan | ADR-0009 (in part) |
 
 ## Decisions expected next
 
