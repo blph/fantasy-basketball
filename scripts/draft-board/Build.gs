@@ -1085,8 +1085,16 @@ function buildDraftTab(ss, sh, board, prior) {
 
     // Ranked rather than read off the row number, so the column stays correct the moment
     // the sort changes and before a re-sort has run. After a re-sort the two agree.
-    row[D.rank] = '=RANK($' + a1col(D.sel) + r + ',$' + a1col(D.sel) + '$' + R0
-                + ':$' + a1col(D.sel) + '$' + RN + ')';
+    //
+    // The COUNTIF breaks ties. Bare RANK() gives tied players the same number and then
+    // skips one -- 56, 56, 58 -- so the column stops being a permutation of 1..200 and
+    // disagrees with the rank on the calculation tabs, which is the invariant verify.py
+    // asserts. Six pairs tie at four decimal places on the current data. The expanding
+    // range counts equal values at or above this row, so ties break in board order.
+    var selCol = '$' + a1col(D.sel);
+    var selSpan = selCol + '$' + R0 + ':' + selCol + '$' + RN;
+    row[D.rank] = '=RANK(' + selCol + r + ',' + selSpan + ')'
+                + '+COUNTIF(' + selCol + '$' + R0 + ':' + selCol + r + ',' + selCol + r + ')-1';
     row[D.round] = '=IF($' + a1col(D.rank) + r + '="","",CEILING($' + a1col(D.rank) + r + '/TEAMS))';
     row[D.player] = bref(B.player); row[D.team] = bref(B.team); row[D.pos] = bref(B.pos);
     row[D.inj] = bref(B.injuries);

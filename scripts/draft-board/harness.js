@@ -344,8 +344,9 @@ check('the weight row names a constant per category',
   `got ${cell(SOURCES[0].key, HDR, V.dh0)}`);
 
 // --- Draft Board -----------------------------------------------------------
-expect('rank is a RANK over the sorted column', cell('Draft Board', r4, D.rank),
-  `=RANK(${C(D.sel)}${r4},${C(D.sel)}$${R0}:${C(D.sel)}$${RN})`);
+expect('rank is a tie-broken RANK over the sorted column', cell('Draft Board', r4, D.rank),
+  `=RANK(${C(D.sel)}${r4},${C(D.sel)}$${R0}:${C(D.sel)}$${RN})`
+  + `+COUNTIF(${C(D.sel)}$${R0}:${C(D.sel)}${r4},${C(D.sel)}${r4})-1`);
 expect('round reads league size', cell('Draft Board', r4, D.round),
   `=IF(${C(D.rank)}${r4}="","",CEILING(${C(D.rank)}${r4}/TEAMS))`);
 expect('GAP is ADP minus the board rank', cell('Draft Board', r4, D.gap),
