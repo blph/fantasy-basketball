@@ -1,17 +1,19 @@
 # `draft-refactoring` — three projections, DURANT H2H, no games-played adjustment
 
 - Date: 2026-09-01
-- Branch: `draft-refactoring`
-- Status: **built, deployed and verified in the sheet**
+- Branch: `draft-refactoring` (6 commits)
+- Status: **built, deployed to the live sheet, and verified there**
 
-## What changed, in one paragraph
+---
+
+## In one paragraph
 
 The board valued players one way from one projection: nine z-scores, discounted by
 Rosenof's volatility multipliers, turned into value over replacement, then scaled by
-projected games played. It now carries **three projection sources** and **three values
+projected games played. It now carries **three projection sources** with **three values
 each**, ranks by **Basketball Monster's DURANT H2H**, and **scales nothing by games
-played**. The values are computed in Python and written to the sheet as numbers; the
-draft-day logic stays a live formula.
+played**. Values are computed in Python and written to the sheet as numbers; everything
+that has to react on the clock stays a live formula.
 
 ## Why
 
@@ -21,12 +23,14 @@ Three findings from the `durant-actual` research contradicted the board:
    Monster's two sources moves players ~20 rank places on average. On our own data Kawhi
    Leonard is DURH #6 on BMP and #21 on HBP; Embiid is #8 and #30. A single-source board
    cannot show that a ranking is contested.
-2. **The valuation was wrong for this format.** Basketball Monster's own guidance for
+2. **The valuation was wrong for this format.** Basketball Monster's guidance for
    head-to-head category leagues is DURANT H2H. Our G-score multipliers were documented on
    the sheet as "the second decimal is not reliable" and were being applied to three.
 3. **Games played should not scale value.** It is the least predictable part of any
    projection, and the method the board now reproduces has no availability term at all.
-   The override machinery was also entirely unused — `GP Y-1/2/3` filled on 0 of 200 rows.
+   The override machinery was unused anyway — `GP Y-1/2/3` filled on 0 of 200 rows.
+
+---
 
 ## The three values
 
@@ -36,71 +40,133 @@ Three findings from the `durant-actual` research contradicted the board:
 | `ZSH` | The H2H weighting and minus-one rule on **untransformed** z | 7 |
 | `DURH` | DURANT H2H exactly — Yeo-Johnson, standardise, weight, drop the worst live category | 7 |
 
-`ZSH` exists to isolate what the Yeo-Johnson transform is worth: it shares DURH's weights
-and its drop rule and differs only in the transform, so any rank disagreement between them
-is the transform's doing. Without it, adopting DURANT would have been an act of faith.
+`ZSH` exists to isolate what the Yeo-Johnson transform is worth. It shares DURH's weights
+and drop rule and differs only in the transform, so any rank disagreement between them is
+the transform's doing. Without it, adopting DURANT would have been an act of faith.
 
 **Magnitudes are not comparable across value types** — ZSC averages nine, the others seven.
 Only ranks are.
+
+---
+
+## What was built
+
+### New — the Python pipeline
+
+| File | What it does |
+|---|---|
+| `scripts/draft-board/sources.py` | Reads the three exports, normalises names, joins them. An unresolved player raises. |
+| `scripts/draft-board/board_values.py` | Assembles the three values per projection, the punt builds, and the tracker constants. |
+| `scripts/draft-board/build_data.py` | Resolves a same-dated set, scores it, prints a change report, writes `Data.gs`. |
+| `tests/test_sources.py` | 31 tests — parsing, normalisation, the join. |
+| `tests/test_board_values.py` | 22 tests — the values, the pools, the punt mechanism, the constants. |
+| `tests/test_build_data.py` | 14 tests — date resolution, re-ranking, emission, determinism. |
+
+Three additions to `scripts/bbm/bbm_reference.py`: `weighted_drop_one` (shared by DURH and
+ZSH, so the two agree on what "drop one" means), `z_h2h`, and `build_z_h2h_pool`. Also
+hoisted a call that was recomputing all nine category values nine times per player inside
+the pool iteration.
+
+`scripts/draft-board/gen_data.py` is **deleted** — its markdown-table parser has no
+remaining input.
+
+### Rewritten — the sheet
+
+`Build.gs` went from 2257 to 2415 lines. `Board` survives as the **spine** (identity, the
+HBP raw line, availability, market, every hand-edited column), which is what keeps
+`Refresh data` writing to one tab and leaves the refresh machinery intact — it dropped from
+73 columns to 28 and from ~90 formulas to two.
+
+Nine tabs: `Draft Board` · `BMP` · `HBP` · `BMP-ALT` · `Board` · `Punts` ·
+`Category Tracker` · `Settings` · `README`.
+
+The Draft Board's 18 value columns are **generated** from `SOURCES × VALUE_KINDS` rather
+than typed out, because the projection filter hides one source's six-column span and a gap
+there would hide the wrong columns while every offline check still passed.
+
+`HDR` moved 2 → 3 for the control strip (sort dropdown + three projection checkboxes), so
+every external read range shifted: `A3:E202` → `A4:G203`.
+
+### Design decisions worth naming
+
+- **Colour goes where the information is.** The board is sorted by the active value column,
+  so a gradient there reads as a value ramp. The other eight get no fill; their *tags*
+  carry the disagreement signal instead. Nine gradients would be noise and eight would
+  encode nothing you cannot read from row position.
+- **Group separators are drawn as a left border on each group's first column**, never a
+  right border on its last, so any subset stays correctly bounded when others are hidden.
+- **`GONE` and `MINE` moved into the frozen pane.** They are the only cells you write during
+  a draft and previously scrolled off the moment a value column was in view.
+- **`CONTESTED` gets the only saturated fill on the tracker**; `WEAK` keeps red bold text
+  but loses its red block. The marginal-value derivation says the next pick belongs in a
+  contested category, so that is what should draw the eye.
+- `warnBg` moved `#FFF3D6` → `#FFECC7`; it sat four hex points from the input yellow.
+
+---
 
 ## Two corrections that would have shipped silently
 
 **`K = k / w`, not `k × w`.** A weighted DURANT column's standard deviation is *exactly* its
 weight, so `Z_team` in DH units is `w` times `Z_team` in z units. My first table used the
-wrong pool and inverted the operation, which would have understated every win probability
-while every number on the sheet still looked plausible. It is asserted in both `verify.py`
-and the test suite so it can be neither skipped nor applied twice.
+wrong pool *and* inverted the operation, which would have understated every win probability
+while every number on the sheet still looked plausible. Asserted in `verify.py` and the
+tests so it can be neither skipped nor applied twice.
 
 **The Category profile must divide by the weight.** A fixed band is unreachable for any
 category weighted below 1, so FG%, FT%, 3PM, STL and BLK — five of eight — would never have
-fired. On the unweighted basis, `CAT_BAND = 1.00` is retained: recalibrating the way
+fired. On the unweighted basis `CAT_BAND = 1.00` is *retained*: recalibrating the way
 ADR-0013 did gives 2.54 flags per player and 10% unlabelled, against its targets of ~2.6
 and ~9%.
 
+---
+
 ## Five defects only the live deploy could find
 
-Every one passed the harness, `pytest` and `ruff`, and every one broke the build in Google.
-Each now has a check that catches it.
+Every one passed `pytest`, `ruff` and the harness. Every one broke the build in Google.
+Each now has a check, verified by re-breaking it and watching the check fail.
 
-| Defect | Why it was invisible |
+| Defect | Why it was invisible offline |
 |---|---|
-| `clear()` does not remove merges | Only bites when rebuilding over a *different* layout, which building from scratch twice cannot reproduce. The harness now seeds an old-layout merge. |
-| A conditional format rule may not reference another sheet | The disagreement highlight used a named range, and every named range lives on Settings. It took down the whole Draft Board rule set. |
-| `sheetRef` allowed spaces unquoted | `Category Tracker!$G$7` never parsed; both profile columns returned `#ERROR!` on all 200 rows. The hyphen case was handled; the space looks harmless. |
+| `clear()` does not remove merges | Only bites when rebuilding over a *different* layout, which building twice from scratch cannot reproduce. The harness now seeds an old-layout merge and rebuilds over it. |
+| A conditional format rule may not reference another sheet | The disagreement highlight used a named range, and every named range lives on Settings. It took down the entire Draft Board rule set. |
+| `sheetRef` allowed spaces unquoted | `Category Tracker!$G$7` never parsed; both profile columns returned `#ERROR!` on all 200 rows. The hyphen case (`BMP-ALT`) was handled — the space is the one that looks harmless. |
 | Sheets reads `"3PM"` as a time | The tag rendered `#1 0.625` — 3:00 PM as a day fraction. It is the only category label that parses as anything else. |
 | `readCheckState` ran after the wipe | A full rebuild silently discarded every `GONE` and `MINE` tick. Re-sorting preserved them, so it looked intentional. |
 
-The last one is the one that mattered most: on draft day it is the difference between an
-inconvenience and losing the board's state mid-draft.
+The last one mattered most: on draft day it is the difference between an inconvenience and
+losing the board's state mid-draft.
 
-## What is on the sheet now
+A sixth, found during verification: bare `RANK()` gives ties the same number and skips one,
+so the `#` column stopped being a permutation of 1..200. Six pairs tie at four decimals on
+the current data. Fixed with an expanding-range `COUNTIF` tie-break.
 
-Nine tabs: `Draft Board` · `BMP` · `HBP` · `BMP-ALT` · `Board` · `Punts` ·
-`Category Tracker` · `Settings` · `README`.
+---
 
-The `Board` tab survives as the spine — identity, the HBP raw line, availability, market,
-and every hand-edited column — which is what keeps `Refresh data` writing to one tab and
-leaves the refresh machinery intact. It went from 73 columns to 28 and from ~90 formulas to
-two.
+## Deployment record
 
-The Draft Board's 18 value columns are generated from `SOURCES × VALUE_KINDS` rather than
-typed out, because the projection filter hides one source's six-column span and a gap there
-would hide the wrong columns while every offline check still passed.
+Pushed through `playwright-cli` into the bound `Code.gs`, in ~11KB chunks, verified by
+character count before saving and again after a reload.
 
-**The Category Tracker has eight rows, not nine.** DURANT H2H prices turnovers at zero, so
-a DH turnover column is identically 0.0 for every player and cannot be thresholded. This is
-the sharpest cost of the change and it is recorded as such in ADR-0018: we now have no
-instrument for a category the league settles every week.
+**A staging copy was made first and abandoned.** Copying the sheet creates a *new* Apps
+Script project, whose consent screen asked for "see, edit, create, and delete all your
+Google Sheets spreadsheets". I did not grant it. The live board's script already holds that
+permission, so deploying there needed no new authorization. The copy is in the trash.
 
-## Verified in the sheet
+All hand-edited state was pulled out before anything was touched and restored afterwards:
+7 `GONE` ticks, 1 `MINE` (Jokic), no notes, no GP overrides.
+
+### Verified in the sheet
 
 - No `#VALUE!`, `#REF!`, `#ERROR!` or `#NUM!` on any tab.
-- All 200 `DURH` values agree with the Python pipeline to within display rounding.
-- Ranks are 1..200 contiguous, matching the calculation tabs.
+- All 200 `DURH` values agree with the Python pipeline — worst delta 0.0005, which is
+  exactly the three-decimal display boundary.
+- Ranks 1..200 contiguous, matching the calculation tabs.
 - Draft state survives a full rebuild, reattached to the right players by name.
-- The projection filter hides exactly one block and the group separators still bound the
+- The projection filter hides exactly one six-column block; group separators still bound the
   survivors.
-- The tracker computes all five read states from one ticked player.
+- The tracker computes all five read states from one ticked player, `NORMSDIST` included.
+
+---
 
 ## One thing to know before draft day
 
@@ -110,20 +176,67 @@ the transform refusing to let a handful of elite shot blockers define "average" 
 carry the strongest compression, λ = −1.69. The `Z` is what the board ranks on and what the
 win probability comes from. There is a note on the tab.
 
+---
+
 ## Records
 
-ADR-0014 (three sources) · ADR-0015 (DURANT H2H) · ADR-0016 (values computed in Python) ·
-ADR-0017 (no GP adjustment) · ADR-0018 (tracker and profile on the DURANT basis) ·
-ADR-0019 (punt builds re-standardise). ADR-0011 is superseded outright; ADR-0008, ADR-0009,
-ADR-0012 and ADR-0013 in part.
+New: ADR-0014 (three sources) · ADR-0015 (DURANT H2H) · ADR-0016 (values computed in
+Python) · ADR-0017 (no GP adjustment) · ADR-0018 (tracker and profile on the DURANT basis) ·
+ADR-0019 (punt builds re-standardise).
 
-## Carried, not resolved
+Superseded: ADR-0011 outright; ADR-0008, ADR-0009, ADR-0012 and ADR-0013 in part.
 
-- The Josh Lloyd games-played transcript was not captured; ADR-0017 rests on the quoted
-  material already in the repo plus the video URL.
-- `k_FG` and `k_FT` remain the least trustworthy constants in the model — Rosenof quotes
-  their variances to one significant figure. Shipped provisional.
-- `review_mock_draft.py` has **not** been repointed. It still reads the old Board layout and
-  `adjusted_value`, so it will not run against this board until it is updated.
-- The old `Punted` tick was on turnovers, which no longer has a row. Nothing was lost that
-  the new model does not already do by construction.
+`docs/references/category-tracker-z-thresholds.md` was untracked research; it is now
+committed, marked implemented, and carries the `K = k / w` derivation as §5a.
+
+The playbook keeps §5, §6 and §6a **unchanged** and gains a note that they are superseded.
+Rewriting them would destroy the reasoning this branch was built on — the argument for the
+G-score is what makes the argument against it legible.
+
+---
+
+## What remains
+
+### Blocking, before the board is used for a real draft
+
+1. **`review_mock_draft.py` has not been repointed.** 898 lines with 468 lines of tests,
+   built on the old Board layout and `adjusted_value`. It will not run against this board.
+   This was deferred deliberately and flagged in the plan, not discovered late. It needs:
+   the `COL_*` offsets remapped, `DB_ADJVAL` pointed at the BMP DURH column,
+   `check_replacement` replaced (there is no replacement level any more — the equivalent
+   stop-the-line check is that the pulled rank column is 1..N contiguous and the value
+   column descends), `tracker_trace` rewritten for the eight-category Win % model, and
+   `GKEYS`/`p.g` removed with the g-scores.
+
+2. **A real refresh has never been run end to end.** The board was built from `Data.gs`
+   step by step. `Draft Board ▸ Refresh data` — the path used for every subsequent
+   projection update — has not been exercised against the live sheet. The reorder path in
+   particular is now the *normal* case and deserves a deliberate test with a changed
+   200-player set before it is met for the first time on draft week.
+
+### Worth doing, not blocking
+
+3. **The turnovers gap.** The tracker has no TO row because DURANT H2H prices turnovers at
+   zero. The league settles them every week. If it bites, the honest fix is a ninth row on
+   the plain-z basis with its own `k = 0.485`, clearly marked as a different basis — not a
+   re-weighting of DURANT H2H, which would stop being DURANT H2H.
+
+4. **`k_FG` and `k_FT` are provisional.** Rosenof quotes their variances to one significant
+   figure, which puts `k_FG` anywhere in 0.31–0.37. The calibration procedure is in §9 of
+   the thresholds document and needs a season of weekly results.
+
+5. **The games-played research is uncaptured.** ADR-0017 rests on the material already
+   quoted in the repo plus the video URL. The transcript would make it properly sourced.
+
+6. **`valuation.py` and `bbm_reference.py` both exist**, implementing different models.
+   `docs/roadmap.md` now flags that Phase 2 has to choose which one it ports.
+
+7. **Cosmetic.** The sort dropdown clips to `BMP · DUR` at its current width. Harmless, but
+   it is the control you look at to know what the board is sorted by.
+
+### Not started
+
+8. **The `Injuries` column is empty by design.** It has formatting rules for `OUT` and
+   `GTD`/`Q`/`DTD` and nothing feeds it.
+
+9. **`XRank` is still empty**, as it was before this branch.
