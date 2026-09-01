@@ -36,3 +36,6 @@ scripts/draft-board/Data.gs
 # docs/, so this entry is the guard. The procedure that generates them carries
 # no numbers and is committed: docs/draft-board/mock-draft-review.md
 docs/reviews/mock-drafts/
+# Same content, second location. A report written to docs/mock-drafts/ was sitting
+# untracked and uncovered: one glob per directory is one glob per way to get this wrong.
+docs/mock-drafts/

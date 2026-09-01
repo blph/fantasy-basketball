@@ -285,6 +285,26 @@ def durant(rates, params):
     return sum(kept) / len(kept), worst
 
 
+def weighted_drop_one(vals, weights):
+    """Weight the categories, drop the worst of those still live, average the survivors.
+
+    A category weighted 0 is not merely discounted, it is removed: it takes no part in the
+    "worst" comparison and does not sit in the denominator. That is how DURANT H2H drops
+    turnovers, and it is why this is shared rather than written twice -- ZSH applies the
+    same rule to untransformed z, and the two must agree on what "drop one" means or the
+    difference between them stops being the transform.
+
+    `vals` maps category -> standardised value. Returns (score, dropped_category).
+    """
+    live = [c for c in CATEGORIES if weights[c] != 0]
+    if len(live) < 2:
+        raise ValueError("weighted_drop_one needs at least two live categories")
+    weighted = {c: vals[c] * weights[c] for c in live}
+    worst = min(live, key=lambda c: weighted[c])
+    kept = [weighted[c] for c in live if c != worst]
+    return sum(kept) / len(kept), worst
+
+
 def durant_h2h(rates, params, weights=None):
     """DURANT H2H: weight the categories, drop turnovers, drop the worst of the rest.
 
@@ -293,11 +313,46 @@ def durant_h2h(rates, params, weights=None):
     """
     if weights is None:
         weights = H2H_WEIGHTS
-    vals = {c: durant_category_values(rates, params)[c] * weights[c] for c in CATEGORIES}
-    live = [c for c in CATEGORIES if weights[c] != 0]
-    worst = min(live, key=lambda c: vals[c])
-    kept = [vals[c] for c in live if c != worst]
-    return sum(kept) / len(kept), worst
+    # Hoisted deliberately. Called inside the dict comprehension this recomputed all nine
+    # category values nine times per player, inside the pool iteration, for three sources
+    # and ten punt builds -- the pipeline's hot loop.
+    vals = durant_category_values(rates, params)
+    return weighted_drop_one(vals, weights)
+
+
+def z_h2h(rates, params, weights=None, punt_weights=None):
+    """ZSH: the H2H weighting and the minus-one rule applied to UNTRANSFORMED z.
+
+    Same shape as `durant_h2h` with the Yeo-Johnson layer removed, so the pair isolates
+    what the transform is worth: any difference between a player's ZSH and DURH rank is
+    the transform's doing and nothing else. Returns (score, dropped).
+    """
+    if weights is None:
+        weights = H2H_WEIGHTS
+    return weighted_drop_one(category_values(rates, params, punt_weights), weights)
+
+
+def build_z_h2h_pool(rates, q, weights=None, seed_order=None, max_iter=50):
+    """The ZSH pool, iterated to a fixed point on the ZSH score.
+
+    ZSH ranks a different order than Value does, so it selects a different top-q and
+    therefore different standardisation constants. Reusing the Value pool would leave the
+    values subtly off their own definition.
+    """
+    keys = list(rates)
+    if q > len(keys):
+        raise ValueError(f"q={q} exceeds {len(keys)} players")
+    if seed_order is None:
+        seed_order = sorted(keys, key=lambda k: -rates[k]["minutes"])
+    pool = list(seed_order[:q])
+    for _ in range(max_iter):
+        params = pool_params([rates[k] for k in pool])
+        scored = sorted(keys, key=lambda k: -z_h2h(rates[k], params, weights)[0])
+        nxt = scored[:q]
+        if nxt == pool:
+            break
+        pool = nxt
+    return pool, pool_params([rates[k] for k in pool])
 
 
 def build_durant_pool(rates, q, lambdas, seed_order=None, max_iter=50):

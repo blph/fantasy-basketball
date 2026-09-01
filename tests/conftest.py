@@ -9,3 +9,5 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "draft-board"))
+# The valuation engine the board now runs on. Provider-neutral, so it outlives the sheet.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "bbm"))
