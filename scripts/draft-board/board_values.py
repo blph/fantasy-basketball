@@ -36,8 +36,10 @@ from bbm_reference import (  # noqa: E402
     build_pool,
     build_z_h2h_pool,
     category_values,
+    durant,
     durant_category_values,
     durant_params,
+    pool_params,
     value,
     weighted_drop_one,
     z_h2h,
@@ -93,19 +95,51 @@ def _seed(rates: dict) -> list:
     return sorted(rates, key=lambda k: (-rates[k]["minutes"], str(k)))
 
 
-def score_source(rates: dict, q: int, lambdas=None, weights=None) -> dict:
+def _top_q(rates: dict, q: int, score) -> list:
+    """The top q by a score. Ties break on the key, so a rebuild is reproducible.
+
+    The counterpart to `build_pool` for borrowed constants. There is no fixed point to
+    iterate to: the constants are fixed, so the membership cannot feed back into them.
+    """
+    if q > len(rates):
+        raise ValueError(f"q={q} exceeds {len(rates)} players")
+    return sorted(rates, key=lambda k: (-score(rates[k]), str(k)))[:q]
+
+
+def score_source(rates: dict, q: int, lambdas=None, weights=None, params=None) -> dict:
     """Every value, rank, dropped category and per-category number for one projection.
 
     `rates` maps a player key to a per-game mapping. Returns a dict carrying the three
     pools' constants and, per player, everything the sheet displays.
+
+    `params` optionally supplies standardisation constants recovered from Basketball
+    Monster instead of derived here -- `{"plain": ..., "durant": ...}`, the shape
+    `bbm_constants.load` returns. Their means and SDs are measurements of *their* pool, and
+    no pool of ours reproduces both moments (ADR-0021), so for BMP and BMP-ALT the only way
+    to publish their numbers is to use their constants. HBP has no published counterpart
+    and passes nothing, which keeps this function's original path byte-identical.
+
+    Note that ZSC and ZSH share the borrowed plain-z block. They select different top-Qs,
+    but a pool no longer determines a constant, so the two report the same numbers.
     """
     lambdas = lambdas or LAMBDAS_BBM_2026_27_JOSH
     weights = weights or H2H_WEIGHTS
     seed = _seed(rates)
 
-    zsc_pool, zsc_params = build_pool(rates, q, seed_order=seed)
-    zsh_pool, zsh_params = build_z_h2h_pool(rates, q, weights, seed_order=seed)
-    dur_pool, dur_params = build_durant_pool(rates, q, lambdas, seed_order=seed)
+    if params is None:
+        basis = "derived"
+        zsc_pool, zsc_params = build_pool(rates, q, seed_order=seed)
+        zsh_pool, zsh_params = build_z_h2h_pool(rates, q, weights, seed_order=seed)
+        dur_pool, dur_params = build_durant_pool(rates, q, lambdas, seed_order=seed)
+    else:
+        basis = "borrowed"
+        zsc_params = zsh_params = params["plain"]
+        dur_params = params["durant"]
+        # The pool is still selected, because the GP diagnostics and the ZSC/DURANT
+        # overlap describe WHO is being measured, which is worth reporting either way.
+        zsc_pool = _top_q(rates, q, lambda r: value(r, zsc_params))
+        zsh_pool = _top_q(rates, q, lambda r: z_h2h(r, zsh_params, weights)[0])
+        dur_pool = _top_q(rates, q, lambda r: durant(r, dur_params)[0])
 
     players = {}
     for key, r in rates.items():
@@ -129,13 +163,20 @@ def score_source(rates: dict, q: int, lambdas=None, weights=None) -> dict:
         for k, p in players.items():
             p[f"{field}_rank"] = ranks[k]
 
+    pools = {
+        "zsc": _pool_report(zsc_pool, zsc_params, rates, basis),
+        "zsh": _pool_report(zsh_pool, zsh_params, rates, basis),
+        "durant": _pool_report(dur_pool, dur_params, rates, basis),
+    }
+    if params is not None:
+        pools["zsc"]["derived_delta"] = _derived_delta(zsc_pool, rates, zsc_params, None)
+        pools["durant"]["derived_delta"] = _derived_delta(
+            dur_pool, rates, dur_params, lambdas)
+
     return {
         "players": players,
-        "pools": {
-            "zsc": _pool_report(zsc_pool, zsc_params, rates),
-            "zsh": _pool_report(zsh_pool, zsh_params, rates),
-            "durant": _pool_report(dur_pool, dur_params, rates),
-        },
+        "pools": pools,
+        "basis": basis,
         "universe": len(rates),
         # How far the two pools disagree. A big divergence means the value you sort by
         # changes who "average" is, which is worth seeing rather than assuming.
@@ -143,9 +184,13 @@ def score_source(rates: dict, q: int, lambdas=None, weights=None) -> dict:
     }
 
 
-def _pool_report(pool: list, params: dict, rates: dict) -> dict:
-    """The constants a reader needs to audit a value without rerunning the pipeline."""
-    out = {"size": len(pool)}
+def _pool_report(pool: list, params: dict, rates: dict, basis: str = "derived") -> dict:
+    """The constants a reader needs to audit a value without rerunning the pipeline.
+
+    `basis` says where they came from. A borrowed constant reported as a derived one is
+    exactly the kind of thing the Settings tab exists to make impossible to misread.
+    """
+    out = {"size": len(pool), "basis": basis}
     for c in CATEGORIES:
         spec = params[c]
         out[c] = {"mean": round(spec["mean"], 6), "sd": round(spec["sd"], 6)}
@@ -160,8 +205,28 @@ def _pool_report(pool: list, params: dict, rates: dict) -> dict:
     return out
 
 
+def _derived_delta(pool: list, rates: dict, borrowed: dict, lambdas) -> dict:
+    """Signed percent gap between what our own pool would say and what we borrowed.
+
+    The bug ADR-0021 fixes, quantified and kept on screen. Around half a percent on the
+    means and one to three on the SDs is the normal, expected disagreement -- it is why the
+    constants are borrowed at all. Anything wilder means a bad scrape or a stale fit, and
+    without this number that failure is invisible: every value still looks like a value.
+    """
+    members = [rates[k] for k in pool]
+    ours = durant_params(members, lambdas) if lambdas else pool_params(members)
+    out = {}
+    for c in CATEGORIES:
+        row = {}
+        for field in ("mean", "sd"):
+            theirs = borrowed[c][field]
+            row[field] = round(100 * (ours[c][field] - theirs) / theirs, 3) if theirs else None
+        out[c] = row
+    return out
+
+
 def durant_h2h_punt(rates: dict, q: int, drop: tuple[str, ...], punt_weight: float,
-                    lambdas=None, weights=None) -> dict[str, float]:
+                    lambdas=None, weights=None, params=None) -> dict[str, float]:
     """DURH for a punt build: discount the punted categories, then re-derive the pool.
 
     Basketball Monster's mechanism (spec section I.9), and it differs from the board's old
@@ -182,13 +247,21 @@ def durant_h2h_punt(rates: dict, q: int, drop: tuple[str, ...], punt_weight: flo
     the two paths have not drifted apart.
 
     The denominator does not shrink: punting lowers everyone rather than redistributing.
+
+    `params` supplies borrowed DURANT constants, as in `score_source`. Under fixed
+    constants the re-derivation above is structurally a no-op -- scaling before
+    standardising cannot move a mean that is not being computed -- so the loop is skipped
+    and a punt becomes a pure post-standardisation discount (ADR-0021 amends ADR-0019).
+    Leaving punts on the derived path instead would be worse and quietly so: the identity
+    that a punt weight of 1.0 reproduces the unpunted DURH would break, and the board's
+    punt GAP column would be comparing two different bases while looking fine.
     """
     lambdas = lambdas or LAMBDAS_BBM_2026_27_JOSH
     weights = weights or H2H_WEIGHTS
     scale = {c: (punt_weight if c in drop else 1.0) for c in CATEGORIES}
 
-    def scaled(rate, params):
-        vals = durant_category_values(rate, params)
+    def scaled(rate, dur_params):
+        vals = durant_category_values(rate, dur_params)
         return {c: vals[c] * scale[c] for c in CATEGORIES}
 
     def durant_score(vals):
@@ -199,15 +272,17 @@ def durant_h2h_punt(rates: dict, q: int, drop: tuple[str, ...], punt_weight: flo
     def params_for(members):
         return durant_params([rates[k] for k in members], lambdas)
 
-    pool = _seed(rates)[:q]
-    for _ in range(50):
+    if params is None:
+        pool = _seed(rates)[:q]
+        for _ in range(50):
+            current = params_for(pool)
+            scored = sorted(
+                rates, key=lambda k: (-durant_score(scaled(rates[k], current)), str(k)))
+            if scored[:q] == pool:
+                break
+            pool = scored[:q]
         params = params_for(pool)
-        scored = sorted(rates, key=lambda k: (-durant_score(scaled(rates[k], params)), str(k)))
-        if scored[:q] == pool:
-            break
-        pool = scored[:q]
 
-    params = params_for(pool)
     return {k: weighted_drop_one(scaled(r, params), weights)[0] for k, r in rates.items()}
 
 

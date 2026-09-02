@@ -197,6 +197,94 @@ class TestScoreSource:
         assert all(math.isfinite(p["durh"]) for p in res["players"].values())
 
 
+def borrowed_from(pool, q, *, shift=0.0, stretch=1.0):
+    """A `params` mapping in the shape `bbm_constants.load` returns.
+
+    With the defaults it is exactly the pool's own constants, which is what the identity
+    test needs. `shift` and `stretch` perturb it into constants no pool of this projection
+    set produces -- the situation Basketball Monster actually puts us in.
+    """
+    _, plain = B.build_pool(pool, q)
+    _, dur = B.build_durant_pool(pool, q, B.LAMBDAS_BBM_2026_27_JOSH)
+    if shift or stretch != 1.0:
+        for block in (plain, dur):
+            for spec in block.values():
+                spec["mean"] += shift * spec["sd"]
+                spec["sd"] *= stretch
+    return {"plain": plain, "durant": dur}
+
+
+class TestBorrowedConstants:
+    def test_borrowing_the_pools_own_constants_reproduces_the_derived_result(self):
+        # The identity that proves the two paths have not drifted apart. Everything else
+        # about borrowed constants is only trustworthy if this holds: the borrowed path
+        # must differ from the derived one in WHICH constants it uses and nothing else.
+        pool = spread(60)
+        derived = BV.score_source(pool, 30)
+        borrowed = BV.score_source(pool, 30, params=borrowed_from(pool, 30))
+        for key in pool:
+            a, b = derived["players"][key], borrowed["players"][key]
+            for field in ("zsc", "durh"):
+                assert b[field] == pytest.approx(a[field])
+                assert b[f"{field}_rank"] == a[f"{field}_rank"]
+            assert b["durh_drop"] == a["durh_drop"]
+
+    def test_constants_that_are_not_the_pools_own_actually_change_the_values(self):
+        # The complement of the identity test. A `params` argument that silently fell back
+        # to deriving would pass every other test in this class.
+        pool = spread(60)
+        derived = BV.score_source(pool, 30)
+        borrowed = BV.score_source(pool, 30, params=borrowed_from(pool, 30, stretch=1.08))
+        moved = sum(borrowed["players"][k]["durh"] != pytest.approx(
+            derived["players"][k]["durh"]) for k in pool)
+        assert moved > len(pool) // 2
+
+    def test_the_reported_constants_are_the_ones_supplied(self):
+        pool = spread(60)
+        params = borrowed_from(pool, 30, shift=0.2, stretch=1.08)
+        res = BV.score_source(pool, 30, params=params)
+        for c in B.CATEGORIES:
+            assert res["pools"]["durant"][c]["sd"] == pytest.approx(
+                params["durant"][c]["sd"], abs=5e-7)
+            assert res["pools"]["zsc"][c]["mean"] == pytest.approx(
+                params["plain"][c]["mean"], abs=5e-7)
+
+    def test_the_basis_says_where_the_constants_came_from(self):
+        pool = spread(40)
+        assert BV.score_source(pool, 20)["basis"] == "derived"
+        assert BV.score_source(pool, 20)["pools"]["zsc"]["basis"] == "derived"
+        res = BV.score_source(pool, 20, params=borrowed_from(pool, 20))
+        assert res["basis"] == "borrowed"
+        assert res["pools"]["durant"]["basis"] == "borrowed"
+
+    def test_the_drift_diagnostic_measures_the_gap_it_is_there_to_expose(self):
+        # Borrowed constants stretched 8% wider than the pool's own should report roughly
+        # -7.4% -- our SD is 1/1.08 of theirs. This number is the only thing on Settings
+        # that can reveal a stale or bad calibration, so it has to be right.
+        pool = spread(60)
+        res = BV.score_source(pool, 30, params=borrowed_from(pool, 30, stretch=1.08))
+        delta = res["pools"]["durant"]["derived_delta"]
+        for c in B.CATEGORIES:
+            assert delta[c]["sd"] == pytest.approx(100 * (1 / 1.08 - 1), abs=0.5)
+
+    def test_a_derived_run_reports_no_drift_because_there_is_nothing_to_compare(self):
+        assert "derived_delta" not in BV.score_source(spread(40), 20)["pools"]["zsc"]
+
+    def test_ranks_stay_a_permutation_with_no_gaps(self):
+        pool = spread(40)
+        res = BV.score_source(pool, 20, params=borrowed_from(pool, 20, shift=0.3))
+        for field in ("zsc_rank", "zsh_rank", "durh_rank"):
+            assert sorted(p[field] for p in res["players"].values()) == list(range(1, 41))
+
+    def test_borrowed_scoring_is_deterministic_under_a_reordered_input(self):
+        pool = spread(60)
+        params = borrowed_from(pool, 30, stretch=1.05)
+        a = BV.score_source(pool, 30, params=params)
+        b = BV.score_source(dict(reversed(list(pool.items()))), 30, params=params)
+        for key in pool:
+            assert a["players"][key]["durh_rank"] == b["players"][key]["durh_rank"]
+
+
 class TestPuntBuilds:
     def test_punting_re_derives_the_pool_rather_than_editing_one_column(self):
         # Basketball Monster's mechanism. Weighting before standardising changes who is in
@@ -215,6 +303,26 @@ class TestPuntBuilds:
         same = BV.durant_h2h_punt(pool, 20, ("ft%V",), 1.0)
         for k in pool:
             assert same[k] == pytest.approx(unpunted[k])
+
+    def test_a_borrowed_punt_weight_of_one_reproduces_the_borrowed_unpunted_value(self):
+        # The same identity on the borrowed path. Under fixed constants the pool cannot
+        # re-derive, so a punt is a pure post-standardisation discount -- but the board's
+        # punt GAP column still compares a punt rank against the base DURH rank, and that
+        # comparison is only meaningful if both sit on the same constants.
+        pool = spread(40)
+        params = borrowed_from(pool, 20, shift=0.2, stretch=1.06)
+        base = BV.score_source(pool, 20, params=params)["players"]
+        same = BV.durant_h2h_punt(pool, 20, ("ft%V",), 1.0, params=params["durant"])
+        for k in pool:
+            assert same[k] == pytest.approx(base[k]["durh"])
+
+    def test_a_borrowed_punt_still_discounts_the_punted_category(self):
+        pool = spread(40)
+        params = borrowed_from(pool, 20, stretch=1.06)
+        full = BV.durant_h2h_punt(pool, 20, ("ft%V",), 1.0, params=params["durant"])
+        punted = BV.durant_h2h_punt(pool, 20, ("ft%V",), 0.25, params=params["durant"])
+        assert sorted(punted, key=lambda k: -punted[k])[:20] != \
+            sorted(full, key=lambda k: -full[k])[:20]
 
 
 class TestDiagnostics:

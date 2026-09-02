@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 
+import bbm_constants as BC  # noqa: E402
 import board_values as BV  # noqa: E402
 import sources as S  # noqa: E402
 from bbm_reference import H2H_WEIGHTS, LAMBDAS_BBM_2026_27_JOSH, per_game  # noqa: E402
@@ -46,6 +47,22 @@ SOURCE_FILES = {
     "BMP-ALT": "BMP-ALT Projections",
 }
 
+#: The two Basketball Monster sources are standardised against constants recovered from
+#: their own published columns rather than derived from a pool of ours, because no pool
+#: reproduces both their means and their SDs (ADR-0021). The constants move whenever the
+#: projections do, so they are part of the dated set rather than part of the source: a
+#: build refuses to run without a same-dated fit for each vendor, and `find_set` will not
+#: even resolve a date that has no fit. Hashtag has no published counterpart and keeps its
+#: own derived pool.
+CONSTANT_FILES = {
+    "BMP": "BMP Constants",
+    "BMP-ALT": "BMP-ALT Constants",
+}
+
+#: Everything a complete set needs, as {key: (stem, extension)}.
+SET_FILES = ({lab: (stem, "csv") for lab, stem in SOURCE_FILES.items()}
+             | {f"{lab}:const": (stem, "json") for lab, stem in CONSTANT_FILES.items()})
+
 #: The nine builds the board ships (ADR-0010), as DURANT H2H category keys.
 PUNTS = [
     ("pFt", ("ft%V",)), ("pFg", ("fg%V",)), ("pAst", ("aV",)),
@@ -59,18 +76,20 @@ DATE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def find_set(date: str | None) -> tuple[str, dict[str, Path]]:
-    """Locate one complete, same-dated set of three exports.
+    """Locate one complete, same-dated set: three exports and the two vendor fits.
 
     Refuses a partial or mixed-date set unless forced. Scoring a fresh vendor file against
     a two-week-old Hashtag file produces a board that is wrong everywhere and looks wrong
-    nowhere, which is the one failure mode worth a hard stop.
+    nowhere, which is the one failure mode worth a hard stop. A constants file paired with
+    the wrong export is the same failure at one remove, so the fits are resolved here
+    alongside the exports rather than checked afterwards.
     """
     available: dict[str, dict[str, Path]] = {}
-    for label, stem in SOURCE_FILES.items():
-        for path in DATA.glob(f"{stem} - *.csv"):
+    for key, (stem, ext) in SET_FILES.items():
+        for path in DATA.glob(f"{stem} - *.{ext}"):
             m = DATE.search(path.name)
             if m:
-                available.setdefault(m.group(1), {})[label] = path
+                available.setdefault(m.group(1), {})[key] = path
 
     if not available:
         raise SystemExit(f"No projection exports found in {DATA}. Expected e.g. "
@@ -79,24 +98,38 @@ def find_set(date: str | None) -> tuple[str, dict[str, Path]]:
     if date:
         found = available.get(date, {})
     else:
-        complete = [d for d, s in sorted(available.items(), reverse=True) if len(s) == 3]
+        complete = [d for d, s in sorted(available.items(), reverse=True)
+                    if len(s) == len(SET_FILES)]
         if not complete:
             newest = max(available)
-            missing = set(SOURCE_FILES) - set(available[newest])
+            missing = set(SET_FILES) - set(available[newest])
             raise SystemExit(
-                f"No complete set. Newest is {newest}, missing: {', '.join(sorted(missing))}.\n"
-                f"Dates present: {', '.join(sorted(available, reverse=True))}"
+                f"No complete set. Newest is {newest}, missing: {', '.join(sorted(missing))}."
+                f"\nDates present: {', '.join(sorted(available, reverse=True))}"
+                + _calibrate_hint(missing, newest)
             )
         date, found = complete[0], available[complete[0]]
 
-    missing = set(SOURCE_FILES) - set(found)
+    missing = set(SET_FILES) - set(found)
     if missing:
         raise SystemExit(f"{date}: missing {', '.join(sorted(missing))}. "
-                         f"All three sources are required; HBP supplies the board's rows.")
+                         f"All three sources are required; HBP supplies the board's rows."
+                         + _calibrate_hint(missing, date))
     return date, found
 
 
-def load(paths: dict[str, Path]) -> tuple[list[dict], dict[str, dict], dict]:
+def _calibrate_hint(missing: set[str], date: str) -> str:
+    """Name the command that produces a missing fit, rather than just the filename."""
+    labs = sorted(k.split(":")[0] for k in missing if k.endswith(":const"))
+    if not labs:
+        return ""
+    return "\n\nRecover the missing constants first:\n" + "\n".join(
+        f"  python3 scripts/draft-board/calibrate_bbm.py --source {lab} --date {date}"
+        for lab in labs
+    )
+
+
+def load(paths: dict[str, Path]) -> tuple[list[dict], dict[str, dict], dict, dict]:
     board = S.load_board(paths["HBP"])
     vendors = {lab: S.load_vendor(paths[lab]) for lab in ("BMP", "BMP-ALT")}
     report = S.join(board, vendors)
@@ -104,7 +137,18 @@ def load(paths: dict[str, Path]) -> tuple[list[dict], dict[str, dict], dict]:
         for lab, players in vendors.items():
             if players[row["ids"][lab]]["games"] <= 0:
                 raise S.SourceError(f"{lab}: {row['name']} is projected zero games")
-    return board, vendors, report
+
+    # Each fit is paired to its OWN source's export date, so a mixed-date set still has to
+    # have been calibrated against the files it is being scored with.
+    constants = {}
+    for lab in CONSTANT_FILES:
+        export_date = DATE.search(paths[lab].name).group(1)
+        try:
+            constants[lab] = BC.load(paths[f"{lab}:const"],
+                                     source=lab, export_date=export_date)
+        except BC.ConstantsError as exc:
+            raise SystemExit(str(exc)) from None
+    return board, vendors, constants, report
 
 
 def rerank(rows: list[dict]) -> None:
@@ -132,31 +176,42 @@ def rerank(rows: list[dict]) -> None:
             rows[i] = dict(rows[i], **{f"{field}_rank": place})
 
 
-def score(board: list[dict], vendors: dict[str, dict]) -> dict[str, dict]:
+def score(board: list[dict], vendors: dict[str, dict],
+          constants: dict[str, dict]) -> dict[str, dict]:
     """Score every source over its own universe, then narrow to the board's 200 rows.
 
     Each source's pool is drawn from that source's own full player list -- ~510 for the
     vendors, 200 for Hashtag, which publishes only its top 200. That asymmetry is real:
     Hashtag's pool is a truncated candidate set. It is reported on Settings rather than
     hidden, because it is the kind of thing that quietly explains a disagreement later.
+
+    The vendors are standardised against Basketball Monster's own recovered constants and
+    Hashtag against a pool of its own (ADR-0021), so the two are on different bases. That
+    is reported on Settings too, and it is a second reason -- on top of the different
+    pools -- that magnitudes are not comparable across sources. Ranks are.
     """
     out = {}
 
     hbp_rates = {r["key"]: dict(r["rates"]) for r in board}
     out["HBP"] = BV.score_source(hbp_rates, Q)
+    out["HBP"]["lambdas"] = dict(LAMBDAS_BBM_2026_27_JOSH)
     out["HBP"]["by_row"] = [out["HBP"]["players"][r["key"]] for r in board]
     rerank(out["HBP"]["by_row"])
 
     for lab, players in vendors.items():
         rates = {pid: per_game(p) for pid, p in players.items()}
         rates = {k: v for k, v in rates.items() if v}
-        res = BV.score_source(rates, Q)
+        c = constants[lab]
+        res = BV.score_source(rates, Q, lambdas=c["lambdas"], params=c)
+        res["lambdas"] = c["lambdas"]
+        res["calibration"] = c["meta"]
         res["by_row"] = [res["players"][r["ids"][lab]] for r in board]
         rerank(res["by_row"])
         res["punts"] = {}
         if lab == "BMP":
             for key, drop in PUNTS:
-                scores = BV.durant_h2h_punt(rates, Q, drop, PUNT_WEIGHT)
+                scores = BV.durant_h2h_punt(rates, Q, drop, PUNT_WEIGHT,
+                                            lambdas=c["lambdas"], params=c["durant"])
                 # Ranked among the board's 200, for the same reason as `rerank`.
                 on_board = [scores[r["ids"][lab]] for r in board]
                 order = sorted(range(len(on_board)), key=lambda i: (-on_board[i], i))
@@ -267,7 +322,14 @@ def emit(board, scored, report, date, paths, mixed) -> str:
     deriv = {
         "q": Q, "teams": TEAMS, "roster": ROSTER,
         "weights": {label(c): H2H_WEIGHTS[c] for c in BV.CAT_ORDER},
-        "lambdas": {label(c): LAMBDAS_BBM_2026_27_JOSH[c] for c in BV.CAT_ORDER},
+        # Per source. The vendors' lambdas are refitted against Basketball Monster's own
+        # published columns on every refresh, so there is no single board-wide lambda any
+        # more; Hashtag has nothing to refit against and keeps the module's seed.
+        "lambdas": {lab: {label(c): round(scored[lab]["lambdas"][c], 6)
+                          for c in BV.CAT_ORDER} for lab in values},
+        "basis": {lab: scored[lab]["basis"] for lab in values},
+        "calibration": {lab: scored[lab]["calibration"]
+                        for lab in values if "calibration" in scored[lab]},
         "k_rosenof": {label(c): BV.K_ROSENOF[c] for c in BV.CAT_ORDER},
         "k_tracker": {label(c): round(v, 4) for c, v in BV.tracker_k().items()},
         "slopes": {label(c): v for c, v in
@@ -327,14 +389,20 @@ def main() -> int:
                          "--allow-mixed-dates to score them anyway.")
 
     print(f"Projections dated {date}" + (f"  (MIXED: {sorted(dates)})" if mixed else ""))
-    board, vendors, report = load(paths)
+    board, vendors, constants, report = load(paths)
     print(f"  board rows {len(board)}; " + "; ".join(f"{k} {v[0]}" for k, v in report.items()))
+    for lab, c in constants.items():
+        print(f"  {lab}: constants recovered from Basketball Monster on "
+              f"{c['meta']['fitted_at']}, {c['meta']['players_fitted']} players")
+        for w in c["warnings"]:
+            print(f"    note: {w}")
 
-    scored = score(board, vendors)
+    scored = score(board, vendors, constants)
     for lab in ("BMP", "HBP", "BMP-ALT"):
         s = scored[lab]
-        print(f"  {lab}: universe {s['universe']}, ZSC/DURANT pool overlap "
-              f"{s['pool_overlap']}/{Q}, pool GP min {s['pools']['durant']['gp_min']:.0f}")
+        print(f"  {lab}: universe {s['universe']}, {s['basis']} constants, ZSC/DURANT pool "
+              f"overlap {s['pool_overlap']}/{Q}, pool GP min "
+              f"{s['pools']['durant']['gp_min']:.0f}")
 
     print("\nChange report")
     for line in change_report(board, scored, args.out):

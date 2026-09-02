@@ -22,12 +22,13 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0012](ADR-0012-tier-multiplier-and-percentage-denominator.md) | Tier multiplier of 2.0, and closing the percentage-denominator question | Accepted | 2026-08-28 | Bryan | ADR-0008 (in part) |
 | [ADR-0013](ADR-0013-category-profile-column.md) | The Category profile column names strengths from z, not G | Accepted | 2026-08-27 | Bryan | |
 | [ADR-0014](ADR-0014-three-projection-sources.md) | Three projection sources on one board, joined by name | Accepted | 2026-09-01 | Bryan | |
-| [ADR-0015](ADR-0015-durant-h2h-primary-value.md) | DURANT H2H replaces the G-score sum as the board's value | Accepted | 2026-09-01 | Bryan | ADR-0008 (in part), ADR-0012 (in part) |
+| [ADR-0015](ADR-0015-durant-h2h-primary-value.md) *(amended by 0021)* | DURANT H2H replaces the G-score sum as the board's value | Accepted | 2026-09-01 | Bryan | ADR-0008 (in part), ADR-0012 (in part) |
 | [ADR-0016](ADR-0016-values-computed-in-python.md) | Values are computed in Python; the sheet holds numbers | Accepted | 2026-09-01 | Bryan | ADR-0008 (in part) |
 | [ADR-0017](ADR-0017-no-games-played-adjustment.md) | No games-played adjustment | Accepted | 2026-09-01 | Bryan | ADR-0008 (in part), ADR-0011 |
 | [ADR-0018](ADR-0018-tracker-on-durant-basis.md) | The Category Tracker moves to a win-probability model on the DURANT H2H basis | Accepted | 2026-09-01 | Bryan | ADR-0013 |
-| [ADR-0019](ADR-0019-punt-builds-restandardise.md) | Punt builds discount before standardising and re-derive the pool | Accepted | 2026-09-01 | Bryan | ADR-0009 (in part) |
+| [ADR-0019](ADR-0019-punt-builds-restandardise.md) *(amended by 0021)* | Punt builds discount before standardising and re-derive the pool | Accepted | 2026-09-01 | Bryan | ADR-0009 (in part) |
 | [ADR-0020](ADR-0020-identity-anchored-references.md) | Every derived cell names the player, and the board checks that it did | Accepted | 2026-09-01 | Bryan | |
+| [ADR-0021](ADR-0021-borrowed-bbm-pool-constants.md) | The Basketball Monster sources borrow their standardisation constants | Accepted | 2026-09-01 | Bryan | ADR-0015 (in part), ADR-0019 (in part) |
 
 ## Decisions expected next
 

@@ -4,6 +4,9 @@
 - Date: 2026-09-01
 - Owner: Bryan
 - Supersedes: ADR-0008 (in part), ADR-0012 (in part)
+- **Amended by [ADR-0021](ADR-0021-borrowed-bbm-pool-constants.md):** the standardisation
+  constants are borrowed as well as the lambdas. Deriving our own pool did not reproduce the
+  published numbers this ADR exists to reproduce, and no pool does.
 
 ## Context
 

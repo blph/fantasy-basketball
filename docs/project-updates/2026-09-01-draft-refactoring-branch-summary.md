@@ -247,3 +247,118 @@ G-score is what makes the argument against it legible.
    `GTD`/`Q`/`DTD` and nothing feeds it.
 
 9. **`XRank` is still empty**, as it was before this branch.
+
+---
+
+# Addendum — the board did not actually reproduce Basketball Monster's numbers
+
+- Date: 2026-09-01, later the same day
+- Status: **fixed, deployed to the live sheet, and verified there against Basketball
+  Monster's own published columns** — a check that did not exist before this work
+
+## What was wrong
+
+Comparing the deployed board against basketballmonster.com on the same projections, Nikola
+Jokic read DURH **1.082** against their **1.09** and ZSC **1.028** against their **1.02**.
+Across the 234 players they publish: ZSC MAE 0.0075 and DURH 0.0079, outside two-decimal
+display rounding on 73 and 77 rows respectively, and the **dropped-category tag disagreed on
+15 of 234** — a claim printed on the tab you draft from.
+
+Everything borrowed was already right. Refitting the λ against their published `D*V` columns
+recovers our own to three decimals; the H2H weights recover to four; the drop rule, the
+divisor and turnovers-at-zero all hold; the `BMP` export matches their page to within display
+rounding. **The gap was entirely in the pool constants** — the mean, SD and attempt-weighted
+rate each category is standardised against. Their SDs run 1–4% wider than a top-156 of these
+projections, in both directions by category, and no pool reproduces both moments: the means
+want N between 143 and 177, the SDs anything from 85 to 318.
+
+The decisive measurement is that this reproduces using **their own published per-game lines**
+— top-156 by their own `Value`, RMS SD error still 1.65%. So it was never our data, our
+export's freshness, or the pool iteration. Basketball Monster standardises against a wider
+distribution than the projections they publish.
+
+The reverse-engineering doc had this diagnosed at §III.2 and concluded **"Practical effect:
+none, if you derive your own pool from your own projections."** That was wrong for a board
+whose stated purpose (ADR-0015) is to publish their numbers. That line is now corrected.
+
+## Why every gate was green
+
+The same shape as the tag-misalignment bug above. `pytest` tests the arithmetic against
+itself, and `pool_params` is correct — it computes the mean and SD of the pool it is handed.
+The harness compares formula strings. `verify.py --sheet` compares the sheet to `Data.gs`,
+and both carried the same wrong number. §IV.3 of the reverse-engineering doc had even
+*measured* `Value` at MAE 0.0075 and recorded it as an accuracy figure rather than a defect.
+
+**Nothing in the repository compared our output to Basketball Monster.** Every check
+verified internal consistency, and the board was internally consistent throughout.
+
+## What changed
+
+**Recover their constants instead of deriving our own**, for the two sources where they
+publish them ([ADR-0021](../decisions/ADR-0021-borrowed-bbm-pool-constants.md)). A published
+value is exactly linear in the stat, so a regression against their own columns returns the
+mean and SD they used; the percentage categories take a two-variable fit that identifies the
+pool rate rather than assuming it; the DURANT layer searches λ and the rate together against
+their published column.
+
+**Nothing is hardcoded.** The constants are a property of a projection set that moves, so
+they are refitted every refresh and written beside the export they belong to, paired by date
+and rejected three ways if that pairing breaks. **λ moved onto the same footing** — it was
+the last borrowed constant frozen in source, with the same invisible-staleness problem, and
+is now the fitter's search seed rather than the board's transform. The only Basketball
+Monster constants still in source are the H2H weights, which are published rather than
+fitted.
+
+**Outliers are rejected from the fit** at a cut derived from the residual spread, not typed.
+Basketball Monster revises between exports, and one stale row does not merely mispredict
+itself — it tilts the regression and corrupts constants applied to all ~510 players.
+
+New: `calibrate_bbm.py` (scrape, fit, report), `bbm_constants.py` (read, and refuse the wrong
+file), `verify.py --published`, `score_source(..., params=...)`, a `Standardised against`
+column on Settings, and 37 tests including a round trip that recovers constants deliberately
+unlike both the pool's own and the module's seed.
+
+## Verified in the sheet
+
+| | before | after |
+|---|---|---|
+| ZSC vs their `Value` | MAE 0.0075, 73 of 234 outside rounding | **MAE 0.0034, 0 of 189** |
+| DURH vs their `DUR H2H` | MAE 0.0079, 77 of 234 outside rounding | **MAE 0.0030, 0 of 189** |
+| DURH dropped category | 15 of 234 wrong | **3 of 189, all ties inside 0.009** |
+
+Jokic now reads `+1.089 #1 3PM` and `+1.022` against their 1.09 and 1.02. All nine tabs
+carry no error values; 1800 values and all 1800 rank tags agree between the sheet and
+`Data.gs`.
+
+## What this does not fix
+
+1. **`BMP-ALT`'s export has drifted from Basketball Monster's live Bonus projections.** Six
+   players — Jamal Murray at 65 games against our 73, DeRozan at 17.0 points against our
+   14.7 — have genuinely different stat lines. The constants are recovered correctly around
+   them, but those players' *values* are computed from a stale line, so `verify.py
+   --published` fails BMP-ALT on all four gates and should. **A same-dated re-export of all
+   three sources is the fix**, and it is the user's export step, not something the pipeline
+   can do. `BMP` has no such drift.
+
+2. **The two percentage categories stay imperfect** (§III.1). Their DURANT percentage input
+   is not quite our impact column — Spearman 0.998, not 1.0 — leaving a residual of about
+   0.010 and 0.017 that no constant-fitting removes. It is why three dropped-category ties
+   remain.
+
+3. **Punt ranks moved.** ADR-0019 has a punt re-derive the pool; under fixed borrowed
+   constants there is no pool to re-derive, so on BMP a punt is now a discount applied after
+   standardising. Leaving punts on the derived path would have been worse and quieter: it
+   breaks the identity that a punt weight of 1.0 reproduces the unpunted DURH.
+
+4. **A refresh now needs a live subscription and a working browser session**, and hard-fails
+   without a same-dated fit. Intended, and also a new way for a refresh to be impossible on
+   draft night.
+
+## One trap found on the way
+
+**Do not run `Step 1 — Settings only` against a finished board.** Recreating the Settings tab
+makes Sheets rewrite every formula that pointed into it: the Draft Board's tier formula
+became `IF($AC6>#REF!*$AD6,…)` on all 200 rows and `TIER`/`RND` went to `#REF!`. `step1` does
+call `defineNames` afterwards and that is not enough — redefining a name does not repair a
+formula whose text has already been rewritten. Only a rebuild that writes those formulas
+again does. Documented in the operating manual and in AGENTS.md.

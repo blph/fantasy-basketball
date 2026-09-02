@@ -4,6 +4,10 @@
 - Date: 2026-09-01
 - Owner: Bryan
 - Supersedes: ADR-0009 (in part)
+- **Amended by [ADR-0021](ADR-0021-borrowed-bbm-pool-constants.md):** re-deriving the pool is
+  structurally impossible for a source that borrows fixed constants, so on BMP — where the
+  builds ship — a punt is now a discount applied *after* standardising. The mechanism below
+  survives for HBP and any future self-derived source.
 
 ## Context
 

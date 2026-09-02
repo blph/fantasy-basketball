@@ -378,17 +378,28 @@ def build_durant_pool(rates, q, lambdas, seed_order=None, max_iter=50):
 # you need to reproduce Basketball Monster's published 2026-27 numbers; they are not what
 # you need to apply the method to your own projections. For that, fit your own with
 # `fit_lambda` and derive your own pool with `build_pool`.
+#
+# The *pool* constants are recoverable the same way the lambdas were, and for the draft board
+# they have to be: no pool of the projection set reproduces both their means and their SDs, so
+# `build_pool` cannot reproduce their published values however it is tuned. See
+# scripts/draft-board/calibrate_bbm.py and ADR-0021.
 
 #: Pool size: teams x roster spots. 12 x 13 for this league.
 Q = 156
 
 #: Yeo-Johnson lambdas recovered from Basketball Monster's published DURANT columns,
-#: 2026-27, Josh Projections source.
+#: 2026-27, Josh Projections source. The same values hold for their Bonus source, so the
+#: `_JOSH` suffix understates the scope; renaming would touch six call sites for nothing.
 #:
 #: Fitting these by maximum likelihood on the same pool gets every direction right but not
 #: the values (blocks -1.38 against -1.69, points +0.07 against +0.42), so Basketball
 #: Monster's lambdas come from a different objective, a different pool, or hand-tuning.
 #: Use them to reproduce their numbers; use `fit_lambda` to build your own.
+#:
+#: **These are no longer what the draft board computes with.** They are the search seed and
+#: the drift reference for `calibrate_bbm.py`, which refits a lambda per source on every
+#: refresh against their published columns (ADR-0021). A frozen lambda has exactly the
+#: problem a frozen pool constant had: Basketball Monster retunes it and nothing shows.
 LAMBDAS_BBM_2026_27_JOSH = {
     "pV": 0.4151, "3V": 1.0166, "rV": -0.4381, "aV": 0.0065, "sV": -0.3513,
     "bV": -1.6863, "toV": -0.1778, "fg%V": 0.1727, "ft%V": 1.5038,

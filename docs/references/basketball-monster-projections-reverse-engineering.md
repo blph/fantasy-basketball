@@ -647,8 +647,46 @@ shrinkage predicts.
 **The experiment that settles it:** take a prior season's *actual* per-game statistics, form the
 top 156 by that season's value, and compare its moments to the recovered constants.
 
-**Practical effect:** none, if you derive your own pool from your own projections as Part I says.
-This only matters if you are trying to match their exact constants.
+**Practical effect:** none, if you are applying the method to your own projections as Part I
+says. **Everything, if you are trying to publish their numbers** — which the draft board is.
+Deriving our own pool left every value off by about 0.008 and the dropped-category tag wrong on
+15 of 234 players; see [the bug](../bugs/2026-09-01-durh-zsc-pool-constants.md) and
+[ADR-0021](../decisions/ADR-0021-borrowed-bbm-pool-constants.md). An earlier version of this
+section said the effect was nil, and that was wrong.
+
+**Confirmed since:** the gap reproduces using *their own* published per-game lines rather than
+ours — top-156 by their own `Value`, RMS SD error still 1.65%. So it is not our projection set,
+not export staleness and not the pool iteration. Whatever they standardise against, it is not
+the projections they publish.
+
+## III.2a Recovering their constants by regression
+
+Since the constants cannot be derived, they can be measured. A published value is exactly linear
+in the stat, so the constants fall out of a fit against their own columns. Four estimators, all
+stdlib, all in `scripts/draft-board/calibrate_bbm.py`:
+
+| Target | Estimator | Recovered |
+|---|---|---|
+| counting, plain z | OLS of `pV` on our per-game `points`: `sd = sign/slope`, `mean = −intercept/slope` | `mean 17.0131, sd 5.5189` for points; rmse 0.004–0.014 |
+| counting, DURANT | the same, on `YJ(stat, λ)`, with λ searched alongside | λ 0.4155 against the published-column fit's 0.4151; rmse 0.004–0.016 |
+| percentage, plain z | two-variable OLS `z = a·made + b·att + c` ⇒ `sd = 1/a`, `rate = −b/a`, `mean = −c/a` | fg% `rate 0.4918, sd 0.6530`; rmse 0.008 / 0.018 |
+| percentage, DURANT | grid `(rate, λ)` jointly, then solve the linear part | fg% `rate 0.4976`; rmse 0.010 / 0.018 |
+
+Two things about the λ fit are worth stating plainly. First, the objective is the **residual
+against their published `D*V` column**, not maximum likelihood — MLE is what §III.1 already
+showed does not reproduce their λ, and regressing on their own output recovers it to three
+decimals. Second, the two percentage λ are fitted *jointly with the pool rate* and trade off
+against it along a ridge, so they wander between refits without meaning anything; only the
+counting λ are worth watching for drift.
+
+The plain and DURANT layers recover **different** pool rates for the same category — 0.4918 and
+0.4976 for field goals — where our own derivation makes them identical by construction. That is
+a small independent sign that the two layers are not computed from one shared intermediate.
+
+Applied to their 2026-09-10 Josh source over 234 players, this takes `Value` from MAE 0.0075 to
+0.0034 and `DUR H2H` from 0.0079 to 0.0030, with no row outside two-decimal display rounding.
+What remains is §III.1: the two percentage columns, and the three dropped-category ties inside
+0.009 that their precision cannot adjudicate either.
 
 ## III.3 Columns that are judgement, not arithmetic
 

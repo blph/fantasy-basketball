@@ -12,12 +12,20 @@ to it.
 
     python3 verify.py                        # recompute and print constants
     python3 verify.py --sheet pull.csv       # diff against a gviz pull of the board
+    python3 verify.py --published bmp.tsv    # diff against Basketball Monster's own columns
 
 A narrow pull (rank,name,value -- range A4:G203) checks the sorted value. A WIDE pull
 (range A4:AA203) also checks all nine rank tags on all 200 rows, which is the only check
 anywhere that looks at what the tags actually say. It exists because they were once wrong
 on 1755 of 1800 rows while every offline gate was green: the harness compares formula
 strings and never evaluates one, and this diff used to read three columns.
+
+`--published` is the one check that compares the board to something outside it. Everything
+else here verifies internal consistency, and the board was internally consistent while
+every value was wrong by 0.008 and the dropped-category tag disagreed with Basketball
+Monster on 15 of 234 players -- see docs/bugs/2026-09-01-durh-zsc-pool-constants.md. It
+reads the scrape `calibrate_bbm.py` already saved, so the comparison is against the same
+snapshot the constants were fitted to and no second browser trip is needed.
 
 Output is deliberately aggregate: counts, constants and rank movements, never a player
 row. This repository is public and the exports are not ours to republish.
@@ -36,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 
 import board_values as BV  # noqa: E402
+import sources as SRC  # noqa: E402
 from bbm_reference import H2H_WEIGHTS  # noqa: E402
 
 DEFAULT_DATA = Path(__file__).resolve().parent / "Data.gs"
@@ -57,6 +66,35 @@ KINDS = (("DURH", V_DURH, V_DURH_RANK, V_DURH_DROP),
          ("ZSH", V_ZSH, V_ZSH_RANK, V_ZSH_DROP),
          ("ZSC", V_ZSC, V_ZSC_RANK, None))
 PULL_WIDTH = PULL_FIRST_VALUE + len(SOURCES) * len(KINDS) * 2
+
+#: What our value columns are called on Basketball Monster's own page.
+PUBLISHED = {"ZSC": ("Value", V_ZSC), "DURH": ("DUR H2H", V_DURH)}
+
+#: Their DUR H2H cell is "1.09#13": the value, the rank, then the dropped category with no
+#: separator. The category has to be anchored at the end or the rank swallows a leading 3.
+PUB_TAG = re.compile(r"^(-?[\d.]+)#(\d+?)(pts|3|reb|ast|stl|blk|fg%|ft%|to)$")
+
+#: Their abbreviation -> the label the board prints.
+PUB_DROP = {"pts": "PTS", "3": "3PM", "reb": "REB", "ast": "AST",
+            "stl": "STL", "blk": "BLK", "fg%": "FG%", "ft%": "FT%", "to": "TO"}
+
+#: Tolerances, not measurements. Their columns are published to two decimals, so a perfect
+#: reproduction still scatters by about 0.003; these sit above that and far below the 0.008
+#: the pool-constant bug produced.
+PUBLISHED_GATES = {"ZSC": (0.004, 0.020), "DURH": (0.006, 0.025)}
+
+#: Two categories closer together than this cannot be told apart from their published
+#: numbers: the columns are given to two decimals, and the two percentage categories carry
+#: a residual around 0.017 that no amount of constant-fitting removes (doc III.1). A
+#: dropped-category disagreement inside this band is a coin flip neither side can call, so
+#: it is counted and reported but not treated as wrong.
+DROP_RESOLUTION = 0.02
+
+#: Share of matched rows that may disagree on the dropped category by MORE than the
+#: resolution above. Those are real: the two categories were separable and we picked the
+#: other one. A share rather than a count, because the number of near-ties scales with how
+#: many rows are being compared.
+MAX_MATERIAL_DROP_SHARE = 0.01
 
 
 def _pull_col(src_i: int, kind_i: int) -> int:
@@ -248,6 +286,90 @@ def diff_sheet(data: dict, pull: Path, places: int = 3) -> list[str]:
     return fails
 
 
+def diff_published(data: dict, tsv: Path, source: str) -> list[str]:
+    """Compare our values against Basketball Monster's published columns.
+
+    The board exists to reproduce their DURANT H2H (ADR-0015), so this is the check that
+    tests the claim. It is also the only gate here that would have caught the pool-constant
+    bug: every other check compares the board to the file that generated it.
+
+    Joins on the normalised name, because Data.gs carries names and not vendor ids -- it is
+    aggregate by design. Failures name a board row, never a player.
+    """
+    fails = []
+    lines = [ln.split("\t") for ln in
+             tsv.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    if not lines:
+        return [f"{tsv}: empty"]
+    idx = {h: i + 1 for i, h in enumerate(lines[0][1:])}
+    needed = {name for name, _ in PUBLISHED.values()} | {"Name"}
+    if not needed <= set(idx):
+        return [f"{tsv}: missing {', '.join(sorted(needed - set(idx)))} -- is it a scrape "
+                f"of the projections page?"]
+
+    theirs = {}
+    for cells in lines[1:]:
+        if not cells[0].isdigit():
+            continue
+        theirs[SRC.normalise(cells[idx["Name"]])] = cells
+
+    rows = data["VALUES"][source]
+    names = [p[1] for p in data["PLAYERS"]]
+    matched = 0
+    stats = {k: [] for k in PUBLISHED}
+    drop_wrong = drop_material = 0
+    for i, name in enumerate(names):
+        cells = theirs.get(SRC.normalise(name))
+        if cells is None:
+            continue
+        matched += 1
+        for kind, (col, vcol) in PUBLISHED.items():
+            raw = cells[idx[col]]
+            m = PUB_TAG.match(raw)
+            try:
+                stats[kind].append(abs(rows[i][vcol] - float(m.group(1) if m else raw)))
+            except ValueError:
+                continue
+            if kind == "DURH" and m and PUB_DROP[m.group(3)] != rows[i][V_DURH_DROP]:
+                drop_wrong += 1
+                # Was the call actually resolvable, or were the two categories tied?
+                dh = {c: rows[i][V_DH0 + j] for j, c in enumerate(BV.CAT_LABELS)}
+                theirs_cat, ours_cat = PUB_DROP[m.group(3)], rows[i][V_DURH_DROP]
+                if theirs_cat in dh and ours_cat in dh:
+                    if abs(dh[ours_cat] - dh[theirs_cat]) > DROP_RESOLUTION:
+                        drop_material += 1
+                else:
+                    drop_material += 1
+
+    if not matched:
+        return [f"{tsv}: no board player matched -- wrong source, or a bad scrape"]
+
+    print(f"  {source} against Basketball Monster: {matched} of {len(names)} board rows matched")
+    for kind, (mae_gate, max_gate) in PUBLISHED_GATES.items():
+        d = stats[kind]
+        if not d:
+            fails.append(f"{source} {kind}: nothing comparable in the scrape")
+            continue
+        mae, worst = sum(d) / len(d), max(d)
+        over = sum(1 for x in d if x > 0.01)
+        print(f"    {kind:<5} MAE {mae:.4f}  max {worst:.4f}  "
+              f"outside display rounding on {over} of {len(d)}")
+        if mae > mae_gate:
+            fails.append(f"{source} {kind}: MAE {mae:.4f} over the {mae_gate} tolerance")
+        if worst > max_gate:
+            fails.append(f"{source} {kind}: worst row off by {worst:.4f}, "
+                         f"over the {max_gate} tolerance")
+    allowed = MAX_MATERIAL_DROP_SHARE * matched
+    print(f"    DURH dropped category disagrees on {drop_wrong} of {matched}, "
+          f"{drop_material} of them by more than {DROP_RESOLUTION} "
+          f"(the rest are ties neither side can call)")
+    if drop_material > allowed:
+        fails.append(f"{source} DURH: dropped category disagrees on {drop_material} rows "
+                     f"where the two categories were separable, over the "
+                     f"{allowed:.1f} allowed")
+    return fails
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -255,6 +377,9 @@ def main() -> int:
     ap.add_argument("--sheet", type=Path,
                     help="a headerless gviz pull: rank,name,value (A4:G203), "
                          "or the full board (A4:AA203) to check all nine tags too")
+    ap.add_argument("--published", type=Path, action="append", default=[],
+                    help="a 'BBM Published - SOURCE - DATE.tsv' saved by calibrate_bbm.py; "
+                         "repeatable, and the source is read from the filename")
     args = ap.parse_args()
 
     if not args.data.exists():
@@ -294,6 +419,15 @@ def main() -> int:
 
     print("\nINVARIANTS")
     fails = check(data)
+    for tsv in args.published:
+        m = re.match(r"BBM Published - (.+) - \d{4}-\d{2}-\d{2}\.tsv$", tsv.name)
+        if not m:
+            fails.append(f"{tsv.name}: cannot tell which source this is. Expected "
+                         f"'BBM Published - SOURCE - YYYY-MM-DD.tsv'.")
+            continue
+        print(f"\nDIFF vs BASKETBALL MONSTER   {tsv.name}")
+        fails += diff_published(data, tsv, m.group(1))
+
     if args.sheet:
         print("\nDIFF vs SHEET")
         fails += diff_sheet(data, args.sheet)

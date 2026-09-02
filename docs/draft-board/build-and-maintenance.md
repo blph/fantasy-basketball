@@ -25,6 +25,9 @@ and arrives as a *number*
 ([ADR-0016](../decisions/ADR-0016-values-computed-in-python.md)). DURANT H2H needs a pool
 iterated to a fixed point, and Sheets cannot express a fixed point without a circular
 reference — nine of them, across three projections, was never going to work in formulas.
+The two vendors no longer iterate at all, because they borrow fixed constants
+([ADR-0021](../decisions/ADR-0021-borrowed-bbm-pool-constants.md)); Hashtag still does, and
+either way the numbers arrive already computed.
 
 What stays a live formula is everything that has to react while you are drafting: rank,
 tier, round, GAP, the strengths and weaknesses columns, `Left @pos`, and the whole Category
@@ -65,6 +68,8 @@ context for a judgement call, not a multiplier.
 | `scripts/draft-board/build_data.py` | Runs the pipeline and writes `Data.gs` | yes |
 | `scripts/draft-board/sources.py` | Reads the three exports and joins them | yes |
 | `scripts/draft-board/board_values.py` | The three values, per projection | yes |
+| `scripts/draft-board/calibrate_bbm.py` | Recovers Basketball Monster's standardisation constants from their published columns | yes |
+| `scripts/draft-board/bbm_constants.py` | Reads a recovered-constants file, and refuses the wrong one | yes |
 | `scripts/bbm/bbm_reference.py` | The valuation engine, validated against Basketball Monster | yes |
 | `scripts/draft-board/harness.js` | Mocks the Sheets API and dry-runs the build | yes |
 | `scripts/draft-board/verify.py` | Re-checks `Data.gs` and diffs a pull of the live board | yes |
@@ -72,30 +77,64 @@ context for a judgement call, not a multiplier.
 | `scripts/draft-board/export_yahoo_rankings.py` | Turns the board into a Yahoo rankings CSV | yes |
 | `scripts/draft-board/valuation.py` | The playbook's older z/G/VOR model. Not what the board runs on; kept because Phase 2 inherits it | yes |
 | `scripts/draft-board/Data.gs` | The players and their values. Provider data — **gitignored** | no |
+| `data/player_data/{BMP,BMP-ALT} Constants - DATE.json` | The recovered constants for one export. Refitted every refresh — **gitignored** | no |
+| `data/player_data/BBM Published - SOURCE - DATE.tsv` | Their published value columns, as scraped. Provider data — **gitignored** | no |
 
 ---
 
 ## Bringing in new data
 
-A refresh is **three files moving together**. All three must carry the same date.
+A refresh is **five files moving together** — three exports you download and two fits the
+calibration produces. All five must carry the same date.
 
 ```
 data/player_data/
   BMP Projections - YYYY-MM-DD.csv        Basketball Monster, Josh's source
   BMP-ALT Projections - YYYY-MM-DD.csv    Basketball Monster, bonus source
   HBP Projections - YYYY-MM-DD.csv        Hashtag Basketball
+  BMP Constants - YYYY-MM-DD.json         recovered by calibrate_bbm.py, step 2
+  BMP-ALT Constants - YYYY-MM-DD.json     recovered by calibrate_bbm.py, step 2
 ```
 
 **HBP is the spine.** It decides which 200 players are on the board and supplies team,
 position and ADP. If it is missing there is no board. The two vendor files supply stat
 lines only.
 
+**The two vendors do not derive their own standardisation constants.** They borrow
+Basketball Monster's, recovered from that vendor's published value columns and paired to
+that export by date ([ADR-0021](../decisions/ADR-0021-borrowed-bbm-pool-constants.md)). The
+pipeline will not resolve a date that has no fit, so step 2 below is not optional.
+
 ### The procedure
 
 **1. Drop the three exports in `data/player_data/`.** Gitignored, and the pre-commit hook
 blocks them if you try.
 
-**2. See what would change.**
+**2. Recalibrate against Basketball Monster.**
+
+```bash
+python3 scripts/draft-board/calibrate_bbm.py --source BMP --date YYYY-MM-DD
+python3 scripts/draft-board/calibrate_bbm.py --source BMP-ALT --date YYYY-MM-DD
+```
+
+Each run drives the signed-in browser profile to their projections page, switches to that
+source, scrapes the value columns, regresses them on our own stat lines and writes the
+recovered means, SDs, pool rates and lambdas beside the export. It saves the raw scrape too,
+which step 8 reuses.
+
+**Read the per-category table.** The `dmean%sd` and `dsd%` columns show how far our own
+top-156 pool sits from what was recovered — a few percent either way is normal and is the
+whole reason the constants are borrowed. Anything wilder means a bad scrape or a bad join.
+`Dft%V` sits near rmse 0.018 and always will; their percentage input is a known unresolved
+item ([§III.1](../references/basketball-monster-projections-reverse-engineering.md)).
+
+If it reports players **dropped from the fit**, their stat line no longer matches the one
+Basketball Monster valued — that vendor has revised its projections since the export was
+taken. A handful is ordinary and they are excluded so they cannot tilt the constants. Many
+of them means the export is stale: re-export before going further, because those players'
+board values will be wrong even though the constants are right.
+
+**3. See what would change.**
 
 ```bash
 python3 scripts/draft-board/build_data.py --dry-run
@@ -106,7 +145,7 @@ report names players added and dropped since the last generation and flags anyon
 25 or more places in any source. **This is the step that tells you whether the refresh is
 worth pushing at all.**
 
-**3. Write `Data.gs`.**
+**4. Write `Data.gs`.**
 
 ```bash
 python3 scripts/draft-board/build_data.py
@@ -114,13 +153,13 @@ python3 scripts/draft-board/build_data.py
 
 Add `--date YYYY-MM-DD` to pick a specific set.
 
-**4. Dry-run the build.**
+**5. Dry-run the build.**
 
 ```bash
 cd scripts/draft-board && node harness.js
 ```
 
-**5. Check the numbers independently.**
+**6. Check the numbers independently.**
 
 ```bash
 python3 scripts/draft-board/verify.py
@@ -130,21 +169,36 @@ Re-checks every invariant the sheet depends on: row alignment across the four ta
 being a permutation with no gaps, the weighted column being the unweighted one times its
 weight, and `K × w = k`.
 
-**6. Push `Data.gs` into the bound script** — see [Changing the sheet
+Then check the board against something outside it, reusing the scrape step 2 already saved:
+
+```bash
+python3 scripts/draft-board/verify.py \
+  --published "data/player_data/BBM Published - BMP - YYYY-MM-DD.tsv" \
+  --published "data/player_data/BBM Published - BMP-ALT - YYYY-MM-DD.tsv"
+```
+
+This is the only check anywhere that compares our numbers to Basketball Monster's. The rest
+verify internal consistency, and the board was internally consistent while every value was
+wrong by 0.008 and the dropped-category tag disagreed on 15 of 234 players
+([the bug](../bugs/2026-09-01-durh-zsc-pool-constants.md)). Expect ZSC and DURH around MAE
+0.003 with nothing outside display rounding. A handful of dropped-category disagreements is
+normal — it reports how many were separable, and only those count against it.
+
+**7. Push `Data.gs` into the bound script** — see [Changing the sheet
 itself](#changing-the-sheet-itself). It is about 185KB, so roughly fifteen chunks.
 
-**7. Run `Draft Board ▸ Refresh data`.** Read the toast and the build log on Settings.
+**8. Run `Draft Board ▸ Refresh data`.** Read the toast and the build log on Settings.
 
-**8. Check the Settings sanity block.** In particular the **names line up across tabs** row:
+**9. Check the Settings sanity block.** In particular the **names line up across tabs** row:
 anything but `aligned` means the calculation tabs are out of step with the Board, and every
 value on the Draft Board is attached to the wrong player. Stop there.
 
-**9. Re-do any `My GP Est` overrides for new arrivals.**
+**10. Re-do any `My GP Est` overrides for new arrivals.**
 
-**10. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes, notes and
+**11. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes, notes and
 injuries reattach by player name.
 
-**11. Look at it.** Screenshot the Draft Board and the Category Tracker. Two real defects on
+**12. Look at it.** Screenshot the Draft Board and the Category Tracker. Two real defects on
 the tracker were invisible in the cell values and obvious on sight.
 
 ### When it refuses to run
@@ -155,7 +209,12 @@ its own cause:
 | Failure | What to do |
 |---|---|
 | A source file is missing | Export it. All three are required. |
+| A constants file is missing | Run `calibrate_bbm.py` for that source and date. The message names the command. |
+| Constants `fitted against` another export | The fit and the export have drifted apart. Refit; do not rename the file. A fit paired with the wrong export is wrong on every row and looks wrong on none. |
 | Mixed dates | Re-export so all three match. `--allow-mixed-dates` forces it and stamps the mismatch onto Settings — scoring a fresh vendor file against a two-week-old Hashtag file is wrong everywhere and looks wrong nowhere. |
+| Calibration: `the fit is outside tolerance` | The scrape is bad, or their columns changed. Read the per-category table first. `--force` writes anyway and is almost never the answer. |
+| Calibration: `not the wrong export or the wrong date` | More than 15% of players cannot be reconciled with the value beside them. That is not drift; re-export. |
+| Calibration: `never settled on source` | The postback bounced off the projections page — a stale viewstate or a signed-out session. Open the page in the `fantasy` profile and check you are signed in. |
 | `HBP: N players, the board is built for 200` | The export is truncated or over-long. |
 | `R# is not contiguous` | The export is missing rows. |
 | `UnresolvedPlayer` | A player on the board has no stat line in one of the vendor files. Add an entry to `ALIASES` in `sources.py`. Never a skipped row: a dropped player is a hole in the board that looks like a player nobody rates. |
@@ -227,8 +286,10 @@ or ESPN's *Most Categories*.
 ### The pool no longer needs re-seeding
 
 `Re-seed pool from current ranks` is gone. Pool membership was a static `Seed Rank` you
-iterated by hand until it stopped moving; it is now a fixed point computed in Python, seeded
-deterministically so two runs produce byte-identical output.
+iterated by hand until it stopped moving; it is now settled in Python, seeded deterministically
+so two runs produce byte-identical output. On HBP that is still a fixed point. On the two
+vendors the constants are borrowed and fixed, so there is nothing for membership to feed back
+into: the pool is one pass, and it decides only which players the GP diagnostics describe.
 
 ## Traps worth knowing
 
@@ -289,7 +350,7 @@ steps that each finish well under it:
 | `Rebuild & re-sort` | Draft Board order, keeping GONE / MINE / Notes / Injuries |
 | `Apply projection filter` | shows and hides the value blocks by hand |
 | `Full rebuild (from Data.gs)` | everything, destroying hand edits |
-| `Step 1 — Settings only` | Settings and the named ranges |
+| `Step 1 — Settings only` | Settings and the named ranges. **Building up only** — run against a live board it leaves `TIER` and `RND` as `#REF!`; see below |
 | `Step 2 — Calculation tabs` | the three projection tabs |
 | `Step 3 — Board (spine)` | the Board |
 | `Step 4 — Draft Board only` | the draft-day tab |
@@ -298,6 +359,10 @@ steps that each finish well under it:
 Step 4 is the expensive one: 200 rows of formulas, a long list of conditional formats, and
 one `setBorder` call per tier break. If it ever times out, everything before it has already
 landed.
+
+The steps exist to build the workbook up in order after a failure, not to patch one tab of a
+finished board. Each one recreates its tab, and recreating a tab breaks every formula
+pointing into it.
 
 Each step writes its outcome to the build log on Settings, which survives a thrown exception.
 The Apps Script execution log does not.
@@ -464,6 +529,15 @@ route silently does nothing. Drive the editor's Monaco model directly instead:
 Then run the build from the sheet's `Draft Board` menu. Note `reorderTabs` leaves
 **README** as the active tab when a full rebuild finishes, so switch back before
 reading anything positionally.
+
+**Do not run `Step 1 — Settings only` against a board that already exists.** `sheetByName`
+deletes and recreates the tab, and Sheets responds by rewriting every formula that pointed
+into it — the Draft Board's tier formula becomes
+`IF($AC6>#REF!*$AD6,…)` on all 200 rows, and `TIER` and `RND` go to `#REF!`. `step1` does
+call `defineNames` afterwards, which is not enough: redefining a name does not repair a
+formula whose text has already been rewritten. Only a rebuild that writes those formulas
+again does. So the step actions are for building up in order, not for patching a live
+board; to change Settings alone, run `Full rebuild (from Data.gs)`.
 
 If you edit the README tab's content, it lives in `README_ROWS` at the top of
 `Build.gs`. Regenerate the markdown copy afterwards:

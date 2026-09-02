@@ -45,6 +45,7 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | **BMP-ALT** | Basketball Monster's second source. |
 | **Why three** | Identical math over two projection sets moves players about twenty rank places on average. Choosing the projection matters more than choosing the valuation, so the board shows the disagreement instead of hiding it in an average. |
 | **The pool** | Q = Teams × Roster spots = 156. Each source is scored against its own universe, because a value is a property of the pair (stat line, pool). |
+| **Whose average** | BMP and BMP-ALT are standardised against Basketball Monster's own constants, recovered from their published columns and refitted every refresh; HBP against a pool of its own. So the two vendors reproduce their numbers and HBP does not sit on the same yardstick. Compare ranks across sources, never magnitudes. |
 
 ### THE THREE VALUES — and what each one throws away
 
@@ -87,7 +88,7 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | | |
 |---|---|
 | **Best build** | The build that ranks him highest, and by how many places. "AST+STL +21" means twenty-one places better in that build than on the main board. |
-| **How a build is computed** | The punted categories are discounted BEFORE standardising, and the pool is re-derived. A punt moves the whole field, not one column. |
+| **How a build is computed** | The punted categories are discounted BEFORE standardising. On HBP that re-derives the pool, so a punt moves the whole field rather than one column. On BMP the constants are borrowed and fixed, so there is no pool to re-derive and the discount is applied after standardising — the builds ship on BMP, so that is what you are reading. |
 | **Punt weight** | 0.25 — a conceded category is still won by accident some weeks, and those weeks are free. |
 
 ### STRENGTHS AND WEAKNESSES
@@ -112,6 +113,6 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | | |
 |---|---|
 | **Nothing scales by games played** | Availability is the least predictable part of any projection, and Basketball Monster's method has no availability term at all. The GP columns are context for a judgement call, not a multiplier. |
-| **Changing a constant does not recalculate** | Weights, lambdas and the punt weight are applied in the pipeline. Edit those and re-run build_data.py; the grey cells on Settings only record what was used. |
+| **Changing a constant does not recalculate** | Weights and the punt weight are applied in the pipeline. Edit those in board_values.py and re-run build_data.py; the grey cells on Settings only record what was used. The lambdas and the pool constants are not in any source file at all — they are refitted from Basketball Monster by calibrate_bbm.py on every refresh. |
 | **Left @pos** | How many un-GONE players in his tier could fill a slot he is eligible for. The one column that needs everyone's picks ticked. |
 | **MPG** | Carried for context and deliberately not valued — a per-game projection already is the minutes. |

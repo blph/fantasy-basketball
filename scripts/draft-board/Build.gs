@@ -588,7 +588,7 @@ function writeCalcSheet(sh, si) {
   units[V.durh - 1] = 'mean of 7'; units[V.zsh - 1] = 'mean of 7';
   units[V.zsc - 1] = 'mean of 9';
   for (var j = 0; j < CAT_LABELS.length; j++) {
-    units[V.d0 + j - 1] = 'λ ' + fmtNum(deriv('lambdas', CAT_LABELS[j]));
+    units[V.d0 + j - 1] = 'λ ' + fmtNum(derivSource('lambdas', src.key, CAT_LABELS[j]));
     units[V.dh0 + j - 1] = 'w ' + fmtNum(deriv('weights', CAT_LABELS[j]));
     units[V.z0 + j - 1] = 'SD';
   }
@@ -645,6 +645,22 @@ function deriv(block, label) {
     if (typeof DERIV === 'undefined') return '';
     var b = DERIV[block];
     return b && b[label] !== undefined ? b[label] : '';
+  } catch (e) { return ''; }
+}
+/**
+ * A DERIV block that is keyed by source before it is keyed by label.
+ *
+ * The lambdas stopped being board-wide when the two Basketball Monster sources started
+ * being calibrated against their own published columns (ADR-0021): each vendor's transform
+ * is refitted on every refresh, and Hashtag keeps the seed. One number in the unit row
+ * would be right for at most one of the three tabs.
+ */
+function derivSource(block, source, label) {
+  try {
+    if (typeof DERIV === 'undefined') return '';
+    var b = DERIV[block];
+    var bySource = b && b[source];
+    return bySource && bySource[label] !== undefined ? bySource[label] : '';
   } catch (e) { return ''; }
 }
 function qValue() {
@@ -934,35 +950,49 @@ function writeSettingsSkeleton(sh) {
 
 /** Per-source pool constants, as reported by the pipeline. Numbers, not formulas. */
 function writePoolBlock(sh) {
-  sh.getRange(S_POOLS, 1, 1, 6).setValues(
-    [['POOL CONSTANTS — reported by the pipeline, not computed here', '', '', '', '', '']]);
-  sh.getRange(S_POOLS + 1, 1, 1, 6).setValues(
-    [['Source', 'Universe', 'DURANT pool', 'ZSC overlap', 'Pool GP min', 'Pool GP median']]);
+  sh.getRange(S_POOLS, 1, 1, 7).setValues(
+    [['POOL CONSTANTS — reported by the pipeline, not computed here', '', '', '', '', '', '']]);
+  sh.getRange(S_POOLS + 1, 1, 1, 7).setValues(
+    [['Source', 'Standardised against', 'Universe', 'DURANT pool', 'ZSC overlap',
+      'Pool GP min', 'Pool GP median']]);
   var rows = [];
   for (var i = 0; i < SOURCES.length; i++) {
-    var key = SOURCES[i].key, p = {}, uni = '', ov = '';
+    var key = SOURCES[i].key, p = {}, uni = '', ov = '', basis = '';
     try {
       p = DERIV.pools[key].durant;
       uni = DERIV.universe[key];
       ov = DERIV.pool_overlap[key];
-    } catch (e) { p = {}; }
-    rows.push([SOURCES[i].label, uni, p.size || '', ov,
+      // Blank would read as "our pool", which is the one thing this column exists to
+      // rule out, so an unreadable basis says so out loud.
+      basis = (DERIV.basis && DERIV.basis[key]) ? DERIV.basis[key] : '(unknown)';
+    } catch (e) { p = {}; basis = '(unknown)'; }
+    basis = basis === 'borrowed' ? "Basketball Monster's own"
+          : basis === 'derived' ? 'our own top-Q pool' : basis;
+    rows.push([SOURCES[i].label, basis, uni, p.size || '', ov,
                p.gp_min === undefined ? '' : p.gp_min,
                p.gp_median === undefined ? '' : p.gp_median]);
   }
-  sh.getRange(S_POOLS + 2, 1, rows.length, 6).setValues(rows);
+  sh.getRange(S_POOLS + 2, 1, rows.length, 7).setValues(rows);
   sh.getRange(S_POOLS + rows.length + 3, 1).setValue(
-    'Each source is scored against its own universe, because a value is a property of the '
-    + 'pair (stat line, pool) and mixing them produces a number belonging to neither. '
-    + 'Hashtag publishes only its top 200, so its pool is drawn from a truncated candidate '
-    + 'set; the vendors\' pools are drawn from their full lists. "ZSC overlap" is how many '
-    + 'of the DURANT pool the plain-z pool also selects — the two rank a different order, '
-    + 'so they do not choose the same 156.');
+    'BMP and BMP-ALT are standardised against Basketball Monster\'s own constants, '
+    + 'recovered by regressing their published value columns on our stat lines and '
+    + 'refitted on every refresh (ADR-0021). Those means and SDs describe THEIR pool, not '
+    + 'the one named here. We cannot derive them: a top-156 of these projections '
+    + 'reproduces their means to about half a percent and their SDs only to one to three, '
+    + 'and no pool size fits both moments at once. HBP has no published counterpart and '
+    + 'keeps its own derived pool, so it sits on a different basis from the other two — a '
+    + 'second reason, on top of the different pools, that magnitudes are not comparable '
+    + 'across sources. Ranks are.');
   sh.getRange(S_POOLS + rows.length + 5, 1).setValue(
-    'ADR-0011\'s minimum-games gate is retired: pool membership is a fixed point settled '
-    + 'in Python, and rows projected at zero games are dropped before scoring. The concern '
-    + 'it named stays visible as the GP columns above. If a pool minimum ever drops into '
-    + 'the teens, revisit it on evidence.');
+    'For a borrowed source the pool no longer determines a constant, so it cannot iterate '
+    + 'to a fixed point and Q only selects which players the GP columns below describe. '
+    + 'ZSC and ZSH therefore report the SAME constants for those two sources: they still '
+    + 'pick different top-156s, but both read the one plain-z block. That is expected, not '
+    + 'a bug. "ZSC overlap" is how many of the DURANT pool the plain-z pool also selects.');
+  sh.getRange(S_POOLS + rows.length + 7, 1).setValue(
+    'ADR-0011\'s minimum-games gate is retired: rows projected at zero games are dropped '
+    + 'before scoring. The concern it named stays visible as the GP columns above. If a '
+    + 'pool minimum ever drops into the teens, revisit it on evidence.');
 }
 
 function writeSanityBlock(sh) {
@@ -1875,11 +1905,13 @@ function addDraftRules(sh, si, ki, activeCol, gap) {
 }
 
 function formatSettings(sh) {
-  sh.setColumnWidth(1, 200); sh.setColumnWidth(2, 110); sh.setColumnWidth(3, 100);
+  // Column 2 carries "Basketball Monster's own" in the pool block, which is the widest
+  // thing on the tab and the one cell a reader must not have to guess at.
+  sh.setColumnWidth(1, 200); sh.setColumnWidth(2, 180); sh.setColumnWidth(3, 100);
   sh.setColumnWidth(4, 100); sh.setColumnWidth(5, 110); sh.setColumnWidth(6, 120);
   sh.setColumnWidth(7, 180); sh.setColumnWidth(8, 90);
 
-  [[S_LEAGUE, 1, 2], [S_TRACKER, 1, 6], [S_WINRATE, 1, 2], [S_POOLS, 1, 6],
+  [[S_LEAGUE, 1, 2], [S_TRACKER, 1, 6], [S_WINRATE, 1, 2], [S_POOLS, 1, 7],
    [S_SANITY, 1, 2], [S_WEIGHTS, 4, 2], [S_ROSENOF, 7, 2]].forEach(function (p) {
     sh.getRange(p[0], p[1], 1, p[2]).setBackground(COLOR.identity)
       .setFontColor(COLOR.headerText).setFontWeight('bold').setFontSize(9);
@@ -1947,9 +1979,10 @@ function buildPuntsTab(sh) {
     + 'abandoning three is expensive — soft-punt at most, and stay balanced.")')
     .setFontColor(COLOR.muted).setFontSize(10);
   sh.getRange('A3').setValue(
-    'Computed on ' + src.label + ' · DURH. A build discounts its categories BEFORE '
-    + 'standardising and re-derives the pool, so it moves the whole field rather than one '
-    + 'column (ADR-0019). Sorted by Punt Gap = ADP − rank inside that build: a big positive '
+    'Computed on ' + src.label + ' · DURH. A build discounts its categories at the '
+    + 'standardised value. It cannot re-derive the pool the way ADR-0019 describes, because '
+    + 'this source borrows fixed constants from Basketball Monster and there is no pool left '
+    + 'to move (ADR-0021). Sorted by Punt Gap = ADP − rank inside that build: a big positive '
     + 'number means the room prices him normally and this build values him far higher. '
     + 'Learn the top ten of each before draft day; a build rank is not a licence to reach.')
     .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
@@ -2273,6 +2306,11 @@ var README_ROWS = [
   ['The pool', '',
    'Q = Teams × Roster spots = 156. Each source is scored against its own universe, '
    + 'because a value is a property of the pair (stat line, pool).'],
+  ['Whose average', '',
+   'BMP and BMP-ALT are standardised against Basketball Monster\'s own constants, '
+   + 'recovered from their published columns and refitted every refresh; HBP against a '
+   + 'pool of its own. So the two vendors reproduce their numbers and HBP does not sit on '
+   + 'the same yardstick. Compare ranks across sources, never magnitudes.'],
   ['', '', ''],
 
   ['THE THREE VALUES — and what each one throws away', '', ''],
@@ -2326,8 +2364,10 @@ var README_ROWS = [
    'The build that ranks him highest, and by how many places. "AST+STL +21" means '
    + 'twenty-one places better in that build than on the main board.'],
   ['How a build is computed', '',
-   'The punted categories are discounted BEFORE standardising, and the pool is re-derived. '
-   + 'A punt moves the whole field, not one column.'],
+   'The punted categories are discounted BEFORE standardising. On HBP that re-derives the '
+   + 'pool, so a punt moves the whole field rather than one column. On BMP the constants '
+   + 'are borrowed and fixed, so there is no pool to re-derive and the discount is applied '
+   + 'after standardising — the builds ship on BMP, so that is what you are reading.'],
   ['Punt weight', '',
    '0.25 — a conceded category is still won by accident some weeks, and those weeks are free.'],
   ['', '', ''],
@@ -2361,8 +2401,10 @@ var README_ROWS = [
    + 'method has no availability term at all. The GP columns are context for a judgement '
    + 'call, not a multiplier.'],
   ['Changing a constant does not recalculate', '',
-   'Weights, lambdas and the punt weight are applied in the pipeline. Edit those and re-run '
-   + 'build_data.py; the grey cells on Settings only record what was used.'],
+   'Weights and the punt weight are applied in the pipeline. Edit those in board_values.py '
+   + 'and re-run build_data.py; the grey cells on Settings only record what was used. The '
+   + 'lambdas and the pool constants are not in any source file at all — they are refitted '
+   + 'from Basketball Monster by calibrate_bbm.py on every refresh.'],
   ['Left @pos', '',
    'How many un-GONE players in his tier could fill a slot he is eligible for. The one '
    + 'column that needs everyone\'s picks ticked.'],

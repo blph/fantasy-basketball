@@ -7,25 +7,53 @@ the sheet, not the valuation -- that is tests/test_board_values.py.
 import json
 import re
 
+import bbm_constants as BC
+import bbm_reference as B
 import board_values as BV
 import build_data as BD
 import pytest
+import sources as S
 
 from test_sources import hbp_200, made_up_name, vendor_file, vendor_row
 
 
+def write_constants(directory, label, date, rates, q=20, shift=0.0, stretch=1.0):
+    """A synthetic fit beside a synthetic export.
+
+    Derived from the fixture's own pool and then nudged, so the file is a plausible set of
+    borrowed constants rather than a copy of what the pipeline would have computed anyway.
+    Nothing here is Basketball Monster's; see ADR-0006.
+    """
+    _, plain = B.build_pool(rates, q)
+    _, durant = B.build_durant_pool(rates, q, B.LAMBDAS_BBM_2026_27_JOSH)
+    for block in (plain, durant):
+        for spec in block.values():
+            spec["mean"] += shift * spec["sd"]
+            spec["sd"] *= stretch
+    blob = BC.dump(
+        {"plain": plain, "durant": durant}, dict(B.LAMBDAS_BBM_2026_27_JOSH),
+        source=label, export_date=date, bbm_source_id=0,
+        fitted_at="2026-01-01T00:00:00Z", fitted_from="synthetic",
+        players_fitted=len(rates), fit={},
+    )
+    path = directory / f"{label} Constants - {date}.json"
+    path.write_text(json.dumps(blob), encoding="utf-8")
+    return path
+
+
 @pytest.fixture
 def projection_set(tmp_path, monkeypatch):
-    """One complete, same-dated set of three exports in a throwaway data directory."""
+    """A complete, same-dated set: three exports and a fit for each vendor."""
     names = [made_up_name(i) for i in range(200)]
     monkeypatch.setattr(BD, "DATA", tmp_path)
     hbp_200(tmp_path, names)
-    (tmp_path / "HBP Projections - 2026-01-01.csv").rename(
-        tmp_path / "HBP Projections - 2026-01-01.csv")
     rows = [vendor_row(100 + i, *n.split(" ", 1), fgm=400 + i * 3, threes=60 + i,
                        ftm=150 + i * 2, games=60 + i % 20) for i, n in enumerate(names)]
-    vendor_file(tmp_path, rows, "BMP Projections - 2026-01-01.csv")
-    vendor_file(tmp_path, rows, "BMP-ALT Projections - 2026-01-01.csv")
+    for label in ("BMP", "BMP-ALT"):
+        path = tmp_path / f"{label} Projections - 2026-01-01.csv"
+        vendor_file(tmp_path, rows, path.name)
+        rates = {k: r for k, v in S.load_vendor(path).items() if (r := B.per_game(v))}
+        write_constants(tmp_path, label, "2026-01-01", rates, shift=0.05, stretch=1.03)
     return tmp_path, names
 
 
@@ -37,7 +65,7 @@ class TestFindSet:
                     "BMP Projections - 2026-06-01.csv")
         date, paths = BD.find_set(None)
         assert date == "2026-01-01"
-        assert set(paths) == {"BMP", "HBP", "BMP-ALT"}
+        assert set(paths) == set(BD.SET_FILES)
 
     def test_an_explicit_date_that_is_incomplete_is_an_error(self, projection_set):
         tmp_path, _ = projection_set
@@ -99,8 +127,8 @@ class TestEmit:
     def _emit(self, projection_set):
         tmp_path, names = projection_set
         date, paths = BD.find_set(None)
-        board, vendors, report = BD.load(paths)
-        scored = BD.score(board, vendors)
+        board, vendors, constants, report = BD.load(paths)
+        scored = BD.score(board, vendors, constants)
         return BD.emit(board, scored, report, date, paths, False), board, names
 
     def _block(self, text, name):
