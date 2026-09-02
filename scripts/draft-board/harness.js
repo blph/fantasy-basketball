@@ -379,17 +379,65 @@ expect('tier roll', cell('Draft Board', r4 + 1, D.tier),
   check('the sorted column copies one of the nine values', valid.indexOf(sel) >= 0, `got ${sel}`);
 }
 
-// Each tag reads its own rank column, and ZSC -- which drops nothing -- carries only a rank.
-for (let s = 0; s < SOURCES.length; s++) {
-  for (let k = 0; k < VALUE_KINDS.length; k++) {
-    const tag = String(cell('Draft Board', r4, dTag(s, k)));
-    check(`${SOURCES[s].label} ${VALUE_KINDS[k].label} tag reads its own rank column`,
-      tag.indexOf(C(dRank(s, k)) + r4) >= 0, `got ${tag}`);
-    if (!VALUE_KINDS[k].drop) {
-      check(`${VALUE_KINDS[k].label} tag carries no dropped category`,
-        tag.indexOf('&" "&') === -1, `got ${tag}`);
+// Every tag is anchored to the SAME calculation row as the value beside it, on every row.
+//
+// The old assertion here only grepped the tag for the substring `$BQ4` -- its own rank
+// COLUMN, at its own row. That passes for a formula that reads the rank positionally, and
+// reading it positionally is what broke the live board: the hidden block was left in the
+// previous sort's order and 1755 of 1800 tags paired one player's rank with another
+// player's dropped category. Nothing offline could see it, because the strings were all
+// exactly what this file expected. So check the anchor, not the spelling: pull the row
+// number out of each cross-sheet reference and require the tag, its value and its rank
+// helper to name one row on one tab.
+for (const r of [R0, R0 + 1, R0 + 7, RN]) {
+  for (let s = 0; s < SOURCES.length; s++) {
+    const tab = SOURCES[s].key;
+    // 'BMP-ALT'!$Q$4 or BMP!$Q$4 -- the quoted form is why this cannot be a naive split.
+    const rowsOf = (f) => {
+      const re = new RegExp("(?:'" + tab + "'|\\b" + tab + ")!\\$[A-Z]+\\$(\\d+)", 'g');
+      const out = [];
+      let m;
+      while ((m = re.exec(String(f))) !== null) out.push(Number(m[1]));
+      return out;
+    };
+    for (let k = 0; k < VALUE_KINDS.length; k++) {
+      const label = `${SOURCES[s].label} ${VALUE_KINDS[k].label} row ${r}`;
+      const vRows = rowsOf(cell('Draft Board', r, dValue(s, k)));
+      const tRows = rowsOf(cell('Draft Board', r, dTag(s, k)));
+      const kRows = rowsOf(cell('Draft Board', r, dRank(s, k)));
+      const tag = String(cell('Draft Board', r, dTag(s, k)));
+
+      check(`${label}: value names exactly one calculation row`,
+        vRows.length === 1, `got ${vRows}`);
+      check(`${label}: tag names ${VALUE_KINDS[k].drop ? 'two references' : 'one reference'}`,
+        tRows.length === (VALUE_KINDS[k].drop ? 2 : 1), `got ${tag}`);
+      check(`${label}: every half of the tag sits on the value's row`,
+        tRows.length > 0 && tRows.every((x) => x === vRows[0]),
+        `value row ${vRows[0]}, tag rows ${tRows}`);
+      check(`${label}: the rank helper sits on the same row`,
+        kRows.length === 1 && kRows[0] === vRows[0], `got ${kRows} vs ${vRows}`);
+      check(`${label}: the tag reads no other cell on this sheet`,
+        !/\$[A-Z]+\d/.test(tag.replace(/(?:'[^']+'|\b[A-Za-z-]+)!\$[A-Z]+\$\d+/g, '')),
+        `got ${tag}`);
+
+      if (!VALUE_KINDS[k].drop) {
+        check(`${label}: ZSC tag carries no dropped category`,
+          tag.indexOf('&" "&') === -1, `got ${tag}`);
+      }
     }
   }
+}
+
+// The alignment column names the same calculation row as the rest of the hidden block, and
+// Settings compares it against Player. It is the board's own witness that the block and the
+// rows belong to the same build.
+for (const r of [R0, RN]) {
+  const chk = String(cell('Draft Board', r, D.rowCheck));
+  const feed = String(cell('Draft Board', r, D.hFgm));
+  const rowOf = (f) => (String(f).match(/\$[A-Z]+\$(\d+)/) || [])[1];
+  check(`row check names the hidden block's row (row ${r})`,
+    rowOf(chk) !== undefined && rowOf(chk) === rowOf(feed),
+    `row check ${chk}, feed ${feed}`);
 }
 
 // The profile columns: both array traps live here and neither is visible offline.
@@ -425,6 +473,22 @@ for (let i = 0; i < CAT_LABELS.length; i++) {
   ['PUNTED', 'BANKED', 'STRONG', 'WEAK', 'CONTESTED'].forEach(state => {
     check(`${lab} Read can report ${state}`, read.indexOf(state) >= 0, read);
   });
+}
+
+// The Settings sanity checks may not reach into another tab by any route Sheets is free to
+// rewrite. Both routes were rewritten in practice: recreating a tab turned the named ranges
+// inside "Names line up across tabs" into #REF!, and growing the Draft Board's grid slid the
+// alignment check's A1 reference one column past its data. A guard that reports nothing is
+// worse than no guard, because the blank cell reads as a pass.
+for (let i = 1; i <= 6; i++) {
+  const f = String(seen.sheets['Settings'].cells[`${S_SANITY + i},2`] || '');
+  if (!f || f.charAt(0) !== '=') continue;
+  const label = String(seen.sheets['Settings'].cells[`${S_SANITY + i},1`] || `row ${i}`);
+  const outward = /(?:'[^']+'|\b[A-Za-z][A-Za-z ]*)!\$?[A-Z]+\$?\d/.test(
+    f.replace(/INDIRECT\("[^"]*"/g, 'INDIRECT('));
+  check(`sanity "${label}" reaches other tabs only through INDIRECT`, !outward, f);
+  const names = f.match(/\b(?:B_[A-Z]+|BMP_[A-Z_]+|HBP_[A-Z_]+|ALT_[A-Z_]+)\b/g);
+  check(`sanity "${label}" leans on no named range`, names === null, `got ${names}`);
 }
 
 // --- named ranges ----------------------------------------------------------

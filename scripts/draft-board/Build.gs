@@ -214,6 +214,12 @@ var D = (function () {
   // compare against the board's own rank. Computing RANK() inside a conditional format
   // would evaluate a 200-cell aggregate 200 times per rule.
   m.rank0 = c; c += SOURCES.length * VALUE_KINDS.length;
+  // The board's own alignment guard: the player name read from the SAME calculation row
+  // this row's hidden block reads. Settings compares the column against `Player` and says
+  // MISALIGNED if they ever differ. A half-finished build once left this whole block in
+  // the previous sort's order while the visible columns held the new one, and nothing --
+  // not the sheet, not the harness, not verify.py -- said a word.
+  m.rowCheck = c++;
   m.last = c - 1;
   return m;
 })();
@@ -256,6 +262,30 @@ function cellRef(sheetName, col, row) {
 }
 function colRange(sheetName, col) {
   return sheetRef(sheetName) + '!$' + a1col(col) + '$' + R0 + ':$' + a1col(col) + '$' + RN;
+}
+
+/**
+ * The same column, as a STRING that Sheets will never rewrite.
+ *
+ * Only for the Settings sanity checks, and only because Sheets rewrites both of the
+ * obvious alternatives out from under them:
+ *
+ *   - A named range dies when its tab is recreated. `sheetByName` deletes and recreates
+ *     every tab it builds, so a full rebuild turned B_PLAYER into #REF! inside the
+ *     formulas that used it -- which is how the "Names line up across tabs" guard came to
+ *     be reading `COUNTA(#REF!)` and reporting nothing at all.
+ *   - An A1 reference shifts when a column is inserted at or before it. Settings is built
+ *     before the Draft Board, so a reference to the board's LAST column is written one
+ *     past the end of the grid; growing the grid to fit then slid it one further, and the
+ *     alignment check spent its first build pointing at an empty column.
+ *
+ * A string is not a reference, so neither happens. The cost is that the formula no longer
+ * follows a column that moves -- which is what we want: the map is the authority on where
+ * the column is, and the next build rewrites the formula from it.
+ */
+function colIndirect(sheetName, col) {
+  return 'INDIRECT("' + sheetRef(sheetName).replace(/"/g, '""')
+       + '!R' + R0 + 'C' + col + ':R' + RN + 'C' + col + '",FALSE)';
 }
 
 /** A fresh sheet is 26 x 1000. Grow it before writing past that. */
@@ -937,28 +967,42 @@ function writePoolBlock(sh) {
 
 function writeSanityBlock(sh) {
   sh.getRange(S_SANITY, 1, 1, 2).setValues([['SANITY CHECKS', '']]);
-  var mine = "COUNTIF('Draft Board'!$" + a1col(D.mine) + '$' + R0
-           + ':$' + a1col(D.mine) + '$' + RN + ',TRUE)';
-  sh.getRange(S_SANITY + 1, 1, 5, 1).setValues([
-    ['Names line up across tabs'], ['Board rows'], ['Players ticked Mine'],
-    ['ADP coverage'], ['Data generated']
+  var mine = 'COUNTIF(' + colIndirect('Draft Board', D.mine) + ',TRUE)';
+  sh.getRange(S_SANITY + 1, 1, 6, 1).setValues([
+    ['Names line up across tabs'], ['Draft Board rows line up'], ['Board rows'],
+    ['Players ticked Mine'], ['ADP coverage'], ['Data generated']
   ]);
   // The one live guard against the calculation tabs drifting out of row-order with the
   // Board. Every Draft Board reference assumes row i is the same player on all four tabs,
   // and nothing in Sheets would notice if that stopped being true.
   var mismatch = [];
   for (var i = 0; i < SOURCES.length; i++) {
-    mismatch.push('SUMPRODUCT(--(B_PLAYER<>' + nameOf(SOURCES[i].prefix, 'PLAYER') + '))');
+    mismatch.push('SUMPRODUCT(--(' + colIndirect('Board', B.player)
+                + '<>' + colIndirect(SOURCES[i].key, V.player) + '))');
   }
   sh.getRange(S_SANITY + 1, 2).setFormula(
     '=IF(' + mismatch.join('+') + '=0,"aligned",'
     + '"MISALIGNED — the calculation tabs are out of step with the Board. Stop.")');
-  sh.getRange(S_SANITY + 2, 2).setFormula('=COUNTA(B_PLAYER)');
-  sh.getRange(S_SANITY + 3, 2).setFormula('=' + mine);
-  sh.getRange(S_SANITY + 4, 2).setFormula('=COUNT(B_ADP)&" of "&COUNTA(B_PLAYER)');
+  // The sibling guard, and the one that was missing. The check above compares the
+  // calculation tabs against the Board spine; this compares the DRAFT BOARD's own rows
+  // against the hidden block they read. Those are different failures: the tabs can be
+  // perfectly aligned with each other while the Draft Board's block is left over from the
+  // previous sort. Cross-sheet is fine in a cell formula -- it is conditional format
+  // RULES that may not reference another sheet.
+  var chk = colIndirect('Draft Board', D.rowCheck);
+  var who = colIndirect('Draft Board', D.player);
+  sh.getRange(S_SANITY + 2, 2).setFormula(
+    '=IF(SUMPRODUCT(--(' + chk + '<>' + who + '))=0,"aligned",'
+    + '"MISALIGNED — the Draft Board\'s hidden block is out of step with its rows. '
+    + 'Run Rebuild & re-sort.")');
+  sh.getRange(S_SANITY + 3, 2).setFormula('=COUNTA(' + colIndirect('Board', B.player) + ')');
+  sh.getRange(S_SANITY + 4, 2).setFormula('=' + mine);
+  sh.getRange(S_SANITY + 5, 2).setFormula(
+    '=COUNT(' + colIndirect('Board', B.adp) + ')&" of "&COUNTA('
+    + colIndirect('Board', B.player) + ')');
   var gen = '';
   try { gen = META.generated + (META.mixedDates ? '  *** MIXED DATES ***' : ''); } catch (e) {}
-  sh.getRange(S_SANITY + 5, 2).setValue(gen);
+  sh.getRange(S_SANITY + 6, 2).setValue(gen);
 }
 
 // ----------------------------------------------------------- named ranges
@@ -1106,12 +1150,18 @@ function buildDraftTab(ss, sh, board, prior) {
         var kind = VALUE_KINDS[k];
         row[dValue(s, k)] = vref(s, V[kind.v]);
         row[dRank(s, k)] = vref(s, V[kind.rank]);
-        // "#4 REB", or "#4" for ZSC, which drops nothing. Built here rather than in Python
-        // so the rank stays a live reference and the tag cannot drift from it.
-        var rc = '$' + a1col(dRank(s, k)) + r;
+        // "#4 REB", or "#4" for ZSC, which drops nothing. BOTH halves point at the same
+        // calculation row, and that is the whole point: the rank used to be read
+        // positionally out of the hidden rank column ($BQ4, "whatever sits in my row")
+        // while the category was pinned to the player. Let the hidden block fall out of
+        // step with the rows -- one half-finished build is enough -- and every tag paired
+        // one player's rank with another's dropped category, 1755 of 1800 of them wrong
+        // and every one of them looking perfectly ordinary. Anchored this way a tag can
+        // only be wrong when the value beside it is wrong too, which is checkable.
         row[dTag(s, k)] = kind.drop
-          ? '="#"&' + rc + '&" "&' + cellRef(SOURCES[s].key, V[kind.drop], n)
-          : '="#"&' + rc;
+          ? '="#"&' + cellRef(SOURCES[s].key, V[kind.rank], n)
+            + '&" "&' + cellRef(SOURCES[s].key, V[kind.drop], n)
+          : '="#"&' + cellRef(SOURCES[s].key, V[kind.rank], n);
       }
     }
 
@@ -1160,6 +1210,9 @@ function buildDraftTab(ss, sh, board, prior) {
       row[D.dh0 + cc] = vref(si, V.dh0 + cc);
       row[D.d0 + cc] = vref(si, V.d0 + cc);
     }
+    // Same `n` as the rest of the block, which is exactly what makes it a witness: if the
+    // block is ever left over from another ordering, this name stops matching Player.
+    row[D.rowCheck] = vref(si, V.player);
 
     var line = [];
     for (var c = 1; c <= D_LAST; c++) line.push(row[c] === undefined ? '' : row[c]);
@@ -1225,6 +1278,7 @@ function writeDraftHeaders(sh, si, ki) {
       head[dRank(s3, k3)] = SOURCES[s3].label + ' ' + VALUE_KINDS[k3].label + ' #';
     }
   }
+  head[D.rowCheck] = 'row check';
   var hrow = [];
   for (var h = 1; h <= D_LAST; h++) hrow.push(head[h] === undefined ? '' : head[h]);
   sh.getRange(HDR, 1, 1, D_LAST).setNumberFormat('@').setValues([hrow]);
@@ -1867,11 +1921,11 @@ function formatSettings(sh) {
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
     .whenTextContains('MISALIGNED')
     .setBackground(COLOR.flagBg).setFontColor(COLOR.flagText).setBold(true)
-    .setRanges([sh.getRange(S_SANITY + 1, 2)]).build());
+    .setRanges([sh.getRange(S_SANITY + 1, 2), sh.getRange(S_SANITY + 2, 2)]).build());
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
     .whenTextContains('MIXED DATES')
     .setBackground(COLOR.flagBg).setFontColor(COLOR.flagText).setBold(true)
-    .setRanges([sh.getRange(S_SANITY + 5, 2)]).build());
+    .setRanges([sh.getRange(S_SANITY + 6, 2)]).build());
 
   sh.getRange('A2').setFontColor(COLOR.muted).setFontSize(9).setWrap(true);
   sh.getRange('A2:F2').merge();
@@ -2389,6 +2443,24 @@ function onEdit(e) {
     var sh = e.range.getSheet();
     if (sh.getName() !== 'Draft Board') return;
     var col = e.range.getColumn();
+    // The sort dropdown on the control strip writes through to SORT_BY, which is what
+    // every build actually reads. Without this the control was decorative: it carried a
+    // dropdown, the cheat sheet pointed at it, picking a value changed the label -- and
+    // Rebuild & re-sort went on sorting by whatever Settings said. A control that
+    // silently does nothing is worse than no control, because you believe it.
+    if (col === D.drafted) {
+      var picked = String(e.range.getValue() || '');
+      for (var s = 0; s < SOURCES.length; s++) {
+        for (var k = 0; k < VALUE_KINDS.length; k++) {
+          if (picked !== sortLabel(s, k)) continue;
+          sh.getParent().getRangeByName('SORT_BY').setValue(picked);
+          sh.getParent().toast('Sort set to ' + picked + '. Run Draft Board ▸ Rebuild & '
+                             + 're-sort to apply it.', 'Draft Board', 8);
+          return;
+        }
+      }
+      return;
+    }
     for (var i = 0; i < SOURCES.length; i++) {
       if (col !== 1 + i * 2) continue;
       setProjectionVisible(sh, i, e.range.getValue() === true);

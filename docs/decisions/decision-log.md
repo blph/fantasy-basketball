@@ -27,6 +27,7 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0017](ADR-0017-no-games-played-adjustment.md) | No games-played adjustment | Accepted | 2026-09-01 | Bryan | ADR-0008 (in part), ADR-0011 |
 | [ADR-0018](ADR-0018-tracker-on-durant-basis.md) | The Category Tracker moves to a win-probability model on the DURANT H2H basis | Accepted | 2026-09-01 | Bryan | ADR-0013 |
 | [ADR-0019](ADR-0019-punt-builds-restandardise.md) | Punt builds discount before standardising and re-derive the pool | Accepted | 2026-09-01 | Bryan | ADR-0009 (in part) |
+| [ADR-0020](ADR-0020-identity-anchored-references.md) | Every derived cell names the player, and the board checks that it did | Accepted | 2026-09-01 | Bryan | |
 
 ## Decisions expected next
 

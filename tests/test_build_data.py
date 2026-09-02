@@ -80,6 +80,20 @@ class TestRerank:
         for field in ("durh_rank", "zsh_rank", "zsc_rank"):
             assert sorted(r[field] for r in rows) == list(range(1, 51))
 
+    def test_ranks_the_value_the_sheet_will_see(self):
+        # Two values that differ below the rounding, ordered against each other. The sheet
+        # is given both as 0.5001 and ranks them with its own RANK() over what it was
+        # given, so ranking full precision here puts a #2 next to the higher number.
+        rows = [
+            {"durh": 0.50011, "zsh": 0.0, "zsc": 0.0},
+            {"durh": 0.50014, "zsh": 0.0, "zsc": 0.0},
+        ]
+        BD.rerank(rows)
+        assert [r["durh_rank"] for r in rows] == [1, 2], (
+            "rows that round to the same displayed value must rank in board order, "
+            "not on precision the sheet was never given"
+        )
+
 
 class TestEmit:
     def _emit(self, projection_set):
@@ -110,6 +124,20 @@ class TestEmit:
         for src, rows in self._block(text, "VALUES").items():
             for col in (1, 4, 7):     # durh, zsh, zsc rank positions
                 assert sorted(r[col] for r in rows) == list(range(1, len(board) + 1)), (src, col)
+
+    def test_every_rank_is_the_rank_of_the_value_shipped_beside_it(self, projection_set):
+        # The sheet's own # column ranks the number it was given, so the number it was
+        # given has to be the number we ranked. Ranking full precision and shipping four
+        # decimals put 21 rows across the nine columns one place out from the value next
+        # to them -- deep-tier pairs, and a # that does not mean what it says.
+        text, board, _ = self._emit(projection_set)
+        for src, rows in self._block(text, "VALUES").items():
+            for vcol, rcol in ((0, 1), (3, 4), (6, 7)):
+                order = sorted(range(len(rows)), key=lambda i: (-rows[i][vcol], i))
+                want = {i: place for place, i in enumerate(order, start=1)}
+                assert [rows[i][rcol] for i in range(len(rows))] == [
+                    want[i] for i in range(len(rows))
+                ], (src, vcol)
 
     def test_the_dropped_category_is_never_turnovers(self, projection_set):
         # DURANT H2H weights turnovers at zero, which is how it removes them. A build that

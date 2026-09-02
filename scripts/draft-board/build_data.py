@@ -35,6 +35,10 @@ DEFAULT_OUT = REPO / "scripts" / "draft-board" / "Data.gs"
 TEAMS, ROSTER = 12, 13
 Q = TEAMS * ROSTER
 
+#: Decimal places every value is written to. `rerank` ranks the rounded value for the same
+#: reason: the sheet ranks what it can see, so what it can see is what we rank.
+VALUE_PLACES = 4
+
 #: label -> filename stem. The board's display order, which is also SOURCES in Build.gs.
 SOURCE_FILES = {
     "BMP": "BMP Projections",
@@ -114,9 +118,16 @@ def rerank(rows: list[dict]) -> None:
     Every consumer compares these ranks against the board's own rank column: the tag, the
     disagreement highlight, the punt gap. So the displayed rank is a rank among the 200
     players actually on the board. Ties break on the existing order, which is stable.
+
+    Rank the value as it will be WRITTEN, not as it was computed. The sheet only ever sees
+    `round(v, VALUE_PLACES)`, and its own `#` column ranks that rounded number; ranking full
+    precision here made the two disagree by one wherever a rounding tie fell between two
+    players -- 21 rows across the nine columns on the 2026-09-10 data, every one of them a
+    rank sitting next to a value that did not imply it.
     """
     for field in ("durh", "zsh", "zsc"):
-        order = sorted(range(len(rows)), key=lambda i: (-rows[i][field], i))
+        order = sorted(range(len(rows)),
+                       key=lambda i: (-round(rows[i][field], VALUE_PLACES), i))
         for place, i in enumerate(order, start=1):
             rows[i] = dict(rows[i], **{f"{field}_rank": place})
 
@@ -242,12 +253,12 @@ def emit(board, scored, report, date, paths, mixed) -> str:
         rows = []
         for p in scored[lab]["by_row"]:
             rows.append(
-                [round(p["durh"], 4), p["durh_rank"], label(p["durh_drop"]),
-                 round(p["zsh"], 4), p["zsh_rank"], label(p["zsh_drop"]),
-                 round(p["zsc"], 4), p["zsc_rank"]]
-                + [round(p["dh"][c], 4) for c in BV.CAT_ORDER]
-                + [round(p["d"][c], 4) for c in BV.CAT_ORDER]
-                + [round(p["z"][c], 4) for c in BV.CAT_ORDER]
+                [round(p["durh"], VALUE_PLACES), p["durh_rank"], label(p["durh_drop"]),
+                 round(p["zsh"], VALUE_PLACES), p["zsh_rank"], label(p["zsh_drop"]),
+                 round(p["zsc"], VALUE_PLACES), p["zsc_rank"]]
+                + [round(p["dh"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
+                + [round(p["d"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
+                + [round(p["z"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
             )
         values[lab] = rows
 

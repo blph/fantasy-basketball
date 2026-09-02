@@ -13,6 +13,12 @@ to it.
     python3 verify.py                        # recompute and print constants
     python3 verify.py --sheet pull.csv       # diff against a gviz pull of the board
 
+A narrow pull (rank,name,value -- range A4:G203) checks the sorted value. A WIDE pull
+(range A4:AA203) also checks all nine rank tags on all 200 rows, which is the only check
+anywhere that looks at what the tags actually say. It exists because they were once wrong
+on 1755 of 1800 rows while every offline gate was green: the harness compares formula
+strings and never evaluates one, and this diff used to read three columns.
+
 Output is deliberately aggregate: counts, constants and rank movements, never a player
 row. This repository is public and the exports are not ours to republish.
 """
@@ -42,6 +48,20 @@ V_DH0, V_D0, V_Z0 = 8, 16, 24
 V_WIDTH = 32
 
 SOURCES = ("BMP", "HBP", "BMP-ALT")
+
+#: Draft Board columns in a wide gviz pull, 0-based: nine identity columns, then the
+#: value/tag pairs, three per source. Derived, not typed out, for the same reason Build.gs
+#: derives its letters -- a shifted column must not quietly compare the wrong thing.
+PULL_FIRST_VALUE = 9
+KINDS = (("DURH", V_DURH, V_DURH_RANK, V_DURH_DROP),
+         ("ZSH", V_ZSH, V_ZSH_RANK, V_ZSH_DROP),
+         ("ZSC", V_ZSC, V_ZSC_RANK, None))
+PULL_WIDTH = PULL_FIRST_VALUE + len(SOURCES) * len(KINDS) * 2
+
+
+def _pull_col(src_i: int, kind_i: int) -> int:
+    """The value column for a source/kind pair. The tag is the next one along."""
+    return PULL_FIRST_VALUE + src_i * len(KINDS) * 2 + kind_i * 2
 
 
 def load(path: Path) -> dict:
@@ -131,31 +151,100 @@ def diff_sheet(data: dict, pull: Path, places: int = 3) -> list[str]:
     check that actually closes the loop: everything else verifies the file we generated,
     not the thing the board displays.
 
-    Expects a headerless CSV of rank, player, and the value the board is sorted by.
+    A headerless CSV. Three columns (rank, player, value) checks the sorted value; a full
+    A4:AA203 pull checks every value and every tag.
+
+    Failures name the board row, never the player. The repository is public and the
+    exports are not ours to republish.
     """
     rows = [r for r in csv.reader(pull.open(newline="", encoding="utf-8")) if any(r)]
     by_name = {p[1]: i for i, p in enumerate(data["PLAYERS"])}
-    fails, checked = [], 0
-    for row in rows:
+    wide = bool(rows) and len(rows[0]) >= PULL_WIDTH
+    # The board displays `places` decimals and rounds half AWAY from zero; Python rounds
+    # half to even. Comparing round() to round() therefore fails on every value that lands
+    # exactly on the boundary -- 1.1235 shown as 1.124, called 1.123 here. Compare the gap
+    # instead: anything a correct display could produce is within half a displayed unit.
+    tol = 0.5 * 10 ** -places + 1e-9
+    fails, checked, tags_checked = [], 0, 0
+    wrong: dict[str, int] = {}
+    examples: list[str] = []
+
+    for line, row in enumerate(rows):
+        board_row = line + 4                      # data starts at sheet row 4
         if len(row) < 3:
             continue
-        name = row[1].strip()
+        name = row[1 if not wide else 3].strip()
         if name not in by_name:
-            fails.append(f"sheet row '{name}' is not in Data.gs")
+            fails.append(f"sheet row {board_row} holds a player that is not in Data.gs")
             continue
-        try:
-            shown = float(row[2].replace("−", "-").replace("+", ""))
-        except ValueError:
+        i = by_name[name]
+
+        if not wide:
+            try:
+                shown = float(row[2].replace("\u2212", "-").replace("+", ""))
+            except ValueError:
+                continue
+            want = data["VALUES"]["BMP"][i][V_DURH]
+            if abs(shown - want) > tol:
+                fails.append(f"row {board_row}: sheet shows {shown}, Data.gs says {want}")
+            checked += 1
             continue
-        want = data["VALUES"]["BMP"][by_name[name]][V_DURH]
-        if round(shown, places) != round(want, places):
-            fails.append(f"{name}: sheet shows {shown}, Data.gs says {want}")
-        checked += 1
+
+        for s, src in enumerate(SOURCES):
+            v = data["VALUES"][src][i]
+            for k, (label, vcol, rcol, dcol) in enumerate(KINDS):
+                col = _pull_col(s, k)
+                try:
+                    shown = float(row[col].replace("\u2212", "-").replace("+", ""))
+                except ValueError:
+                    continue
+                if abs(shown - v[vcol]) > tol:
+                    fails.append(f"row {board_row} {src} {label}: sheet shows {shown}, "
+                                 f"Data.gs says {v[vcol]}")
+                checked += 1
+
+                # The tag. Both halves come from the same player's row on the same tab, so
+                # a mismatch means the board is reading someone else -- which is invisible
+                # in the value beside it and was, for a while, true of 195 rows in nine.
+                got = row[col + 1].strip()
+                want = f"#{v[rcol]} {v[dcol]}" if dcol is not None else f"#{v[rcol]}"
+                if got != want:
+                    key = f"{src} {label}"
+                    wrong[key] = wrong.get(key, 0) + 1
+                    if len(examples) < 5:
+                        examples.append(f"row {board_row} {key}: shows '{got}', "
+                                        f"Data.gs says '{want}'")
+                tags_checked += 1
+
+    if wide:
+        # The board's own # column ranks the value it is sorted by. Exactly one of the nine
+        # must therefore agree with it on every row -- and it is an equality, not an
+        # approximation, because build_data.py ranks the value it rounds to.
+        agree = []
+        for src in SOURCES:
+            for label, _v, rcol, _d in KINDS:
+                if all(row[0].strip() == str(data["VALUES"][src][by_name[row[3].strip()]][rcol])
+                       for row in rows if row[3].strip() in by_name):
+                    agree.append(f"{src} {label}")
+        if not agree:
+            fails.append("the board's # column matches no source's rank on every row -- "
+                         "it is sorted by something it does not display, or a rank and "
+                         "the value beside it disagree")
+        else:
+            print(f"  # column agrees with {', '.join(agree)} on every row")
+
     if not checked:
-        fails.append(f"{pull}: nothing comparable found -- "
-                     "is it a headerless rank,name,value pull?")
+        fails.append(f"{pull}: nothing comparable found -- is it a headerless pull of "
+                     "rank,name,value (A4:G203) or the full board (A4:AA203)?")
     else:
-        print(f"  compared {checked} rows to {places} decimal places")
+        print(f"  compared {checked} values to within half of {places} decimal places")
+    if wide:
+        total = sum(wrong.values())
+        print(f"  compared {tags_checked} rank tags: {total} wrong")
+        if total:
+            for key in sorted(wrong):
+                fails.append(f"{key}: {wrong[key]} of {tags_checked // 9} tags wrong")
+            fails.extend(examples)
     return fails
 
 
@@ -163,7 +252,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", type=Path, default=DEFAULT_DATA)
-    ap.add_argument("--sheet", type=Path, help="a gviz pull of the board: rank,name,value")
+    ap.add_argument("--sheet", type=Path,
+                    help="a headerless gviz pull: rank,name,value (A4:G203), "
+                         "or the full board (A4:AA203) to check all nine tags too")
     args = ap.parse_args()
 
     if not args.data.exists():

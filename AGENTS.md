@@ -31,7 +31,7 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Build the board's data from the three projection exports: `python3 scripts/draft-board/build_data.py` (`--dry-run` to see what would change first)
 - Dry-run the draft board: `cd scripts/draft-board && node harness.js`
 - Export rankings for Yahoo: `python3 scripts/draft-board/export_yahoo_rankings.py raw.csv` (writes `data/exports/`, dated)
-- Re-check `Data.gs` and diff the live board against it: `python3 scripts/draft-board/verify.py`
+- Re-check `Data.gs` and diff the live board against it: `python3 scripts/draft-board/verify.py --sheet pull.csv` (a full `A4:AA203` pull also checks all 1800 rank tags; a `rank,name,value` pull checks only the sorted value)
 - Review a mock draft: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` (inputs are `playwright-cli` board pulls; see [the procedure](docs/draft-board/mock-draft-review.md))
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
 - Lint: `ruff check .`
@@ -68,6 +68,8 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - DO NOT confuse `scripts/draft-board/Build.gs` with the sheet. It is **source**. The sheet runs a *separate bound Apps Script copy*, in a file named **`Code.gs`**, and editing the repo changes nothing in Google until that copy is replaced through Playwright. A green harness is not a deployed change.
 - DO NOT hand sheet operations back to Bryan. **Claude operates this sheet**: reading it, pushing `Build.gs` into `Code.gs`, running the `Draft Board` menu, and verifying the result afterwards are all Claude's to do. "Paste this in yourself" is not a plan.
 - DO NOT recommend, report on, or "review" anything about the sheet without opening it first. Its live state — column layout, hand-edited overrides, what is ticked, what is already erroring — is not derivable from the repo. Reviewing a tab means looking at the tab, not reading the function that builds it. Screenshot it: two real defects on the Category Tracker were invisible in the cell values and obvious on sight.
+- DO NOT mix a positional reference (`$BQ5`, "whatever is in my row") with an identity one (`BMP!$S$5`, pinned to a player) **inside one displayed value**. Both kinds are legitimate on a re-sortable board; spliced together they produce a cell that reads correctly while describing two different players — 1755 of 1800 rank tags, invisibly ([ADR-0020](docs/decisions/ADR-0020-identity-anchored-references.md)).
+- DO NOT reach across tabs from a Settings sanity check by named range or A1 reference. Recreating a tab turns a named range into `#REF!`, and growing a grid shifts an A1 reference; both leave a guard reporting a blank that reads as a pass. Use `colIndirect()`.
 - DO NOT trust the harness to prove a formula works. It compares generated formula *strings* and never evaluates one. Sheets does not array-evaluate an `IF` passed as an argument to another function, and a `LET` binding is evaluated outside any enclosing `ARRAYFORMULA` — both produce a board-wide `#VALUE!` or a silently empty column that every offline gate passes. Formula changes are verified in the sheet, on real rows.
 - DO NOT hardcode a spreadsheet column letter in `Build.gs`. Derive it from the `B` or `D` map via `a1col()`; the harness asserts this, because a shifted column repoints a formula at the wrong data and still computes.
 
@@ -81,7 +83,7 @@ API → data/raw/{endpoint}/{date}.json → data/parquet/{table}/as_of_date=… 
 
 Apps read marts only. They never call the API and never recompute valuations at load time — draft day is when latency is least acceptable.
 
-Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md) · [draft board](docs/draft-board/build-and-maintenance.md) · [board cheat sheet](docs/draft-board/cheat-sheet.md) · [mock draft review](docs/draft-board/mock-draft-review.md) · [draft playbook](docs/references/fantasy-basketball-draft-playbook.md) · [quant vs expert](docs/references/quant-vs-expert-reconciliation.md) · [Basketball Monster reverse-engineering](docs/references/basketball-monster-projections-reverse-engineering.md) · [project updates](docs/project-updates/)
+Deeper docs: [data providers](docs/api/data-providers.md) · [database schema](docs/database/schema.md) · [decisions](docs/decisions/decision-log.md) · [bugs](docs/bugs/) · [draft board](docs/draft-board/build-and-maintenance.md) · [board cheat sheet](docs/draft-board/cheat-sheet.md) · [mock draft review](docs/draft-board/mock-draft-review.md) · [draft playbook](docs/references/fantasy-basketball-draft-playbook.md) · [quant vs expert](docs/references/quant-vs-expert-reconciliation.md) · [Basketball Monster reverse-engineering](docs/references/basketball-monster-projections-reverse-engineering.md) · [project updates](docs/project-updates/)
 
 ## Security & Data Handling
 

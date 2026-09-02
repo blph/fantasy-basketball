@@ -3,6 +3,13 @@
 - Date: 2026-09-01
 - Branch: `draft-refactoring` (6 commits)
 - Status: **built, deployed to the live sheet, and verified there**
+- Correction, same day: that verification was not sufficient. The deploy left the board
+  with 1755 of its 1800 rank tags wrong, its ▲/▼ profile reading the wrong player, and the
+  Settings guards dead — none of it visible to `pytest`, `ruff`, the harness, or the
+  three-column `verify.py --sheet` pull, all of which were green.
+  See [the bug report](../bugs/2026-09-01-draft-board-tag-rank-misalignment.md) and
+  [ADR-0020](../decisions/ADR-0020-identity-anchored-references.md). Item 7 below turned
+  out to be more than cosmetic: that dropdown was not wired to anything.
 
 ---
 

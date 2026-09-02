@@ -411,6 +411,29 @@ a board-wide failure, and both are only visible live:
 
 Verify formula changes on real rows in the sheet, never on the harness alone.
 
+### Checking the board after a build
+
+The harness bounds what reaches the sheet. This is what establishes that the sheet is
+right. Pull the whole board and diff it against `Data.gs`:
+
+```bash
+playwright-cli -s=fantasy eval \
+  "() => fetch('https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:csv&sheet=Draft%20Board&range=A4:AA203&headers=0', {credentials:'include'}).then(r => r.text())"
+# save the CSV outside the repo -- it is provider data
+python3 scripts/draft-board/verify.py --sheet pull.csv
+```
+
+The wide `A4:AA203` range is the point: it carries the nine value columns **and their
+tags**, so the check covers all 1800 tags and confirms the `#` column equals exactly one
+source's rank on every row. The old three-column `rank,name,value` pull still works and
+still checks only the sorted value — it is what let 1755 wrong tags ship
+([the bug](../bugs/2026-09-01-draft-board-tag-rank-misalignment.md)).
+
+Then look at Settings ▸ SANITY CHECKS. `Names line up across tabs` and `Draft Board rows
+line up` must both read `aligned`. The second is the board's own witness that its hidden
+block belongs to its rows; a half-finished build is exactly what it catches, and it is the
+one check that costs nothing to read on draft night.
+
 ### Pushing `Build.gs` into the sheet
 
 The sheet runs a **separate bound Apps Script copy** of the builder, in a file
