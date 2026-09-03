@@ -84,10 +84,10 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | **GAP** | `= ADP − #` | Positive means cheap. Blank ADP means the market has not priced him, which is not the same as pricing him last. |
 | **XRank** | `` | Yours to fill in, if you want a second market opinion. |
 | **INJURY RISK** | `` |  |
-| **INJ** | `HIGH / MED / LOW` | How injury-prone he is, from his cited injury history — not whether he is hurt right now. Recent seasons weigh most (last season ×1, the one before ×0.55, then ×0.30 and ×0.15), and the score adds games missed, surgery, the same body part failing across seasons, age and position. |
+| **INJ** | `HIGH / MED / LOW` | How injury-prone he is, from his cited injury history — not whether he is hurt right now, and never from games played. The score adds surgery, the same body part failing across seasons, age and position; a freak injury (a broken hand, an illness) never counts toward recurrence. |
 | **?** | `` | Nobody researched him. It is not a low tier — it is no tier. |
 | **Where it comes from** | `` | scripts/draft-board/injury_risk.json, scored by injury_risk.py. The per-player evidence behind every tier is in docs/draft-board/injury-risk.md. |
-| **It changes no value** | `` | Nothing on this board is scaled by it. It is the reason to distrust a GP number, not a discount applied to one. |
+| **It changes no value** | `` | Nothing on this board is scaled by it, and it never reads games played either. Two players with the same injury history tier identically no matter how many games either one played — the GP columns are a separate signal. |
 
 ### PUNT BUILDS
 

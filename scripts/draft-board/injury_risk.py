@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Turn researched injury histories into the board's HIGH / MED / LOW risk tier.
 
-The board scales nothing by games played (ADR-0017). This column is the other half of
-that decision: the GP columns give you the number, and this gives you the reason to
-distrust it. It is context for a judgement call, never a multiplier.
+This is a judgement about injury history -- surgeries, recurring problems, age, position
+-- never about games played. The board already has a GP column for durability and
+deliberately scales nothing by it (ADR-0017); this rubric does not touch games played or
+games missed either, in either direction. Two players with an identical injury history are
+tiered identically no matter how many games either of them happened to play.
 
 Two halves, deliberately split:
 
     the research   one JSON record per player, gathered by an agent and committed to
-                   `injury_risk.json`. It holds *evidence* -- dated, cited injury events
-                   and season games-played -- and never a verdict.
+                   `injury_risk.json`. It holds *evidence* -- dated, cited injury events --
+                   and never a verdict.
     the rubric     `tier()`, here. It reads that evidence and returns the tier.
 
 The split is ADR-0016 applied to a new column: the sheet holds the result, Python owns the
@@ -18,9 +20,10 @@ on their own -- comparability. Agent 7's MED and agent 180's MED are the same ME
 neither of them decided it. And a rubric change costs a `pytest` run rather than 200
 re-runs, which is the difference between a tunable model and a frozen one.
 
-Recency is weighted because the playbook says the signal lives there: a lost season from
-one freak injury "says nothing about next year", while "recurring soft-tissue or joint
-problems" are "the part of injury history that actually predicts".
+Recency still matters -- a freak injury or an old surgery weighs less than a fresh,
+recurring one -- but it is read off the injury events themselves (their `season`,
+`mechanism`, how many seasons the same body part has failed), never off a season's games
+count.
 """
 
 from __future__ import annotations
@@ -37,29 +40,18 @@ SCHEMA = 1
 DEFAULT_PATH = Path(__file__).resolve().parent / "injury_risk.json"
 DEFAULT_CHECKPOINTS = Path(__file__).resolve().parents[2] / "data" / "injury_research"
 
-#: Roughly a 1.3-season half-life. Last season is the only one that counts in full.
-SEASON_WEIGHTS = {
-    "2025-26": 1.00,
-    "2024-25": 0.55,
-    "2023-24": 0.30,
-    "2022-23": 0.15,
-    "older": 0.05,
-}
-
-#: The two most recent seasons, for the surgery term's "recent" test.
+#: The seasons a research agent is asked to cover, most recent first. Not a decay curve --
+#: nothing here is weighted by games, so there is no games-derived number to decay. Recency
+#: shows up instead in the surgery term (a recent major repair outweighs an old one) and
+#: implicitly in the chronic term (only a problem recorded in more than one of these
+#: seasons counts as recurring).
 RECENT = ("2025-26", "2024-25")
 OLDER_SCORED = ("2023-24", "2022-23")
 
+#: A season's games, for validating a `games_missed` count -- descriptive only. It is never
+#: read into the score: two players with the same injury history tier identically no
+#: matter how many games either of them played.
 FULL_SEASON = 82
-
-#: What a `freak` event keeps. A broken hand from a collision is not a durability signal,
-#: but it is not nothing either -- it still cost you the games.
-FREAK_WEIGHT = 0.25
-
-#: Weighted games missed -> points. Bands rather than a slope: the column is a three-way
-#: sort, and a continuous term would imply a precision the underlying reporting lacks.
-MISSED_BANDS = ((6, 0), (14, 1), (25, 2), (40, 3))
-MISSED_MAX = 4
 
 #: Procedures with a multi-month timeline and a documented recurrence profile.
 MAJOR_LOWER = 3
@@ -75,8 +67,8 @@ CHRONIC_MAX = 4
 
 #: Cuts are absolute, not percentile. A percentile cut would make LOW mean "low relative
 #: to this year's field", so the same player's tier would drift every refresh while
-#: nothing about him changed.
-CUT_HIGH = 6
+#: nothing about him changed. Max score is surgery(3) + chronic(4) + age(2) + guard(1) = 10.
+CUT_HIGH = 5
 CUT_MED = 3
 
 TIERS = ("LOW", "MED", "HIGH")
@@ -101,75 +93,23 @@ class InjuryDataError(Exception):
 # ------------------------------------------------------------------ the rubric
 
 
-def _season_weight(season: str) -> float:
-    return SEASON_WEIGHTS.get(season, SEASON_WEIGHTS["older"])
+def _body_part_tokens(raw: str) -> frozenset[str]:
+    """Words describing a body part, side- and qualifier-stripped.
 
-
-def _body_part(raw: str) -> str:
-    """Normalise a body part so both sides of one joint group together."""
-    return re.sub(r"[^a-z ]", "", SIDE.sub("", (raw or "").lower())).strip()
-
-
-def _season_missed(season: str, gp: dict, events: list) -> float | None:
-    """Games missed in one season, or None if the season cannot be scored.
-
-    Two routes, preferring the precise one. When every event in the season carries a
-    games-missed count, sum them -- that isolates injury from rest and from a role change.
-    Otherwise fall back to `82 - GP`, which is blunter but honest: the playbook's whole
-    argument for the GP column is that games-played history does not hedge.
-
-    The event route is capped at the season's real absence, because two overlapping
-    injuries cannot cost more games than the player actually missed.
+    A compound description ("leg/ankle", "ankle/calf/knee") becomes a set of words rather
+    than one joined string, so it can overlap with a plain "ankle" or "knee" entry from
+    another event. A single joined string treats every differently-phrased mention of the
+    same joint as an unrelated body part -- which is how a player with three separate
+    lower-body surgeries across a career scored zero recurrence.
     """
-    in_season = [e for e in events if e.get("season") == season]
-    played = gp.get(season)
-    from_gp = None if played is None else max(0.0, FULL_SEASON - float(played))
-
-    counted = [e for e in in_season if e.get("games_missed") is not None]
-    if in_season and len(counted) == len(in_season):
-        total = sum(
-            float(e["games_missed"]) * (FREAK_WEIGHT if e.get("mechanism") == "freak" else 1.0)
-            for e in in_season
-        )
-        return total if from_gp is None else min(total, from_gp)
-
-    if from_gp is None:
-        return None
-
-    # No usable event breakdown. Discount the part of the absence a known freak event
-    # explains, so one broken hand does not read as fragility.
-    freak = sum(
-        float(e["games_missed"])
-        for e in in_season
-        if e.get("mechanism") == "freak" and e.get("games_missed") is not None
-    )
-    return max(0.0, from_gp - freak * (1.0 - FREAK_WEIGHT))
+    cleaned = re.sub(r"[^a-z ]", " ", SIDE.sub("", (raw or "").lower()))
+    return frozenset(t for t in cleaned.split() if t)
 
 
-def availability_points(record: dict) -> tuple[int, float | None]:
-    """Recency-weighted games missed, banded. Returns (points, weighted average)."""
-    gp = record.get("gp") or {}
-    events = record.get("events") or []
-    seasons = [s for s in SEASON_WEIGHTS if s != "older" and s in gp]
-    if not seasons:
-        return 0, None
-
-    num = den = 0.0
-    for s in seasons:
-        missed = _season_missed(s, gp, events)
-        if missed is None:
-            continue
-        w = _season_weight(s)
-        num += w * missed
-        den += w
-    if den == 0:
-        return 0, None
-
-    avg = num / den
-    for ceiling, pts in MISSED_BANDS:
-        if avg <= ceiling:
-            return pts, avg
-    return MISSED_MAX, avg
+def _clean_label(raw: str) -> str:
+    """Side-stripped, human-readable body part text -- for display only."""
+    cleaned = re.sub(r"[^a-z ]", " ", SIDE.sub("", (raw or "").lower()))
+    return re.sub(r"\s+", " ", cleaned).strip()
 
 
 def surgery_points(record: dict) -> int:
@@ -183,10 +123,14 @@ def surgery_points(record: dict) -> int:
     for e in record.get("events") or []:
         season, surgery = e.get("season"), e.get("surgery")
         lower = bool(e.get("lower_body"))
+        # "older" scores at the same discounted rate as the two named older seasons, not
+        # zero. The schema tells an agent to report an event that old only when it is a
+        # major surgery or an established pattern (see the schema docstring) -- precisely
+        # the case this term exists to catch, and zero-crediting it contradicted that.
         if surgery == "major":
             if season in RECENT:
                 best = max(best, MAJOR_LOWER if lower else MAJOR_UPPER)
-            elif season in OLDER_SCORED:
+            elif season in OLDER_SCORED or season == "older":
                 best = max(best, MAJOR_LOWER_OLD if lower else 0)
         elif surgery == "minor" and season in RECENT:
             best = max(best, MINOR_RECENT)
@@ -198,27 +142,63 @@ def chronic_points(record: dict) -> tuple[int, str | None]:
 
     Freak events are excluded outright rather than discounted: a facial fracture and a
     hamstring strain are not evidence of one recurring problem just because both happened.
+
+    Two events group as "the same body part" when their word sets overlap at all, via
+    union-find over every pair -- so "right knee" and "knee soreness" join, and so does a
+    third event bridging through either. Distinct occurrences within one group are counted
+    by (season, date), not season alone: two hamstring strains ten weeks apart in the same
+    season are two occurrences, not one, and using season alone missed the single most
+    literal case of "recurring" this term exists to catch. Two events with no date fall
+    back to their position in the list, so an undated multi-surgery career still counts as
+    more than one occurrence rather than collapsing into a single bucket.
     """
-    by_part: dict[str, set] = {}
-    soft: dict[str, bool] = {}
-    for e in record.get("events") or []:
-        if e.get("mechanism") == "freak":
-            continue
-        part = _body_part(e.get("body_part", ""))
-        if not part:
-            continue
-        by_part.setdefault(part, set()).add(e.get("season"))
-        if e.get("kind") == "soft_tissue":
-            soft[part] = True
+    events = record.get("events") or []
+    idxs = [
+        i
+        for i, e in enumerate(events)
+        if e.get("mechanism") != "freak" and _body_part_tokens(e.get("body_part", ""))
+    ]
+    tokens = {i: _body_part_tokens(events[i].get("body_part", "")) for i in idxs}
+
+    parent = {i: i for i in idxs}
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a in range(len(idxs)):
+        for b in range(a + 1, len(idxs)):
+            if tokens[idxs[a]] & tokens[idxs[b]]:
+                ra, rb = find(idxs[a]), find(idxs[b])
+                if ra != rb:
+                    parent[ra] = rb
+
+    groups: dict[int, list[int]] = {}
+    for i in idxs:
+        groups.setdefault(find(i), []).append(i)
 
     best, worst_part = 0, None
-    for part, seasons in by_part.items():
-        n = len(seasons)
+    for members in groups.values():
+        occurrences: set[tuple] = set()
+        soft = False
+        for i in members:
+            e = events[i]
+            occurrences.add((e.get("season"), e.get("date") or f"__idx{i}"))
+            soft = soft or e.get("kind") == "soft_tissue"
+        n = len(occurrences)
         pts = CHRONIC_THREE if n >= 3 else CHRONIC_TWO if n >= 2 else 0
-        if pts and soft.get(part):
+        if pts and soft:
             pts += SOFT_TISSUE_BONUS
         if pts > best:
-            best, worst_part = pts, part
+            # The most specific description in the group, not just the first-seen one --
+            # "knee" reads better than "ankle/calf/knee" when both are in the cluster.
+            raw = min(
+                (events[i].get("body_part", "") for i in members),
+                key=lambda s: len(_body_part_tokens(s)),
+            )
+            best, worst_part = pts, _clean_label(raw) or None
     return min(best, CHRONIC_MAX), worst_part
 
 
@@ -258,13 +238,18 @@ def _recent_major_lower(record: dict) -> bool:
 
 
 def score(record: dict) -> dict:
-    """The full breakdown behind one tier. `tier()` is the thin wrapper over this."""
-    avail, avg = availability_points(record)
+    """The full breakdown behind one tier. `tier()` is the thin wrapper over this.
+
+    Games played or missed never appear here, in either direction -- this is a judgement
+    about injury history, not durability. Two players with the same surgeries, the same
+    recurring problem, the same age and position tier identically no matter how many games
+    either of them happened to play.
+    """
     surg = surgery_points(record)
     chronic, part = chronic_points(record)
     age = age_points(record)
     pos = position_points(record)
-    total = avail + surg + chronic + age + pos
+    total = surg + chronic + age + pos
 
     coverage = record.get("coverage")
     if coverage == "none":
@@ -285,8 +270,6 @@ def score(record: dict) -> dict:
         "tier": tier,
         "total": total,
         "reason": reason,
-        "availability": avail,
-        "weighted_missed": None if avg is None else round(avg, 1),
         "surgery": surg,
         "chronic": chronic,
         "chronic_part": part,
@@ -363,13 +346,36 @@ def validate_record(rec: object, key: str | None = None) -> dict:
             gm is None or (isinstance(gm, (int, float)) and 0 <= gm <= FULL_SEASON),
             f"{at}: games_missed {gm!r} is neither null nor a games count",
         )
-        # Every asserted fact must be traceable. An uncited event is a guess, and a guess
-        # that looks like a citation is the failure this whole column has to avoid.
+        # A per-event source is no longer required -- see the record-level check below --
+        # but one that IS given still has to carry a real URL. A citation that names no
+        # page is worse than no citation, because it looks verified and is not.
         srcs = e.get("sources")
         _require(
-            bool(isinstance(srcs, list) and srcs and all(s.get("url") for s in srcs)),
-            f"{at}: no source URL",
+            srcs is None or (isinstance(srcs, list) and all(s.get("url") for s in srcs)),
+            f"{at}: sources present but missing a url",
         )
+
+    # Every asserted FACT must be traceable to something, but not to one thing per event --
+    # a player's injury history is usually covered by one page, and demanding a citation
+    # per incident was the single largest cost driver in this pipeline for no accuracy
+    # gain a rubric consuming aggregates could use. So the bar is one real URL anywhere on
+    # the record with events: its own `sources`, or any event's. A record with none is a
+    # guess, and a guess that looks like a citation is the failure this column must avoid.
+    #
+    # A record with ZERO events needs no citation. "No injuries found" asserts nothing
+    # about an event to fabricate -- the citation requirement exists to keep event facts
+    # honest, not to prove a negative was searched for. `coverage` already carries that
+    # signal (`full` = verified clean, `none` = unknown) without a source to back it.
+    top_srcs = rec.get("sources")
+    _require(
+        top_srcs is None or (isinstance(top_srcs, list) and all(s.get("url") for s in top_srcs)),
+        f"{where}: sources present but missing a url",
+    )
+    if events:
+        any_url = any(s.get("url") for s in (top_srcs or [])) or any(
+            s.get("url") for e in events for s in (e.get("sources") or [])
+        )
+        _require(any_url, f"{where}: no source URL anywhere on the record")
     return rec
 
 
@@ -478,13 +484,14 @@ def render_report(data: dict, order: list | None = None) -> str:
         "",
         "Tiers are computed, not typed: each player's cited injury history is scored by "
         "the rubric in `injury_risk.py` and cut at fixed thresholds "
-        f"(≥{CUT_HIGH} HIGH, {CUT_MED}–{CUT_HIGH - 1} MED, ≤{CUT_MED - 1} LOW). Recent "
-        "seasons weigh more: "
-        + ", ".join(f"{s} ×{w:g}" for s, w in SEASON_WEIGHTS.items() if s != "older")
-        + ". `?` means the research found nothing to go on, not that the player is clean.",
+        f"(≥{CUT_HIGH} HIGH, {CUT_MED}–{CUT_HIGH - 1} MED, ≤{CUT_MED - 1} LOW) on surgery, "
+        "the same body part recurring across seasons, age and position. `?` means the "
+        "research found nothing to go on, not that the player is clean.",
         "",
-        "The board scales nothing by games played (ADR-0017). This is context for a "
-        "judgement call, not a multiplier.",
+        "Never games played, in either direction: two players with the same injury "
+        "history tier identically no matter how many games either of them played. The "
+        "board's own GP columns are a separate signal, and neither scales the other "
+        "(ADR-0017).",
         "",
     ]
 
@@ -495,8 +502,6 @@ def render_report(data: dict, order: list | None = None) -> str:
         out += [f"## {group} ({len(rows)})", ""]
         for _, rec, s in rows:
             bits = []
-            if s["availability"]:
-                bits.append(f"availability {s['availability']}")
             if s["surgery"]:
                 bits.append(f"surgery {s['surgery']}")
             if s["chronic"]:
@@ -511,11 +516,6 @@ def render_report(data: dict, order: list | None = None) -> str:
             if s["reason"] != "score":
                 head += f" · {s['reason']}"
             out.append(head)
-            gp = rec.get("gp") or {}
-            if gp:
-                out.append(
-                    "- GP: " + ", ".join(f"{s2} {int(gp[s2])}" for s2 in SEASON_WEIGHTS if s2 in gp)
-                )
             for e in rec.get("events") or []:
                 out.append(f"- {_event_line(e)}")
             for x in rec.get("expert_reads") or []:

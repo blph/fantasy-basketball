@@ -42,8 +42,8 @@ replaced.
 
 **The research is committed; the tier is not.** `scripts/draft-board/injury_risk.json`
 holds *evidence* — dated injury events with body part, mechanism, surgery, games missed and
-at least one fetched source URL each, plus per-season games played and any expert read. It
-holds no tier. `injury_risk.py` computes the tier from that evidence at build time.
+at least one source URL per player, plus any expert read. It holds no tier.
+`injury_risk.py` computes the tier from that evidence at build time.
 
 This is [ADR-0016](ADR-0016-values-computed-in-python.md) applied to a new column: the
 sheet holds the result, Python owns the derivation. Two things follow that would not
@@ -67,13 +67,22 @@ to build the whole board on draft eve because one player entered the top 200 tra
 loss for a cosmetic one. Coverage is reported loudly by `build_data.py` and on the Settings
 sanity block, and `--require-injuries` makes it fatal when you want that gate.
 
-**The rubric.** Season weights `{2025-26: 1.00, 2024-25: 0.55, 2023-24: 0.30,
-2022-23: 0.15}` — about a 1.3-season half-life. Five terms sum: recency-weighted games
-missed (0–4), the worst surgery rather than the sum of them (0–3), the same body part
-failing across seasons (0–4), age (0–2), and guard (0–1). A `freak` mechanism contributes
-at a quarter weight and never counts toward recurrence.
+**The rubric scores injury history, never durability.** Four terms sum: the worst
+surgery rather than the sum of them (0–3, weighted toward a recent lower-body repair), the
+same body part failing across seasons (0–4, with a soft-tissue bonus), age (0–2), and
+guard (0–1). A `freak` mechanism (a broken hand from a collision, an illness) never counts
+toward recurrence. Max score is 10.
 
-**Cuts are absolute — `≥6` HIGH, `3–5` MED, `≤2` LOW — not percentile.** A percentile cut
+Games played or missed play no part in the score, in either direction. A `games_missed`
+count on an event is kept only as descriptive detail for the report — how long one injury
+cost a player is not the same question as how injury-prone he is, and the board already
+has a GP column for the durability question that deliberately scales nothing
+([ADR-0017](ADR-0017-no-games-played-adjustment.md)). An earlier draft of this rubric
+included a recency-weighted "games missed" term; it was removed before any board player
+saw it, because it re-derived the durability signal ADR-0017 already deliberately excludes
+from the board's values, inside a column meant to answer a different question.
+
+**Cuts are absolute — `≥5` HIGH, `3–4` MED, `≤2` LOW — not percentile.** A percentile cut
 would make `LOW` mean "low relative to this year's field", so a player's tier would drift
 every refresh while nothing about him changed. Two overrides: a major lower-body surgery
 inside 12 months is `HIGH` regardless of the score, and thin research coverage caps a
@@ -88,6 +97,39 @@ that formula — see Consequences.
 distrust a GP number, not a discount applied to one.
 
 ## Consequences
+
+**Known limitation: the chronic term only credits the same body part recurring.** A
+player hurt in a different place almost every season — an ankle one year, a hip the next,
+a back the year after — reads as `LOW` under this rubric even when several research
+agents independently called him `HIGH` for exactly that pattern. That is a real signal the
+current design does not capture, not a bug: the term is deliberately scoped to "the same
+body part failing across seasons", per the playbook's own framing of what predicts. A
+general injury-frequency term (count of distinct dated events regardless of body part)
+would catch it, and is a reasonable next revision, but is deliberately not added here —
+scope was already corrected once in this branch (below), and a second unrequested
+addition to the rubric is not this session's call to make alone.
+
+**GP was removed from the rubric mid-branch.** An earlier revision of `score()` included
+an "availability" term — recency-weighted games missed, falling back to `82 - GP` — worth
+up to 4 of what was then a 14-point scale. It was removed before any board player saw it:
+the whole point of this column is a judgement about injury *history*, and games played is
+the durability question the board's own GP columns already own and ADR-0017 already
+excludes from scaling. Re-deriving it inside a different column would have answered a
+question nobody asked with it. `CUT_HIGH`/`CUT_MED` were rescaled from `6`/`3` (of 14) to
+`5`/`3` (of the resulting 10-point max) when the term was removed.
+
+**Two scoring bugs surfaced by full-scale research, fixed before any tier shipped:**
+recurrence grouped events by an exact string match on body part, so "right leg/ankle" and
+"ankle/calf/knee" never joined "knee" even though they describe overlapping anatomy — a
+three-surgery career scored zero recurrence. And recurrence counted *distinct season
+labels*, so two hamstring strains ten weeks apart in the same season — the single most
+literal case of "recurring" — also scored zero, and two different old surgeries both
+merely dated "older" collapsed into one occurrence. Both are fixed: `chronic_points`
+clusters body parts by word-overlap (via union-find, so a third event can bridge two that
+never directly overlap) and counts distinct `(season, date)` occurrences rather than
+distinct seasons. `surgery_points` also stopped zero-crediting an `"older"`-dated major
+surgery, since the schema tells an agent to report one that old only when it is
+significant enough to matter.
 
 **A latent bug had to be fixed to make this safe.** `restoreCheckState` wrote `D.inj` back
 as a static value, gated on `if (any)`. With the column empty that gate never fired, so the
@@ -117,9 +159,21 @@ in-season roster management.
 **Sourcing is constrained on purpose.** Only three analysts may be quoted as risk
 assessment — Jeff Stotts (ATC, *In Street Clothes*), Stephania Bell (ESPN; PT, ATC, OCS,
 CSCS), and Dr. Jesse Morse (*Fantasy Doctors*). Beat reporters supply facts, never risk
-reads; aggregators and social media are used only to locate a primary source. Every event
-carries a fetched URL, and validation rejects a record whose events do not — an uncited
-event is a guess, and this column cannot carry guesses.
+reads; aggregators and social media are used only to locate a primary source. A record
+must carry at least one real source URL — either its own `sources` or an event's — and
+validation rejects one with none anywhere; a record with zero events (a genuinely clean
+player) needs no citation, since there is no event fact to back. `expert_reads` is
+opportunistic: an agent records a quote only if one turns up in something it already
+read, and is never sent looking for one.
+
+The citation rule was tightened and then loosened once already. The first 61 players were
+researched under a stricter draft that demanded a source per *event* and a dedicated
+search for a named analyst; it averaged 12.6 cited sources and 30–70 tool calls per
+player, on the more expensive model, for research a rubric consuming aggregates does not
+need at that resolution. The rule settled on one real source per player (an event-level
+source still counts, so the first 61 records needed no rework), the expert search dropped
+to opportunistic-only, and the research model moved from Opus to Sonnet — a
+retrieval-and-extraction task the rubric, not the agent, turns into a verdict.
 
 ## Alternatives considered
 

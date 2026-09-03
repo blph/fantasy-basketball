@@ -49,6 +49,8 @@ def record(**over):
         "pos_group": "wing",
         "gp": {"2025-26": 79, "2024-25": 78, "2023-24": 80, "2022-23": 77},
         "events": [],
+        "sources": [{"url": "https://example.invalid/quinn", "publisher": "Example",
+                     "date": "2026-09-01"}],
         "load_management": False,
         "open_status": "healthy",
         "expert_reads": [],
@@ -71,69 +73,22 @@ def test_durable_player_is_low():
 def test_score_breaks_out_every_term():
     s = IR.score(record())
     assert s["total"] == 0
-    assert (s["availability"], s["surgery"], s["chronic"], s["age"], s["position"]) == (
-        0,
-        0,
-        0,
-        0,
-        0,
+    assert (s["surgery"], s["chronic"], s["age"], s["position"]) == (0, 0, 0, 0)
+
+
+def test_games_played_or_missed_never_moves_the_score():
+    """The whole point of this rubric: injury history only, never durability."""
+    durable = record(events=[])
+    same_history_different_workload = record(
+        events=[event(season="2025-26", games_missed=55)]
     )
-
-
-# ------------------------------------------------------------------ recency
-
-
-def test_recency_is_monotonic_in_season():
-    """The same lost season counts for less the further back it sits."""
-    scores = []
-    for season, gp in (
-        ("2025-26", {"2025-26": 40, "2024-25": 80, "2023-24": 80, "2022-23": 80}),
-        ("2024-25", {"2025-26": 80, "2024-25": 40, "2023-24": 80, "2022-23": 80}),
-        ("2023-24", {"2025-26": 80, "2024-25": 80, "2023-24": 40, "2022-23": 80}),
-        ("2022-23", {"2025-26": 80, "2024-25": 80, "2023-24": 80, "2022-23": 40}),
-    ):
-        _pts, avg = IR.availability_points(record(gp=gp, events=[]))
-        scores.append((season, avg))
-    values = [avg for _s, avg in scores]
-    assert values == sorted(values, reverse=True), scores
-
-
-def test_a_lost_last_season_outranks_a_lost_old_one():
-    recent = record(gp={"2025-26": 40, "2024-25": 80, "2023-24": 80, "2022-23": 80})
-    old = record(gp={"2025-26": 80, "2024-25": 80, "2023-24": 80, "2022-23": 40})
-    assert IR.score(recent)["availability"] > IR.score(old)["availability"]
-
-
-def test_missed_bands_are_the_documented_cuts():
-    """0-6 -> 0, 7-14 -> 1, 15-25 -> 2, 26-40 -> 3, 41+ -> 4, on last season alone."""
-    for played, expected in ((80, 0), (72, 1), (60, 2), (45, 3), (30, 4)):
-        r = record(gp={"2025-26": played}, events=[])
-        assert IR.availability_points(r)[0] == expected, played
+    # A single acute event with a large games_missed count changes nothing about the
+    # score -- only surgery/chronic/age/position terms do, and this event sets none of
+    # them (mechanism is the default "acute", surgery "none").
+    assert IR.score(durable)["total"] == IR.score(same_history_different_workload)["total"]
 
 
 # ------------------------------------------------------------------ freak events
-
-
-def test_a_freak_injury_is_discounted():
-    """A broken hand from a collision says nothing about next year (playbook 6a)."""
-    freak = record(
-        gp={"2025-26": 50},
-        events=[
-            event(
-                season="2025-26",
-                body_part="left hand",
-                kind="bone",
-                mechanism="freak",
-                games_missed=32,
-                lower_body=False,
-            )
-        ],
-    )
-    ordinary = record(
-        gp={"2025-26": 50},
-        events=[event(season="2025-26", body_part="left knee", games_missed=32)],
-    )
-    assert IR.score(freak)["availability"] < IR.score(ordinary)["availability"]
 
 
 def test_a_freak_event_never_counts_toward_recurrence():
@@ -184,6 +139,63 @@ def test_left_and_right_group_to_one_joint():
     assert IR.chronic_points(r) == (IR.CHRONIC_TWO + IR.SOFT_TISSUE_BONUS, "hamstring")
 
 
+def test_a_compound_description_still_groups_with_a_plain_one():
+    """"leg/ankle" and "ankle/calf/knee" describe the same recurring ankle problem."""
+    r = record(
+        events=[
+            event(season="2025-26", body_part="left knee"),
+            event(season="2024-25", body_part="right leg/ankle"),
+            event(season="2023-24", body_part="ankle/calf/knee"),
+        ]
+    )
+    pts, part = IR.chronic_points(r)
+    assert pts == IR.CHRONIC_THREE
+    assert part == "knee"
+
+
+def test_a_third_event_can_bridge_two_that_do_not_directly_overlap():
+    """Ankle links knee and calf into one cluster even though knee and calf never touch."""
+    r = record(
+        events=[
+            event(season="2025-26", body_part="knee"),
+            event(season="2024-25", body_part="ankle/knee"),
+            event(season="2023-24", body_part="calf/ankle"),
+        ]
+    )
+    pts, _part = IR.chronic_points(r)
+    assert pts == IR.CHRONIC_THREE
+
+
+def test_two_different_old_injuries_do_not_collapse_into_one():
+    """Both events are dated only to "older" but are two distinct occurrences."""
+    r = record(
+        events=[
+            event(season="older", date="2018-02", body_part="knee", surgery="major"),
+            event(season="older", date="2020-06", body_part="knee", surgery="major"),
+        ]
+    )
+    assert IR.chronic_points(r)[0] == IR.CHRONIC_TWO
+
+
+def test_two_strains_in_one_season_still_count_as_recurrence():
+    """A re-strain ten weeks later is the single most literal case of "recurring"."""
+    r = record(
+        events=[
+            event(season="2025-26", date="2026-02-05", body_part="left hamstring",
+                  kind="soft_tissue"),
+            event(season="2025-26", date="2026-04-02", body_part="left hamstring",
+                  kind="soft_tissue"),
+        ]
+    )
+    assert IR.chronic_points(r) == (IR.CHRONIC_TWO + IR.SOFT_TISSUE_BONUS, "hamstring")
+
+
+def test_the_same_undated_old_injury_reported_twice_does_not_double_count():
+    """No date on either -- they disambiguate by position, so this is still one event."""
+    r = record(events=[event(season="older", date=None, body_part="knee", surgery="major")])
+    assert IR.chronic_points(r)[0] == 0  # one occurrence is not a recurrence
+
+
 def test_soft_tissue_recurrence_scores_above_joint_recurrence():
     soft = record(
         events=[
@@ -223,6 +235,16 @@ def test_an_old_major_surgery_counts_for_less():
     assert IR.surgery_points(recent) > IR.surgery_points(old)
 
 
+def test_a_career_spanning_major_surgery_still_scores_something():
+    """The schema tells an agent to report an "older" event only when it is a major
+    surgery or an established pattern -- exactly the case this term must not zero out."""
+    ancient = record(events=[event(season="older", date="2018-02", surgery="major")])
+    assert IR.surgery_points(ancient) > 0
+    assert IR.surgery_points(ancient) == IR.surgery_points(
+        record(events=[event(season="2023-24", surgery="major")])
+    )
+
+
 def test_upper_body_surgery_counts_for_less_than_lower():
     lower = record(events=[event(season="2025-26", surgery="major", lower_body=True)])
     upper = record(
@@ -239,7 +261,6 @@ def test_major_lower_body_surgery_inside_twelve_months_forces_high():
     r = record(
         age=24,
         pos_group="big",
-        gp={"2025-26": 80, "2024-25": 80, "2023-24": 80, "2022-23": 80},
         events=[
             event(
                 season="2025-26",
@@ -266,17 +287,27 @@ def test_an_old_major_surgery_does_not_trigger_the_override():
 
 def test_coverage_none_is_unknown_not_low():
     """A blank would read as LOW. `?` cannot be mistaken for a tier."""
-    r = record(coverage="none", gp={}, events=[], suggested_tier="LOW")
+    r = record(coverage="none", events=[], suggested_tier="LOW")
     assert IR.tier(r) == IR.UNKNOWN
 
 
 def test_coverage_none_beats_a_high_score():
-    r = record(coverage="none", age=36, pos_group="guard", gp={"2025-26": 20})
+    r = record(
+        coverage="none",
+        events=[event(season=s, surgery="major", date=f"{s[:4]}-06-01")
+                for s in ("2023-24", "2022-23")],
+    )
     assert IR.tier(r) == IR.UNKNOWN
 
 
 def test_thin_coverage_caps_at_med():
-    r = record(coverage="thin", age=36, pos_group="guard", gp={"2025-26": 30})
+    """A scored HIGH is capped, whatever combination of terms reached it."""
+    r = record(
+        coverage="thin",
+        pos_group="guard",
+        events=[event(season=s, body_part="hamstring", kind="soft_tissue")
+                for s in ("2025-26", "2024-25", "2023-24")],
+    )
     assert IR.score(r)["total"] >= IR.CUT_HIGH
     assert IR.tier(r) == "MED"
 
@@ -314,51 +345,59 @@ def test_age_and_guard_terms_apply():
 
 
 def test_a_rookie_with_no_nba_history_is_not_penalised():
-    r = record(gp={}, events=[], age=19, coverage="full")
-    assert IR.availability_points(r) == (0, None)
+    r = record(events=[], age=19, coverage="full")
     assert IR.tier(r) == "LOW"
 
 
-def test_event_counts_are_preferred_over_the_gp_fallback():
-    """When every event carries a count, that isolates injury from rest."""
-    rested = record(
-        gp={"2025-26": 60},
-        events=[event(season="2025-26", games_missed=8)],
-    )
-    unknown = record(
-        gp={"2025-26": 60},
-        events=[event(season="2025-26", games_missed=None)],
-    )
-    assert IR.score(rested)["weighted_missed"] == 8
-    assert IR.score(unknown)["weighted_missed"] == 22
-
-
-def test_event_counts_cannot_exceed_the_real_absence():
-    """Two overlapping injuries cannot cost more games than the player actually missed."""
-    r = record(
-        gp={"2025-26": 70},
-        events=[
-            event(season="2025-26", body_part="knee", games_missed=12),
-            event(season="2025-26", body_part="ankle", games_missed=12),
-        ],
-    )
-    assert IR.score(r)["weighted_missed"] == 12
+def test_a_games_missed_count_on_an_event_is_descriptive_only():
+    """It shows up in the report; it never moves the score."""
+    lots_missed = record(events=[event(season="2025-26", games_missed=60)])
+    none_missed = record(events=[event(season="2025-26", games_missed=0)])
+    assert IR.score(lots_missed)["total"] == IR.score(none_missed)["total"]
 
 
 # ------------------------------------------------------------------ validation
 
 
-def test_an_uncited_event_is_rejected():
-    """An uncited event is a guess, and a guess is what this column cannot carry."""
-    r = record(events=[event(sources=[])])
+def test_a_record_with_no_source_anywhere_is_rejected():
+    """No citation anywhere is a guess, and a guess is what this column cannot carry."""
+    r = record(sources=None, events=[event(sources=[])])
     with pytest.raises(IR.InjuryDataError, match="no source URL"):
         IR.validate_record(r)
 
 
 def test_a_source_without_a_url_is_rejected():
-    r = record(events=[event(sources=[{"publisher": "Example"}])])
-    with pytest.raises(IR.InjuryDataError, match="no source URL"):
+    r = record(sources=None, events=[event(sources=[{"publisher": "Example"}])])
+    with pytest.raises(IR.InjuryDataError, match="missing a url"):
         IR.validate_record(r)
+
+
+def test_a_record_level_source_alone_satisfies_the_citation_requirement():
+    """The lean method cites once per player, not once per event."""
+    r = record(
+        sources=[{"url": "https://example.invalid/history", "publisher": "Example",
+                  "date": "2026-09-01"}],
+        events=[event(sources=None)],
+    )
+    IR.validate_record(r)  # must not raise
+
+
+def test_a_record_level_source_without_a_url_is_rejected():
+    r = record(sources=[{"publisher": "Example"}], events=[])
+    with pytest.raises(IR.InjuryDataError, match="missing a url"):
+        IR.validate_record(r)
+
+
+def test_the_original_per_event_shape_still_passes():
+    """The 61 records researched under the old, stricter brief must remain valid."""
+    r = record(events=[event()])  # event() defaults to a cited source
+    IR.validate_record(r)
+
+
+def test_a_clean_record_with_zero_events_needs_no_citation():
+    """"No injuries found" asserts no event fact to fabricate; nothing to cite."""
+    r = record(sources=None, events=[])
+    IR.validate_record(r)  # must not raise
 
 
 @pytest.mark.parametrize(
