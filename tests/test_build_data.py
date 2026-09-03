@@ -11,6 +11,7 @@ import bbm_constants as BC
 import bbm_reference as B
 import board_values as BV
 import build_data as BD
+import injury_risk as IR
 import pytest
 import sources as S
 
@@ -124,12 +125,18 @@ class TestRerank:
 
 
 class TestEmit:
-    def _emit(self, projection_set):
+    def _injuries(self, board, tiers=None):
+        """Synthetic tiers, one per board row. The rubric is tested in its own file."""
+        return {"tiers": tiers if tiers is not None else ["?"] * len(board),
+                "missing": [], "unused": [], "disagree": [], "generated": "2026-09-02"}
+
+    def _emit(self, projection_set, tiers=None):
         tmp_path, names = projection_set
         date, paths = BD.find_set(None)
         board, vendors, constants, report = BD.load(paths)
         scored = BD.score(board, vendors, constants)
-        return BD.emit(board, scored, report, date, paths, False), board, names
+        inj = self._injuries(board, tiers)
+        return BD.emit(board, scored, report, date, paths, False, inj), board, names
 
     def _block(self, text, name):
         m = re.search(rf"var {name}\s*=\s*(.*?);\n", text, re.S)
@@ -197,3 +204,46 @@ class TestEmit:
         d = self._block(text, "DERIV")
         for cat, k in d["k_tracker"].items():
             assert k * d["weights"][cat] == pytest.approx(d["k_rosenof"][cat], abs=5e-4)
+
+    # --- the injury tier ------------------------------------------------------
+
+    def test_every_player_row_carries_an_injury_tier(self, projection_set):
+        # Position 20, because REFRESH_MAP in Build.gs pairs B.injuries with index 20. A
+        # row one field short would put a stat where the sheet expects a tier.
+        text, board, _ = self._emit(projection_set)
+        players = self._block(text, "PLAYERS")
+        assert all(len(p) == 21 for p in players)
+        assert len(players) == len(board)
+
+    def test_the_tier_lands_in_board_order(self, projection_set):
+        # Row i is the same player in PLAYERS and in every VALUES block, and the tier is no
+        # exception -- an off-by-one here reads as an ordinary tier for the wrong man.
+        _t, board, _ = self._emit(projection_set)
+        tiers = ["HIGH" if i == 0 else "LOW" for i in range(len(board))]
+        text, _, _ = self._emit(projection_set, tiers)
+        players = self._block(text, "PLAYERS")
+        assert players[0][20] == "HIGH"
+        assert {p[20] for p in players[1:]} == {"LOW"}
+
+    def test_an_unresearched_player_emits_a_question_mark_not_a_blank(self, projection_set):
+        # A blank in a risk column reads as LOW, the one reading that would cost a pick.
+        text, _, _ = self._emit(projection_set)
+        assert {p[20] for p in self._block(text, "PLAYERS")} == {"?"}
+
+    def test_meta_records_injury_coverage(self, projection_set):
+        # The research is dated separately from the projections, and a refresh that leaves
+        # it behind has to be visible rather than inferred.
+        text, _, _ = self._emit(projection_set)
+        inj = self._block(text, "META")["injuries"]
+        assert inj["generated"] == "2026-09-02"
+        assert inj["researched"] + inj["missing"] == len(self._block(text, "PLAYERS"))
+
+
+class TestLoadInjuries:
+    def test_a_board_player_with_no_record_is_named_not_dropped(self):
+        board = [{"key": "aa", "name": "Ada Aaronson"}, {"key": "bb", "name": "Bo Bergstrom"}]
+        data = {"schema": 1, "generated": "2026-09-02", "players": {}}
+        tiers, missing, unused = IR.tiers_for(board, data)
+        assert tiers == ["?", "?"]
+        assert missing == ["Ada Aaronson", "Bo Bergstrom"]
+        assert unused == []

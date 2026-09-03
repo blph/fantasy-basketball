@@ -35,6 +35,8 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Re-check `Data.gs` and diff the live board against it: `python3 scripts/draft-board/verify.py --sheet pull.csv` (a full `A4:AA203` pull also checks all 1800 rank tags; a `rank,name,value` pull checks only the sorted value)
 - Diff the board against Basketball Monster's own published columns: `python3 scripts/draft-board/verify.py --published "data/player_data/BBM Published - BMP - YYYY-MM-DD.tsv"` — the only check that compares us to anything outside the repo
 - Review a mock draft: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` (inputs are `playwright-cli` board pulls; see [the procedure](docs/draft-board/mock-draft-review.md))
+- Merge the injury research checkpoints into the committed file: `python3 scripts/draft-board/injury_risk.py --merge --date YYYY-MM-DD`
+- Regenerate the injury report: `python3 scripts/draft-board/injury_risk.py --report --out docs/draft-board/injury-risk.md`
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
 - Lint: `ruff check .`
 - Format: `ruff format .`
@@ -54,7 +56,7 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 
 - DO NOT call any provider API outside `src/fantasy_bb/ingest/`. Analytics and apps read the database.
 - DO NOT join providers on a raw name. ESPN and Yahoo share no identifier; joins go through the crosswalk, and an unresolved player is an error, not a skipped row.
-- DO NOT write to the pipeline directories — `data/raw/`, `data/parquet/`, `data/fantasy.duckdb` — from anything but ingestion. The draft-board workflow is the one exception: it reads `data/player_data/` and writes `data/exports/`.
+- DO NOT write to the pipeline directories — `data/raw/`, `data/parquet/`, `data/fantasy.duckdb` — from anything but ingestion. The draft-board workflow is the one exception: it reads `data/player_data/` and writes `data/exports/` and `data/injury_research/`.
 - DO NOT modify an existing `as_of_date` partition. Facts are append-only ([ADR-0004](docs/decisions/ADR-0004-daily-append-only-snapshots.md)); corrections are new snapshots.
 - DO NOT commit anything under `data/`, or any real API key. A key that reaches a public commit is compromised on arrival — rotate it, do not revert.
 - DO NOT commit provider data in any form: API responses as test fixtures, sample payloads pasted into docs, or exported tables. The repo is public and the API tiers are personal-use.
@@ -62,7 +64,9 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - DO NOT key a fact table on a provider's player ID. Use our `player_key` surrogate.
 - DO NOT value FG%/FT% as bare rates. They are volume-weighted; without makes and attempts the math is silently wrong. See [schema.md](docs/database/schema.md#marts).
 - DO NOT scale any value by games played ([ADR-0017](docs/decisions/ADR-0017-no-games-played-adjustment.md)). The GP columns are context for a judgement call, not a multiplier. If a GP term is ever reintroduced it must discount and never promote — below replacement the scaling has to be switched off, or the less available of two equal players sorts higher.
-- DO NOT hand-edit [docs/draft-board/cheat-sheet.md](docs/draft-board/cheat-sheet.md). It is generated from `README_ROWS` in `Build.gs` — edit there and regenerate.
+- DO NOT hand-edit [docs/draft-board/cheat-sheet.md](docs/draft-board/cheat-sheet.md). It is generated from `README_ROWS` in `Build.gs` — edit there and regenerate. The same applies to [docs/draft-board/injury-risk.md](docs/draft-board/injury-risk.md), generated from `injury_risk.json` by `injury_risk.py --report`.
+- DO NOT put an injury tier in `injury_risk.json`. That file holds cited evidence; the tier is computed by the rubric in `injury_risk.py` ([ADR-0022](docs/decisions/ADR-0022-injury-risk-pipeline-column.md)). An agent's own read is recorded as `suggested_tier` and only ever used as a disagreement counter.
+- DO NOT leave a board player's injury cell blank. A blank in a risk column reads as `LOW`; an unresearched player renders `?`. Never guess a tier to fill the hole, and never hard-fail the build over one — the column scales nothing (ADR-0017). Use `build_data.py --require-injuries` when you want it fatal.
 - DO NOT edit a weight or the punt weight on the Settings tab and expect the board to change. Those are applied in the pipeline; the grey cells only record what was used. Edit `board_values.py` and re-run `build_data.py`. The **lambdas and the pool constants are not in any source file** — they are refitted from Basketball Monster by `calibrate_bbm.py` on every refresh, and editing `LAMBDAS_BBM_2026_27_JOSH` now only moves the fitter's search seed.
 - DO NOT score BMP or BMP-ALT against a self-derived pool. Their means and SDs are recovered from Basketball Monster's published columns and paired to the export date ([ADR-0021](docs/decisions/ADR-0021-borrowed-bbm-pool-constants.md)). A self-derived top-156 reproduces their means to about half a percent and their SDs only to one to three, which is invisible in every value and flips the dropped-category tag on about 6% of players. HBP has no published counterpart and keeps its own pool, so the two bases sit side by side and only ranks compare across sources.
 - DO NOT commit a constants file or a scraped published table. Both live under `data/player_data/`, both are gitignored and blocked by `check-no-data.sh`, and reproducibility comes from re-running the calibration rather than from a stored artefact.

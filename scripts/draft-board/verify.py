@@ -62,6 +62,11 @@ SOURCES = ("BMP", "HBP", "BMP-ALT")
 #: value/tag pairs, three per source. Derived, not typed out, for the same reason Build.gs
 #: derives its letters -- a shifted column must not quietly compare the wrong thing.
 PULL_FIRST_VALUE = 9
+#: INJ, 0-based, inside those nine identity columns: #, TIER, RND, Player, Tm, Pos, INJ.
+PULL_INJ = 6
+#: The injury tier's index in a PLAYERS row, and the closed set it may hold (ADR-0022).
+P_INJ = 20
+INJ_TIERS = ("HIGH", "MED", "LOW", "?")
 KINDS = (("DURH", V_DURH, V_DURH_RANK, V_DURH_DROP),
          ("ZSH", V_ZSH, V_ZSH_RANK, V_ZSH_DROP),
          ("ZSC", V_ZSC, V_ZSC_RANK, None))
@@ -176,6 +181,21 @@ def check(data: dict) -> list[str]:
     if any(p[4] == 0 for p in players):
         fails.append("PLAYERS: an ADP is 0, which the board reads as 'first off the draft board'")
 
+    # The injury tier is a closed set. A blank would read as LOW, and anything else falls
+    # through every conditional format and renders as plain text that means nothing.
+    narrow = {len(p) for p in players if len(p) <= P_INJ}
+    if narrow:
+        fails.append(f"PLAYERS: rows {sorted(narrow)} wide carry no injury tier "
+                     f"(expected at least {P_INJ + 1})")
+    else:
+        bad_inj = sorted({str(p[P_INJ]) for p in players} - set(INJ_TIERS))
+        if bad_inj:
+            fails.append(f"PLAYERS: injury tiers not in {list(INJ_TIERS)}: {bad_inj}")
+        seen_inj = {str(p[P_INJ]) for p in players}
+        print("  injury tiers: " + ", ".join(
+            f"{sum(1 for p in players if str(p[P_INJ]) == t)} {t}"
+            for t in INJ_TIERS if t in seen_inj))
+
     for build, rows in data["PUNT_VALUES"].items():
         if len(rows) != n:
             fails.append(f"punt {build}: {len(rows)} rows against {n} players")
@@ -203,9 +223,10 @@ def diff_sheet(data: dict, pull: Path, places: int = 3) -> list[str]:
     # exactly on the boundary -- 1.1235 shown as 1.124, called 1.123 here. Compare the gap
     # instead: anything a correct display could produce is within half a displayed unit.
     tol = 0.5 * 10 ** -places + 1e-9
-    fails, checked, tags_checked = [], 0, 0
+    fails, checked, tags_checked, inj_checked = [], 0, 0, 0
     wrong: dict[str, int] = {}
     examples: list[str] = []
+    inj_wrong: list[str] = []
 
     for line, row in enumerate(rows):
         board_row = line + 4                      # data starts at sheet row 4
@@ -227,6 +248,16 @@ def diff_sheet(data: dict, pull: Path, places: int = 3) -> list[str]:
                 fails.append(f"row {board_row}: sheet shows {shown}, Data.gs says {want}")
             checked += 1
             continue
+
+        # The INJ cell is a formula into the Board, so this is the one check that proves
+        # the mirror still resolves -- a clobbered formula shows a stale tier that looks
+        # entirely ordinary, with no #REF! and no error anywhere (ADR-0022).
+        shown_inj = row[PULL_INJ].strip()
+        want_inj = str(data["PLAYERS"][i][P_INJ])
+        if shown_inj != want_inj:
+            inj_wrong.append(f"row {board_row} INJ: sheet {shown_inj!r}, "
+                             f"Data.gs {want_inj!r}")
+        inj_checked += 1
 
         for s, src in enumerate(SOURCES):
             v = data["VALUES"][src][i]
@@ -283,6 +314,12 @@ def diff_sheet(data: dict, pull: Path, places: int = 3) -> list[str]:
             for key in sorted(wrong):
                 fails.append(f"{key}: {wrong[key]} of {tags_checked // 9} tags wrong")
             fails.extend(examples)
+        print(f"  compared {inj_checked} injury tiers: {len(inj_wrong)} wrong")
+        if inj_wrong:
+            fails.append(f"INJ: {len(inj_wrong)} of {inj_checked} tiers wrong -- the "
+                         "Draft Board's mirror into the Board's injury column is stale "
+                         "or has been overwritten with a literal")
+            fails.extend(inj_wrong[:6])
     return fails
 
 

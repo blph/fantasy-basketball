@@ -195,8 +195,10 @@ value on the Draft Board is attached to the wrong player. Stop there.
 
 **10. Re-do any `My GP Est` overrides for new arrivals.**
 
-**11. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes, notes and
-injuries reattach by player name.
+**11. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes and notes
+reattach by player name. Injury tiers do not need to — the Board owns that column and the
+Draft Board mirrors it, so a tier follows its player through any sort by construction
+([ADR-0022](../decisions/ADR-0022-injury-risk-pipeline-column.md)).
 
 **12. Look at it.** Screenshot the Draft Board and the Category Tracker. Two real defects on
 the tracker were invisible in the cell values and obvious on sight.
@@ -226,9 +228,13 @@ its own cause:
 **Rewritten:** every value, rank, dropped-category tag and per-category column on all three
 calculation tabs; the raw stat lines; ADP; seed rank; the reported pool constants.
 
-**Never touched:** `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Injuries`, `Notes`, the
+**Never touched:** `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Notes`, the
 `Punted` ticks, the `GONE` and `MINE` checkboxes, the `Sort by` selection, the projection
 filter state — and every formula, format, column width and named range.
+
+`Injuries` moved from the second list to the first in ADR-0022. It is now written from
+`injury_risk.json` like any other pipeline column, and a board player with no research
+shows `?` rather than a blank — a blank in a risk column reads as `LOW`.
 
 An untouched `My GP Est` still holds its seeding formula, and the refresh reads *formulas*
 rather than values to tell an override from an untouched cell. No bookkeeping column.
@@ -254,10 +260,10 @@ the Draft Board. An un-rebuilt tracker reports wrong totals with no error.
 
 After any Draft Board column change, do a **full rebuild**, in this order:
 
-1. Copy `Notes` and `Injuries` out.
+1. Copy `Notes` out. (`Injuries` no longer needs saving — the pipeline rewrites it.)
 2. Write down which categories are ticked `Punted`.
 3. `Draft Board ▸ Full rebuild`.
-4. Re-tick `Punted`, paste `Notes` and `Injuries` back.
+4. Re-tick `Punted`, paste `Notes` back.
 
 Do **not** make `Rebuild & re-sort` rebuild the tracker. It runs on the clock, and the
 tracker is not what you are waiting on.
@@ -290,6 +296,40 @@ iterated by hand until it stopped moving; it is now settled in Python, seeded de
 so two runs produce byte-identical output. On HBP that is still a fixed point. On the two
 vendors the constants are borrowed and fixed, so there is nothing for membership to feed back
 into: the pool is one pass, and it decides only which players the GP diagnostics describe.
+
+### Refreshing the injury research
+
+The `INJ` column runs on its own clock. A projection refresh does **not** update it; it
+reads `scripts/draft-board/injury_risk.json`, which is committed and dated separately
+([ADR-0022](../decisions/ADR-0022-injury-risk-pipeline-column.md)).
+
+The file holds cited evidence, not tiers. `injury_risk.py` computes `HIGH` / `MED` / `LOW`
+from it at build time, so retuning the rubric needs no new research — edit the constants at
+the top of that module, run `pytest tests/test_injury_risk.py`, and rebuild.
+
+To research players who have no record — new arrivals after a projection refresh, or the
+whole board from scratch:
+
+1. `python3 scripts/draft-board/build_data.py --dry-run` and read the `injury tiers:` line.
+   It names who is unresearched.
+2. Run one research agent per missing player. Each writes a checkpoint to
+   `data/injury_research/<key>.json` — gitignored, because raw agent output is working
+   data and only the reviewed merge is committed.
+3. `python3 scripts/draft-board/injury_risk.py --merge --date YYYY-MM-DD`. It validates
+   every checkpoint and **rejects** any that fails — an event with no source URL, a
+   games-missed count outside 0–82, a bad enum. Delete a rejected checkpoint and re-run
+   that player; a half-written one is worse than none.
+4. Review before committing: every `HIGH`, and every case where the researcher's
+   `suggested_tier` disagrees with the rubric. `build_data.py` counts the disagreements.
+   Those are the rows where a wrong tier costs a pick.
+5. Regenerate the report:
+   `python3 scripts/draft-board/injury_risk.py --report --out docs/draft-board/injury-risk.md`
+6. Rebuild and push as usual. `--require-injuries` makes an unresearched player fatal
+   rather than a `?`, which is the gate to use the day before the draft.
+
+The key is `sources.normalise()` — the same key the projection join uses. The file is a
+superset of the board on purpose: a player who drops out of Hashtag's top 200 in September
+is often back in October, and his record is waiting.
 
 ## Traps worth knowing
 
@@ -347,7 +387,7 @@ steps that each finish well under it:
 | Menu item | Rebuilds |
 |---|---|
 | `Refresh data` | the Board's changed cells, plus all three calculation tabs — the normal path |
-| `Rebuild & re-sort` | Draft Board order, keeping GONE / MINE / Notes / Injuries |
+| `Rebuild & re-sort` | Draft Board order, keeping GONE / MINE / Notes |
 | `Apply projection filter` | shows and hides the value blocks by hand |
 | `Full rebuild (from Data.gs)` | everything, destroying hand edits |
 | `Step 1 — Settings only` | Settings and the named ranges. **Building up only** — run against a live board it leaves `TIER` and `RND` as `#REF!`; see below |

@@ -345,6 +345,36 @@ function addRule(sh, rule) {
   rules.push(rule);
   sh.setConditionalFormatRules(rules);
 }
+
+/**
+ * Paint an injury-risk column. One function so the Board and the Draft Board cannot drift
+ * apart: the same four tokens have to mean the same thing on both tabs.
+ *
+ * LOW is deliberately unfilled rather than green. The MINE rule paints an entire row
+ * `mineBg`, and a green cell inside the frozen identity block would collide with the one
+ * signal read fastest on the clock. About half the column is LOW; leaving it plain is what
+ * makes the other half stop you.
+ *
+ * `?` is chrome, not amber -- it means "nobody researched him", not "some risk". Reading
+ * it as a middle tier is exactly the mistake a blank cell would cause.
+ */
+function injuryRules(sh, col) {
+  var span = [sh.getRange(R0, col, POOL_ROWS, 1)];
+  var tiers = [
+    ['HIGH', COLOR.flagBg, COLOR.flagText, true],
+    ['MED', COLOR.warnBg, COLOR.warnText, false],
+    ['LOW', null, COLOR.muted, false],
+    ['?', COLOR.chrome, COLOR.muted, false]
+  ];
+  for (var i = 0; i < tiers.length; i++) {
+    // Equal-to, never contains: the tokens are a closed set, and `verify.py` asserts it.
+    var r = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo(tiers[i][0]).setFontColor(tiers[i][2]);
+    if (tiers[i][1]) r = r.setBackground(tiers[i][1]);
+    if (tiers[i][3]) r = r.setBold(true);
+    addRule(sh, r.setRanges(span).build());
+  }
+}
 function gradient(sh, ranges, lo, hi, low, mid, high) {
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
     .setGradientMinpointWithValue(low || COLOR.bad, SpreadsheetApp.InterpolationType.NUMBER, String(lo))
@@ -490,11 +520,11 @@ var REFRESH_MAP = [
   [B.ftm, 10], [B.fta, 11], [B.ftp, 12],
   [B.tpm, 13], [B.pts, 14], [B.reb, 15], [B.ast, 16],
   [B.stl, 17], [B.blk, 18], [B.to, 19],
-  [B.adp, 4]
+  [B.adp, 4], [B.injuries, 20]
 ];
 
 /** Columns you fill in by hand. A refresh must never overwrite these. */
-var HAND_COLS = [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank, B.injuries, B.notes];
+var HAND_COLS = [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank, B.notes];
 
 function writeBoardData(sh) {
   var head = [];
@@ -508,7 +538,7 @@ function writeBoardData(sh) {
   head[B.gp1] = 'GP\nY-1'; head[B.gp2] = 'GP\nY-2'; head[B.gp3] = 'GP\nY-3';
   head[B.myGp] = 'My GP\nEst'; head[B.gpCheck] = 'GP\nflag';
   head[B.adp] = 'ADP'; head[B.xrank] = 'XRank';
-  head[B.injuries] = 'Injuries'; head[B.notes] = 'Notes';
+  head[B.injuries] = 'INJ\nrisk'; head[B.notes] = 'Notes';
 
   var hrow = [];
   for (var i = 1; i <= B_LAST; i++) hrow.push(head[i] === undefined ? '' : head[i]);
@@ -998,9 +1028,9 @@ function writePoolBlock(sh) {
 function writeSanityBlock(sh) {
   sh.getRange(S_SANITY, 1, 1, 2).setValues([['SANITY CHECKS', '']]);
   var mine = 'COUNTIF(' + colIndirect('Draft Board', D.mine) + ',TRUE)';
-  sh.getRange(S_SANITY + 1, 1, 6, 1).setValues([
+  sh.getRange(S_SANITY + 1, 1, 7, 1).setValues([
     ['Names line up across tabs'], ['Draft Board rows line up'], ['Board rows'],
-    ['Players ticked Mine'], ['ADP coverage'], ['Data generated']
+    ['Players ticked Mine'], ['ADP coverage'], ['Data generated'], ['Injury tiers']
   ]);
   // The one live guard against the calculation tabs drifting out of row-order with the
   // Board. Every Draft Board reference assumes row i is the same player on all four tabs,
@@ -1033,6 +1063,14 @@ function writeSanityBlock(sh) {
   var gen = '';
   try { gen = META.generated + (META.mixedDates ? '  *** MIXED DATES ***' : ''); } catch (e) {}
   sh.getRange(S_SANITY + 6, 2).setValue(gen);
+  // Injury coverage, counted live off the Board rather than trusted from META, so this
+  // reports what is actually in the sheet. `~?` escapes the wildcard -- a bare "?" in
+  // COUNTIF matches any single character, which would silently count nothing useful.
+  var inj = colIndirect('Board', B.injuries);
+  sh.getRange(S_SANITY + 7, 2).setFormula(
+    '=COUNTIF(' + inj + ',"HIGH")&" HIGH / "&COUNTIF(' + inj + ',"MED")&" MED / "'
+    + '&COUNTIF(' + inj + ',"LOW")&" LOW"&IF(COUNTIF(' + inj + ',"~?")=0,"",'
+    + '" — "&COUNTIF(' + inj + ',"~?")&" UNRESEARCHED")');
 }
 
 // ----------------------------------------------------------- named ranges
@@ -1418,10 +1456,8 @@ function writeGrid(sh, grid, c1, c2) {
  * on the two controls used on the clock.
  */
 function draftHeaderCols(sh) {
-  var want = { Player: D.player, GONE: D.drafted, MINE: D.mine,
-               Notes: D.notes, INJ: D.inj };
-  var out = { Player: D.player, GONE: D.drafted, MINE: D.mine,
-              Notes: D.notes, INJ: D.inj };
+  var want = { Player: D.player, GONE: D.drafted, MINE: D.mine, Notes: D.notes };
+  var out = { Player: D.player, GONE: D.drafted, MINE: D.mine, Notes: D.notes };
   try {
     var wide = Math.min(sh.getMaxColumns(), D_LAST + 8);
     // The header row moved when the control strip landed, so look at both.
@@ -1448,18 +1484,23 @@ function readCheckState(sh) {
     var at = draftHeaderCols(sh);
     var names = sh.getRange(R0, at.Player, n, 1).getValues();
     // Each column read on its own. They are no longer adjacent, and a span would
-    // reintroduce exactly the positional assumption this exists to remove. Notes and
-    // Injuries travel with the checkboxes because a re-sort moves every player's row;
-    // without them a note stays put and ends up beside whoever landed there.
+    // reintroduce exactly the positional assumption this exists to remove. Notes travel
+    // with the checkboxes because a re-sort moves every player's row; without them a note
+    // stays put and ends up beside whoever landed there.
+    //
+    // INJ is deliberately NOT read. The Board owns that column now, and the Draft Board
+    // cell is `='Board'!AA<row>`, which follows the player through any re-sort by
+    // construction. Capturing it here would restore a literal over that formula and
+    // freeze the tier at whatever it was the day of the last re-sort -- with no #REF!,
+    // no error, and a value that looks perfectly ordinary. See ADR-0022.
     var gone  = sh.getRange(R0, at.GONE,  n, 1).getValues();
     var mine  = sh.getRange(R0, at.MINE,  n, 1).getValues();
     var notes = sh.getRange(R0, at.Notes, n, 1).getValues();
-    var inj   = sh.getRange(R0, at.INJ,   n, 1).getValues();
     for (var i = 0; i < n; i++) {
       if (names[i][0]) {
         state[names[i][0]] = {
           gone: gone[i][0] === true, mine: mine[i][0] === true,
-          notes: notes[i][0] || '', inj: inj[i][0] || ''
+          notes: notes[i][0] || ''
         };
       }
     }
@@ -1475,7 +1516,7 @@ function readCheckState(sh) {
  */
 function restoreCheckState(sh, names, prior) {
   var cols = [[D.drafted, 'gone', false], [D.mine, 'mine', false],
-              [D.notes, 'notes', ''], [D.inj, 'inj', '']];
+              [D.notes, 'notes', '']];
   for (var c = 0; c < cols.length; c++) {
     var col = cols[c][0], key = cols[c][1], blank = cols[c][2];
     var out = [], any = false;
@@ -1518,7 +1559,8 @@ function formatBoard(sh) {
     [B.gp, B.to, 'RAW PROJECTION  (HBP, per game)', COLOR.raw],
     [B.gp1, B.gpCheck, 'AVAILABILITY  ·  context only, nothing scales by it', COLOR.avail],
     [B.adp, B.xrank, 'MARKET', COLOR.market],
-    [B.injuries, B.notes, 'YOURS', COLOR.notes]
+    [B.injuries, B.injuries, 'RISK', COLOR.avail],
+    [B.notes, B.notes, 'YOURS', COLOR.notes]
   ];
   blocks.forEach(function (b) {
     blockHeader(sh, b[0], b[1], b[2], b[3]);
@@ -1537,7 +1579,7 @@ function formatBoard(sh) {
   sh.setColumnWidth(B.player, 170);
   sh.setColumnWidth(B.team, 48);
   sh.setColumnWidth(B.pos, 74);
-  sh.setColumnWidth(B.injuries, 70);
+  sh.setColumnWidth(B.injuries, 56);
   sh.setColumnWidth(B.notes, 260);
 
   sh.getRange(R0, 1, POOL_ROWS, B_LAST).setFontSize(10).setVerticalAlignment('middle');
@@ -1555,9 +1597,13 @@ function formatBoard(sh) {
   sh.getRange(R0, B.adp, POOL_ROWS, 1).setNumberFormat('0.0');
   sh.getRange(R0, B.xrank, POOL_ROWS, 1).setNumberFormat('0');
 
-  [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank, B.injuries, B.notes].forEach(function (c2) {
+  [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank, B.notes].forEach(function (c2) {
     markInput(sh, c2);
   });
+
+  sh.getRange(R0, B.injuries, POOL_ROWS, 1)
+    .setHorizontalAlignment('center').setFontWeight('bold');
+  injuryRules(sh, B.injuries);
 
   // The projection has no player-level opinion inside the generic band.
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
@@ -1831,14 +1877,10 @@ function addDraftRules(sh, si, ki, activeCol, gap) {
     .setBackground(COLOR.drafted).setFontColor(COLOR.muted).setStrikethrough(true)
     .setRanges([rowsAll]).build());
 
-  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenTextEqualTo('OUT')
-    .setBackground(COLOR.flagBg).setFontColor(COLOR.flagText).setBold(true)
-    .setRanges([sh.getRange(R0, D.inj, POOL_ROWS, 1)]).build());
-  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenTextContains('GTD')
-    .setBackground(COLOR.warnBg).setFontColor(COLOR.warnText)
-    .setRanges([sh.getRange(R0, D.inj, POOL_ROWS, 1)]).build());
+  // After the MINE and GONE rules above, which win on first match. A HIGH tier losing its
+  // red once the player is yours is correct: the risk was priced at the pick, and from
+  // then on the row's only job is to say "mine".
+  injuryRules(sh, D.inj);
 
   // A striped ruler down the left edge, marking round boundaries without drawing a second
   // family of horizontal lines across a board that already draws tier breaks.
@@ -2291,6 +2333,9 @@ var README_ROWS = [
   ['Thick horizontal line', '', 'A tier break.'],
   ['▲ / ▼ on GAP', '',
    'Positive means the room drafts him later than the board ranks him — he is cheap.'],
+  ['Red or amber INJ', '',
+   'HIGH or MED injury risk. LOW is left plain on purpose — about half the column is LOW, '
+   + 'and the column exists to make you stop on the other half.'],
   ['', '', ''],
 
   ['CHEAT SHEET — WHAT EVERY NUMBER ON THIS SHEET MEANS', '', ''],
@@ -2357,6 +2402,21 @@ var README_ROWS = [
    'Positive means cheap. Blank ADP means the market has not priced him, which is not the '
    + 'same as pricing him last.'],
   ['XRank', '', 'Yours to fill in, if you want a second market opinion.'],
+  ['', '', ''],
+
+  ['INJURY RISK', '', ''],
+  ['INJ', ' HIGH / MED / LOW',
+   'How injury-prone he is, from his cited injury history — not whether he is hurt right '
+   + 'now. Recent seasons weigh most (last season ×1, the one before ×0.55, then ×0.30 '
+   + 'and ×0.15), and the score adds games missed, surgery, the same body part failing '
+   + 'across seasons, age and position.'],
+  ['?', '', 'Nobody researched him. It is not a low tier — it is no tier.'],
+  ['Where it comes from', '',
+   'scripts/draft-board/injury_risk.json, scored by injury_risk.py. The per-player '
+   + 'evidence behind every tier is in docs/draft-board/injury-risk.md.'],
+  ['It changes no value', '',
+   'Nothing on this board is scaled by it. It is the reason to distrust a GP number, '
+   + 'not a discount applied to one.'],
   ['', '', ''],
 
   ['PUNT BUILDS', '', ''],

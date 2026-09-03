@@ -1,0 +1,4774 @@
+{
+ "schema": 1,
+ "generated": "2026-09-02",
+ "players": {
+  "anthonydavis": {
+   "key": "anthonydavis",
+   "name": "Anthony Davis",
+   "as_of": "2026-09-02",
+   "age": 33,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 20,
+    "2024-25": 51,
+    "2023-24": 76,
+    "2022-23": 56
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-10-29",
+     "body_part": "left calf",
+     "diagnosis": "low-grade left calf strain",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 14,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47419813/mavs-davis-minor-groin-strain-games",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-12-26"
+      },
+      {
+       "url": "https://www.dallasnews.com/sports/mavericks/2025/11/16/dallas-mavericks-mavs-nba-anthony-davis-injury-update/",
+       "publisher": "The Dallas Morning News",
+       "author": null,
+       "date": "2025-11-16"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-12-25",
+     "body_part": "right groin",
+     "diagnosis": "minor right groin/adductor strain, suffered sprinting in transition vs. Golden State",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47419813/mavs-davis-minor-groin-strain-games",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-12-26"
+      },
+      {
+       "url": "https://www.nbcsports.com/nba/news/anthony-davis-to-miss-a-few-games-with-latest-groin-strain",
+       "publisher": "NBC Sports",
+       "author": null,
+       "date": "2025-12-26"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-08",
+     "body_part": "left hand",
+     "diagnosis": "ligament damage in the left (non-shooting) hand, sustained defending a drive vs. Utah; treated non-surgically after a second opinion, six-week timeline that never resolved - he was shut down in February and never played for Washington",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/anthony-davis-hand-injury",
+       "publisher": "NBA.com / Associated Press",
+       "author": null,
+       "date": "2026-01-14"
+      },
+      {
+       "url": "https://sports.yahoo.com/articles/wizards-anthony-davis-miss-remainder-050210940.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2026-02-07"
+      },
+      {
+       "url": "https://www.rotowire.com/basketball/player/anthony-davis-3297",
+       "publisher": "RotoWire",
+       "author": null,
+       "date": "2026-04-07"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-02-08",
+     "body_part": "left adductor",
+     "diagnosis": "left adductor strain suffered in his Mavericks debut; surgery considered and declined",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 18,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://instreetclothes.com/2025/02/10/understanding-anthony-davis-adductor-strain/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2025-02-10"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47419813/mavs-davis-minor-groin-strain-games",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-12-26"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-01-28",
+     "body_part": "abdomen",
+     "diagnosis": "abdominal muscle strain, reaching back for a rebound vs. Philadelphia; also managing left plantar fasciitis and right calf soreness at the time",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/43611641/anthony-davis-miss-week-suffering-abdominal-strain",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-01-29"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-12-16",
+     "body_part": "right foot",
+     "diagnosis": "stress reaction in the navicular bone with a fractured bone spur, after a collision with Nikola Jokic; treated conservatively, returned 2023-01-25",
+     "kind": "bone",
+     "mechanism": "acute",
+     "games_missed": 20,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/35350412/los-angeles-lakers-anthony-davis-gives-update-right-foot-injury",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2023-01-03"
+      },
+      {
+       "url": "https://heavy.com/sports/nba/los-angeles-lakers/anthony-davis-injury-history/",
+       "publisher": "Heavy",
+       "author": null,
+       "date": "2023-06-02"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "Shut down after 20 games in 2025-26 and never debuted for Washington; recovery tracked on schedule through the spring, RotoWire lists an estimated return of 10/1/2026, and he is expected at camp healthy - he publicly claimed he will play all 82 games",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://instreetclothes.com/2025/02/10/understanding-anthony-davis-adductor-strain/",
+     "date": "2025-02-10",
+     "read": "Davis has a long history of left adductor strains going back to New Orleans; a simple Grade 2 adductor strain has cost an average of 14.8 games (34.2 days) since 2005-06, and a surgical case 24.5 games, and the presentation raised the possibility of a sports hernia / core muscle injury rather than a routine strain"
+    },
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes (quoted by NBC Sports)",
+     "url": "https://www.nbcsports.com/nba/news/anthony-davis-to-miss-a-few-games-with-latest-groin-strain",
+     "date": "2025-12-26",
+     "read": "the Christmas Day strain was the 13th groin injury of Davis's career; his average absence for a minor groin strain is about eight days, or two to three games"
+    }
+   ],
+   "suggested_tier": "HIGH",
+   "rationale": "Twenty games in 2025-26 and 147 of 328 possible over four seasons, with a 13-groin-injury chronic adductor pattern plus a calf strain and season-ending hand ligament damage.",
+   "confidence": "high",
+   "coverage": "full"
+  },
+  "anthonyedwards": {
+   "key": "anthonyedwards",
+   "name": "Anthony Edwards",
+   "as_of": "2026-09-02",
+   "age": 25,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 61,
+    "2024-25": 79,
+    "2023-24": 79,
+    "2022-23": 79
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-10-26",
+     "body_part": "right hamstring",
+     "diagnosis": "right hamstring strain (MRI-confirmed), suffered in the first quarter of the home opener vs Indiana",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 4,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/anthony-edwards-hamstring-out-2-weeks",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2025-10-27"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47309389/wolves-star-anthony-edwards-again-foot-injury",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-12-14"
+      },
+      {
+       "url": "https://www.mprnews.org/story/2025/11/03/timberwolves-anthony-edwards-will-miss-his-fourth-straight-game",
+       "publisher": "MPR News",
+       "author": null,
+       "date": "2025-11-03"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-12-14",
+     "body_part": "right foot",
+     "diagnosis": "right foot soreness, reported as lingering from a toe infection; day-to-day, never calmed down enough to play",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 6,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47309389/wolves-star-anthony-edwards-again-foot-injury",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-12-14"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48232817/timberwolves-anthony-edwards-miss-knee-soreness",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-03-17"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-17",
+     "body_part": "right knee",
+     "diagnosis": "inflammation and fluid in the right knee on MRI (Dr. Craig Bennett, Mayo Clinic Sports Medicine); re-evaluated in 1-2 weeks, returned vs Dallas",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 6,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48232817/timberwolves-anthony-edwards-miss-knee-soreness",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-03-17"
+      },
+      {
+       "url": "https://nba.com/news/timberwolves-anthony-edwards-right-knee-inflammation",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2026-03-17"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48381324/timberwolves-rest-anthony-edwards-vs-pistons-manage-knee-pain",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-04-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-02",
+     "body_part": "right knee",
+     "diagnosis": "recurring right knee pain managed with rest over the closing stretch; played only 2 of Minnesota's final 6 games after returning, finishing at 61 GP",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 4,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48381324/timberwolves-rest-anthony-edwards-vs-pistons-manage-knee-pain",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-04-02"
+      },
+      {
+       "url": "https://www.espn.com/nba/player/stats/_/id/4594268/anthony-edwards",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-02",
+     "body_part": "illness",
+     "diagnosis": "illness kept him out vs Detroit (coach Chris Finch attributed the absence to illness rather than the knee)",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48381324/timberwolves-rest-anthony-edwards-vs-pistons-manage-knee-pain",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-04-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-25",
+     "body_part": "left knee",
+     "diagnosis": "hyperextended left knee with bone bruise on a block attempt in Game 4 vs Denver; MRI ruled out ligament damage; week-to-week, returned early in the second round and played through discomfort",
+     "kind": "bone",
+     "mechanism": "acute",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48600211/sources-anthony-edwards-avoids-ligament-damage-multiple-weeks",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-04-26"
+      },
+      {
+       "url": "https://sports.yahoo.com/articles/anthony-edwards-headed-surgery-leg-020830940.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2026-05-20"
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "no offseason surgery; team prescribed rest and no basketball for a stretch, then a normal ramp-up. Right knee wear is the standing concern; left knee bone bruise resolved without structural damage.",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "After 79-79-79 he fell to a career-low 61 games in 2025-26 on chronic right-knee inflammation plus hamstring and foot absences, then hyperextended the left knee in the playoffs; no surgery required.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "cadecunningham": {
+   "key": "cadecunningham",
+   "name": "Cade Cunningham",
+   "as_of": "2026-09-02",
+   "age": 24,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 64,
+    "2024-25": 70,
+    "2023-24": 62,
+    "2022-23": 12
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2026-03-17",
+     "body_part": "left lung",
+     "diagnosis": "left pneumothorax (collapsed lung) after an in-game collision with Tre Johnson while diving for a loose ball; initially reported as back spasms",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 11,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/nba/breaking-news/article/pistons-star-cade-cunningham-returns-from-collapsed-lung-records-13-points-and-10-assists-in-win-over-bucks-164846080.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2026-04-09"
+      },
+      {
+       "url": "https://www.si.com/nba/pistons/onsi/news/what-history-says-about-cade-cunningham-s-return-timeline-from-collapsed-lung-01km63m8dg2z",
+       "publisher": "Sports Illustrated (All Pistons)",
+       "author": null,
+       "date": "2026-03-20"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-07",
+     "body_part": "quad",
+     "diagnosis": "quad contusion",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/cade-cunningham-injury-games-detroit-030424708.html",
+       "publisher": "Detroit Free Press (via Yahoo Sports)",
+       "author": "Omari Sankofa II",
+       "date": "2026-03-18"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-07",
+     "body_part": "right wrist",
+     "diagnosis": "right wrist contusion; played through pain afterward with reduced shooting accuracy",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/cade-cunningham-injury-games-detroit-030424708.html",
+       "publisher": "Detroit Free Press (via Yahoo Sports)",
+       "author": "Omari Sankofa II",
+       "date": "2026-03-18"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-11-12",
+     "body_part": "left hip",
+     "diagnosis": "left hip contusion from a fall to the court; 3 games in November plus a fourth on 2026-01-21 for lingering hip pain combined with illness",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 4,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/cade-cunningham-injury-games-detroit-030424708.html",
+       "publisher": "Detroit Free Press (via Yahoo Sports)",
+       "author": "Omari Sankofa II",
+       "date": "2026-03-18"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-04-13",
+     "body_part": "left knee",
+     "diagnosis": "left knee patellar tendinopathy; late-season maintenance absences, the same knee shut him down the prior April",
+     "kind": "tendon",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.rotowire.com/basketball/player/cade-cunningham-5336",
+       "publisher": "RotoWire",
+       "author": null,
+       "date": "2026-08-11"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-04-09",
+     "body_part": "left knee",
+     "diagnosis": "left knee tendinopathy; shut down for the final games of a lost season as a precaution",
+     "kind": "tendon",
+     "mechanism": "chronic",
+     "games_missed": 7,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.si.com/nba/pistons/onsi/news/detroit-pistons-reveal-cade-cunningham-injury-diagnosis",
+       "publisher": "Sports Illustrated (All Pistons)",
+       "author": null,
+       "date": "2024-04-11"
+      },
+      {
+       "url": "https://www.rotowire.com/basketball/player/cade-cunningham-5336",
+       "publisher": "RotoWire",
+       "author": null,
+       "date": "2026-08-11"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-01-07",
+     "body_part": "left knee",
+     "diagnosis": "left knee strain, no structural damage on MRI; ruled out at least a week and re-evaluated in 7-10 days",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/stories/nba/detroit-pistons-g-cade-cunningham-out-at-least-a-week-with-a-left-knee-strain",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2024-01-09"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-11-09",
+     "body_part": "left shin",
+     "diagnosis": "left tibial stress fracture; conservative rest failed and he had season-ending surgery on 2022-12-16 to stabilize and promote healing",
+     "kind": "bone",
+     "mechanism": "chronic",
+     "games_missed": 70,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.hoopsrumors.com/2022/12/cade-cunningham-to-have-season-ending-shin-surgery.html",
+       "publisher": "Hoops Rumors",
+       "author": null,
+       "date": "2022-12-16"
+      },
+      {
+       "url": "https://instreetclothes.com/2022/11/19/understanding-cade-cunninghams-stress-injury/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2022-11-19"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "cleared; returned from the collapsed lung on 2026-04-08 and played the postseason, no reported off-season procedure or restriction",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://instreetclothes.com/2022/11/19/understanding-cade-cunninghams-stress-injury/",
+     "date": "2022-11-19",
+     "read": "tibial stress injuries are not career-altering and a 2017 NBA study shows players return to pre-injury level of play, but surgical cases average 61 missed games"
+    },
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://ca.sports.yahoo.com/news/cade-cunninghams-possible-collapsed-lung-144157427.html",
+     "date": "2026-03-19",
+     "read": "prior NBA pneumothorax cases averaged about 26 days and 11 games missed, with no lasting performance effect"
+    }
+   ],
+   "suggested_tier": "MED",
+   "rationale": "Durable-ish core (70 then 64 games) but never a full slate: a freak collapsed lung cost 11 games in 2025-26, and a chronic left-knee tendinopathy and 2022 tibial stress fracture sit behind him.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "chetholmgren": {
+   "key": "chetholmgren",
+   "name": "Chet Holmgren",
+   "as_of": "2026-09-02",
+   "age": 24,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 69,
+    "2024-25": 32,
+    "2023-24": 82,
+    "2022-23": 0
+   },
+   "events": [
+    {
+     "season": "2022-23",
+     "date": "2022-08-25",
+     "body_part": "right foot",
+     "diagnosis": "Lisfranc injury (midfoot ligament), surgically repaired; missed entire rookie season",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 82,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://instreetclothes.com/2022/08/25/understanding-chet-holmgrens-lisfranc-injury/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2022-08-25"
+      },
+      {
+       "url": "https://en.wikipedia.org/wiki/Chet_Holmgren",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-11-10",
+     "body_part": "right hip/pelvis",
+     "diagnosis": "right iliac wing fracture after a hard fall contesting a drive; treated conservatively, returned 2025-02-07",
+     "kind": "bone",
+     "mechanism": "acute",
+     "games_missed": 39,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://instreetclothes.com/2024/11/11/understanding-chet-holmgrens-hip-fracture/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2024-11-11"
+      },
+      {
+       "url": "https://en.wikipedia.org/wiki/2024%E2%80%9325_Oklahoma_City_Thunder_season",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-10-28",
+     "body_part": "lower back",
+     "diagnosis": "left back soreness, then low back sprain (two consecutive absences, 2025-10-28 to 2025-11-07)",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 5,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/2025%E2%80%9326_Oklahoma_City_Thunder_season",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-08",
+     "body_part": "shins",
+     "diagnosis": "bilateral shin soreness",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/2025%E2%80%9326_Oklahoma_City_Thunder_season",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-04",
+     "body_part": "lower back",
+     "diagnosis": "low back spasms (recurrence of the October-November back problem)",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/2025%E2%80%9326_Oklahoma_City_Thunder_season",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-07",
+     "body_part": "none",
+     "diagnosis": "flu",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/2025%E2%80%9326_Oklahoma_City_Thunder_season",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-27",
+     "body_part": "right hip",
+     "diagnosis": "right hip contusion",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/2025%E2%80%9326_Oklahoma_City_Thunder_season",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-09",
+     "body_part": "lower back",
+     "diagnosis": "low back spasms (third back absence of the season)",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/2025%E2%80%9326_Oklahoma_City_Thunder_season",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "healthy entering 2026-27; no surgery or restriction reported, but low-back spasms recurred three times in 2025-26",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://instreetclothes.com/2024/11/11/understanding-chet-holmgrens-hip-fracture/",
+     "date": "2024-11-11",
+     "read": "Isolated iliac wing fractures are usually treated conservatively; comparable NBA cases are rare, so the 8-10 week timeline was fluid rather than well-established"
+    },
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://instreetclothes.com/2022/08/25/understanding-chet-holmgrens-lisfranc-injury/",
+     "date": "2022-08-25",
+     "read": "Lisfranc injuries are uncommon in the NBA and demand complex rehab; return timelines in comparable athletes run near a year and should not be rushed"
+    }
+   ],
+   "suggested_tier": "MED",
+   "rationale": "Two structural absences (Lisfranc surgery cost a full season, iliac wing fracture 39 games) plus recurring low-back spasms in 2025-26, though he still played 69 and 82 games in his healthy years.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "cooperflagg": {
+   "key": "cooperflagg",
+   "name": "Cooper Flagg",
+   "as_of": "2026-09-02",
+   "age": 19,
+   "pos_group": "wing",
+   "gp": {
+    "2025-26": 70
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-11-19",
+     "body_part": "illness",
+     "diagnosis": "illness (non-orthopedic)",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://news.google.com/rss/search?q=%22Cooper+Flagg%22+out+November+19+2025+Knicks+OR+%22Cooper+Flagg%22+injury+November+2025&hl=en-US&gl=US&ceid=US:en",
+       "publisher": "NBA.com (headline via Google News index)",
+       "author": null,
+       "date": "2025-11-20"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/dallas-mavericks-games-in-november-2025",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-14",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain, suffered vs. Denver; re-flared and cost a further game on 2026-01-28",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://news.google.com/rss/search?q=%22Cooper+Flagg%22+ankle+January+2026+Nuggets+injury&hl=en-US&gl=US&ceid=US:en",
+       "publisher": "NBA.com / ESPN / Dallas Morning News (headlines via Google News index)",
+       "author": null,
+       "date": "2026-01-15"
+      },
+      {
+       "url": "https://news.google.com/rss/search?q=%22Cooper+Flagg%22+%22left+ankle%22+OR+%22right+ankle%22+OR+%22left+foot%22+OR+%22right+foot%22&hl=en-US&gl=US&ceid=US:en",
+       "publisher": "HoopsHype (headline via Google News index)",
+       "author": null,
+       "date": "2026-01-27"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/dallas-mavericks-games-in-january-2026",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.espn.com/nba/player/gamelog/_/id/5041939/cooper-flagg",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-11",
+     "body_part": "foot",
+     "diagnosis": "foot sprain; side not established in reporting",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 8,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://news.google.com/rss/search?q=%22Cooper+Flagg%22+foot+injury+Mavericks&hl=en-US&gl=US&ceid=US:en",
+       "publisher": "ESPN / NBA.com (headlines via Google News index)",
+       "author": null,
+       "date": "2026-03-05"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/cooper-flagg-games-by-month-2025-26",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-12",
+     "body_part": "ankle",
+     "diagnosis": "ankle sprain in the regular-season finale vs. Chicago; exited the game, no games remaining (Dallas missed the playoffs)",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://news.google.com/rss/search?q=%22Cooper+Flagg%22+ankle+sprain+season+ends&hl=en-US&gl=US&ceid=US:en",
+       "publisher": "AP News / ESPN / Dallas Morning News (headlines via Google News index)",
+       "author": null,
+       "date": "2026-04-12"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/dallas-mavericks-games-in-april-2026",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "healthy; no surgery reported, training normally through the offseason",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Rookie year cost 12 games across two ankle sprains, a foot sprain and an illness; no surgery and a clean offseason, but a repeat lower-leg pattern already.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "donovanmitchell": {
+   "key": "donovanmitchell",
+   "name": "Donovan Mitchell",
+   "as_of": "2026-09-02",
+   "age": 29,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 70,
+    "2024-25": 71,
+    "2023-24": 55,
+    "2022-23": 68
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-10-30",
+     "body_part": "left hamstring",
+     "diagnosis": "hamstring tightness/strain",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/donovan-mitchell-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-12-18",
+     "body_part": "non-orthopedic",
+     "diagnosis": "illness",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/donovan-mitchell-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-25",
+     "body_part": "right groin",
+     "diagnosis": "right groin strain",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 4,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.cbssports.com/fantasy/basketball/news/cavaliers-donovan-mitchell-out-wednesday-with-groin-injury/",
+       "publisher": "CBS Sports",
+       "author": null,
+       "date": "2026-02-25"
+      },
+      {
+       "url": "https://www.hoopsrumors.com/2026/02/donovan-mitchell-groin-to-miss-second-straight-game-friday.html",
+       "publisher": "Hoops Rumors",
+       "author": null,
+       "date": "2026-02-26"
+      },
+      {
+       "url": "https://clutchpoints.com/nba/cleveland-cavaliers/cavs-news-donovan-mitchell-groin-injury-update-trending-better",
+       "publisher": "ClutchPoints",
+       "author": null,
+       "date": "2026-03-04"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-19",
+     "body_part": "left eye",
+     "diagnosis": "left eye contusion from a practice collision with Evan Mobley",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48253639/cavs-star-donovan-mitchell-vs-bulls-eye-contusion",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-03-19"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-06",
+     "body_part": "right ankle",
+     "diagnosis": "rolled right ankle vs. Indiana; managed as injury management down the stretch",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/cavaliers-announce-donovan-mitchell-injury-221640770.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2026-04-09"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/donovan-mitchell-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-03-11",
+     "body_part": "left groin",
+     "diagnosis": "left groin soreness/strain",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/donovan-mitchell-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-04-06",
+     "body_part": "left ankle",
+     "diagnosis": "sprained left ankle (stepped on Keon Ellis' foot); re-aggravated in the 2025 playoffs",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 4,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/44578486/cavaliers-donovan-mitchell-vs-bulls-due-ankle-sprain",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-04-07"
+      },
+      {
+       "url": "https://www.nba.com/news/donovan-mitchell-expected-back-for-playoffs",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2025-04-13"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2023-10-28",
+     "body_part": "right hamstring",
+     "diagnosis": "right hamstring strain, nagging from the first week of the season",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://spectrumnews1.com/oh/columbus/news/2023/11/19/cavaliers-guard-donovan-mitchell--misses-game--strained-hamstring",
+       "publisher": "Spectrum News 1 (AP)",
+       "author": null,
+       "date": "2023-11-19"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-02-29",
+     "body_part": "left knee",
+     "diagnosis": "bone bruise in the left knee, treated with a platelet-rich plasma injection",
+     "kind": "bone",
+     "mechanism": "acute",
+     "games_missed": 7,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/39654584/cavaliers-donovan-mitchell-3-games-knee-treatment",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2024-03-04"
+      },
+      {
+       "url": "https://www.cbssports.com/nba/news/donovan-mitchell-injury-update-cavaliers-star-out-at-least-a-week-after-surgery-for-nasal-fracture/",
+       "publisher": "CBS Sports",
+       "author": null,
+       "date": "2024-03-19"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-03-19",
+     "body_part": "nose",
+     "diagnosis": "nasal fracture repaired surgically; out at least a week",
+     "kind": "bone",
+     "mechanism": "freak",
+     "games_missed": null,
+     "surgery": "minor",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.cbssports.com/nba/news/donovan-mitchell-injury-update-cavaliers-star-out-at-least-a-week-after-surgery-for-nasal-fracture/",
+       "publisher": "CBS Sports",
+       "author": null,
+       "date": "2024-03-19"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-04-02",
+     "body_part": "left knee",
+     "diagnosis": "recurrence of left knee soreness late in the regular season",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/donovan-mitchell-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-11-04",
+     "body_part": "ankle",
+     "diagnosis": "ankle injury",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/donovan-mitchell-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-01-16",
+     "body_part": "groin",
+     "diagnosis": "recurring groin soreness across January and February 2023",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/donovan-mitchell-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "healthy entering 2026-27; no off-season surgery reported, signed a four-year extension in July 2026",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Chronic soft-tissue guard (recurring groin, hamstring, calf, ankle) who has never played 72 games, but posted 70 and 71 GP the last two seasons with no surgery.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "evanmobley": {
+   "key": "evanmobley",
+   "name": "Evan Mobley",
+   "as_of": "2026-09-02",
+   "age": 25,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 65,
+    "2024-25": 71,
+    "2023-24": 50,
+    "2022-23": 79
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2026-04-04",
+     "body_part": "calf",
+     "diagnosis": "calf strain flare-up (third calf absence of the season)",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/evan-mobley-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/how-many-games-did-the-cavaliers-play-between-april-1-2026-and-april-15-2026",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/evan-mobley-games-in-april-2026",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-27",
+     "body_part": "calf",
+     "diagnosis": "calf strain recurrence; out from Jan 27 through the All-Star break, returned Feb 19",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 7,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/evan-mobley-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/how-many-games-did-the-cavaliers-play-between-january-27-2026-and-february-18-2026",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/evan-mobley-games-in-january-2026",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-12-13",
+     "body_part": "calf",
+     "diagnosis": "calf strain; out Dec 13 through Dec 24, returned Christmas Day",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 5,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/evan-mobley-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/how-many-games-did-the-cavaliers-play-between-december-13-2025-and-december-24-2025",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/evan-mobley-games-in-december-2025",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-01-17",
+     "body_part": "calf",
+     "diagnosis": "calf strain; missed four games, returned Jan 25",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 4,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/evan-mobley-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/how-many-games-did-the-cavaliers-play-between-january-17-2025-and-january-24-2025",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/evan-mobley-games-in-january-2025",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-03-06",
+     "body_part": "left ankle",
+     "diagnosis": "ankle sprain; out Mar 6 through Mar 23, returned Mar 24",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 9,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/evan-mobley-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/how-many-games-did-the-cavaliers-play-between-march-6-2024-and-march-23-2024",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/evan-mobley-games-in-march-2024",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2023-12-07",
+     "body_part": "left knee",
+     "diagnosis": "knee soreness leading to arthroscopic debridement to remove a loose body in the joint; returned Jan 29, 2024",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 22,
+     "surgery": "minor",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://instreetclothes.com/2023/12/15/understanding-the-injuries-of-darius-garland-and-evan-mobley/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2023-12-15"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/how-many-games-did-the-cavaliers-play-between-december-7-2023-and-january-28-2024",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/evan-mobley-first-game-back-after-knee-surgery-january-2024",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "healthy entering 2026-27; no reported off-season procedure, but a calf that flared three times last season",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://instreetclothes.com/2023/12/15/understanding-the-injuries-of-darius-garland-and-evan-mobley/",
+     "date": "2023-12-15",
+     "read": "Mobley's knee debridement removes an irritant from the joint; comparable NBA cases have averaged 22 games (48 days) lost"
+    }
+   ],
+   "suggested_tier": "MED",
+   "rationale": "Never fully healthy: a 2023-24 knee scope cost 22 games, and a calf strain recurred three times in 2025-26 (14 games), on top of routine maintenance rest nights.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "giannisantetokounmpo": {
+   "key": "giannisantetokounmpo",
+   "name": "Giannis Antetokounmpo",
+   "as_of": "2026-09-02",
+   "age": 31,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 36,
+    "2024-25": 67,
+    "2023-24": 73,
+    "2022-23": 63
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-11-17",
+     "body_part": "left groin",
+     "diagnosis": "low-grade left groin (adductor) strain, suffered driving to the basket at Cleveland",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 4,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.hoopsrumors.com/2025/11/giannis-antetokounmpo-sustains-left-groin-strain.html",
+       "publisher": "Hoops Rumors",
+       "author": null,
+       "date": "2025-11-18"
+      },
+      {
+       "url": "https://www.nba.com/news/bucks-giannis-antetokounmpo-returns-after-missing-15-games-with-calf-strain",
+       "publisher": "NBA.com / Associated Press",
+       "author": null,
+       "date": "2026-03-03"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-12-03",
+     "body_part": "right calf",
+     "diagnosis": "right calf (soleus) strain, non-contact, exited first quarter vs Detroit; 2-4 week timeline, missed about three weeks",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 8,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47711716/bucks-giannis-antetokounmpo-expects-miss-4-6-weeks-due-calf",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-01-24"
+      },
+      {
+       "url": "https://www.nba.com/news/bucks-giannis-antetokounmpo-returns-after-missing-15-games-with-calf-strain",
+       "publisher": "NBA.com / Associated Press",
+       "author": null,
+       "date": "2026-03-03"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-23",
+     "body_part": "right calf",
+     "diagnosis": "re-strain of the same right calf at Denver; 4-6 week timeline. Doc Rivers: \"This calf keeps coming up, and it's concerning\"",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 15,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47711716/bucks-giannis-antetokounmpo-expects-miss-4-6-weeks-due-calf",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-01-24"
+      },
+      {
+       "url": "https://www.nba.com/news/bucks-giannis-antetokounmpo-returns-after-missing-15-games-with-calf-strain",
+       "publisher": "NBA.com / Associated Press",
+       "author": null,
+       "date": "2026-03-03"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-15",
+     "body_part": "left knee",
+     "diagnosis": "left knee hyperextension with bone bruise on a landing after a dunk vs Indiana; imaging showed no structural damage, but he did not play again (season-ending)",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 15,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nbcsports.com/nba/news/giannis-antetokounmpo-out-with-left-knee-hyperextension-bone-bruise-to-be-reevaluated-in-one-week",
+       "publisher": "NBC Sports",
+       "author": null,
+       "date": "2026-03-17"
+      },
+      {
+       "url": "https://www.rotowire.com/basketball/player/giannis-antetokounmpo-3456",
+       "publisher": "RotoWire",
+       "author": null,
+       "date": "2026-08-10"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": null,
+     "body_part": "calf",
+     "diagnosis": "calf strain in February-March 2025; carried calf designations across multiple games in that stretch",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/giannis-antetokounmpo-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": null,
+     "body_part": "right knee",
+     "diagnosis": "recurring right patellar tendinopathy / knee soreness, managed with rest across the season",
+     "kind": "tendon",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/giannis-antetokounmpo-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-04-09",
+     "body_part": "calf",
+     "diagnosis": "soleus strain, non-contact; cost him the end of the regular season and the first round",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://instreetclothes.com/2024/04/09/understanding-giannis-antetokounmpos-soleus-strain/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2024-04-09"
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "Traded to Miami in June 2026; says his legs are fine and no surgery has been reported, but RotoWire still carries a knee designation with an estimated 10/1/2026 return, and the Heat had him report early to be ready for camp",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://instreetclothes.com/2024/04/09/understanding-giannis-antetokounmpos-soleus-strain/",
+     "date": "2024-04-09",
+     "read": "Soleus strains cost an average of 17 days (~6 games) since 2005-06, against 13.7 days (~5 games) for unspecified calf strains; a Grade 2 partial tear pushes the timeline to roughly 45 days (~21 games)"
+    }
+   ],
+   "suggested_tier": "HIGH",
+   "rationale": "Career-low 36 games in 2025-26: two right calf strains (the second a re-strain), a groin strain, and a season-ending left knee bone bruise, on top of chronic patellar tendinopathy at 31.",
+   "confidence": "high",
+   "coverage": "full"
+  },
+  "jalenjohnson": {
+   "key": "jalenjohnson",
+   "name": "Jalen Johnson",
+   "as_of": "2026-09-02",
+   "age": 24,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 72,
+    "2024-25": 36,
+    "2023-24": 56,
+    "2022-23": 70
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2026-03-21",
+     "body_part": "left shoulder",
+     "diagnosis": "left shoulder inflammation (same shoulder as the 2025 labrum repair)",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.profootballnetwork.com/nba/jalen-johnson-injury-update-march-2026/",
+       "publisher": "Pro Football Network",
+       "author": null,
+       "date": "2026-03-25"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-24",
+     "body_part": "left hip flexor",
+     "diagnosis": "left hip flexor injury; exited in the first quarter and did not return",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48028568/hawks-jalen-johnson-exits-win-first-quarter-hip-injury",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-02-24"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-01-23",
+     "body_part": "left shoulder",
+     "diagnosis": "torn labrum, suffered blocking a Scottie Barnes layup; season-ending surgical repair",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 40,
+     "surgery": "major",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/43611422/sources-hawks-jalen-johnson-season-ending-surgery",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-01-29"
+      },
+      {
+       "url": "https://sportsforecaster.com/nba/p/250296/Jalen_Johnson/transactions",
+       "publisher": "Sports Forecaster (transaction log)",
+       "author": null,
+       "date": "2025-04-19"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-01-14",
+     "body_part": "right shoulder",
+     "diagnosis": "right shoulder inflammation, following recurring right shoulder soreness in December",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 6,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/43611422/sources-hawks-jalen-johnson-season-ending-surgery",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-01-29"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-03-07",
+     "body_part": "right ankle",
+     "diagnosis": "right ankle sprain, re-aggravated twice (March 18 vs the Lakers, then again in April)",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 13,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://vcphoops.com/2024/03/21/hawks-jalen-johnson-out-at-least-one-week-with-ankle-sprain/",
+       "publisher": "VCP Hoops",
+       "author": null,
+       "date": "2024-03-21"
+      },
+      {
+       "url": "https://sportsforecaster.com/nba/p/250296/Jalen_Johnson/transactions",
+       "publisher": "Sports Forecaster (transaction log)",
+       "author": null,
+       "date": "2024-04-18"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2023-11-25",
+     "body_part": "left wrist",
+     "diagnosis": "left distal radius fracture, suffered at Washington; reevaluated in 3-4 weeks, no surgery",
+     "kind": "bone",
+     "mechanism": "acute",
+     "games_missed": 14,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/38985197",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2023-11-26"
+      },
+      {
+       "url": "https://sportsforecaster.com/nba/p/250296/Jalen_Johnson/transactions",
+       "publisher": "Sports Forecaster (transaction log)",
+       "author": null,
+       "date": "2023-12-25"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-03-17",
+     "body_part": "left hamstring",
+     "diagnosis": "left hamstring strain",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 7,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/250296/Jalen_Johnson/transactions",
+       "publisher": "Sports Forecaster (transaction log)",
+       "author": null,
+       "date": "2023-03-31"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "healthy entering 2026-27; no offseason procedure reported after a 72-game All-NBA season and a full playoff run",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Recovered fully from January 2025 left labrum repair to play 72 games in 2025-26, but four-year GP averages 58.5 and the repaired shoulder flared in March 2026.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "jamalmurray": {
+   "key": "jamalmurray",
+   "name": "Jamal Murray",
+   "as_of": "2026-09-02",
+   "age": 29,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 75,
+    "2024-25": 67,
+    "2023-24": 59,
+    "2022-23": 65
+   },
+   "events": [
+    {
+     "season": "older",
+     "date": "2021-04-12",
+     "body_part": "left knee",
+     "diagnosis": "torn ACL, left knee; reconstruction surgery 2021-04-21; missed the entire 2021-22 season",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 82,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/Jamal_Murray",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/jamal-murray-career-stats-per-game-by-season",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-12-09",
+     "body_part": "left knee",
+     "diagnosis": "recurring knee soreness/management in the first season back from ACL reconstruction; injury-report designations from Dec 2022 through Apr 2023, alongside scheduled rest and reconditioning days",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2023-12-01",
+     "body_part": "ankle",
+     "diagnosis": "ankle sprain/soreness, designations across Dec 2023 and again Mar 2024",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-01-15",
+     "body_part": "tibia/shin",
+     "diagnosis": "shin/tibia contusion and soreness (listed as shin, tibia and bilateral tibias) Jan-Feb 2024",
+     "kind": "bone",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-02-01",
+     "body_part": "knee",
+     "diagnosis": "knee soreness, designations Feb 2024 and again through the final week of the regular season in April 2024",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-04-28",
+     "body_part": "left calf",
+     "diagnosis": "strained calf suffered in the 2024 playoffs; played through it, carried the designation from late April into May 2024",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/Jamal_Murray",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-11-01",
+     "body_part": "head",
+     "diagnosis": "concussion",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-12-06",
+     "body_part": "hamstring",
+     "diagnosis": "hamstring strain in December 2024, recurring in late March 2025",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-12-23",
+     "body_part": "ankle",
+     "diagnosis": "ankle sprain/soreness in late December 2024, recurring across March 2025",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-01-10",
+     "body_part": "knee",
+     "diagnosis": "extended run of knee designations from early January through late February 2025, the longest injury-report stretch of the season",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-10-30",
+     "body_part": "calf",
+     "diagnosis": "calf strain in the opening weeks of the season, designations 2025-10-30 through 2025-11-08",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-12-02",
+     "body_part": "ankle",
+     "diagnosis": "recurring ankle soreness/sprain; designations in December 2025, across January 2026 and again in March 2026",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-23",
+     "body_part": "hamstring",
+     "diagnosis": "hamstring tightness/strain, designations late January and again late February 2026; same muscle group as the 2024-25 strain",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/jamal-murray-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "healthy entering 2026-27, no restrictions reported; sat out Canada's FIBA World Cup qualifying window to prepare for the season",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Long chronic lower-body history (post-2021 ACL knee, recurring ankle, hamstring, calf) but availability is trending up: career-best-since-2019 75 games and All-NBA in 2025-26, healthy now.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "jamesharden": {
+   "key": "jamesharden",
+   "name": "James Harden",
+   "as_of": "2026-09-02",
+   "age": 37,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 70,
+    "2024-25": 79,
+    "2023-24": 72,
+    "2022-23": 58
+   },
+   "events": [],
+   "load_management": false,
+   "open_status": "no reported injury entering 2026-27; agreed 3yr/$97M with Cleveland, deal reportedly still unsigned as of 2026-09-02",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Age-37 guard, 70-79 GP each of the last three seasons and no injury news this off-season; risk is age and rest, but the causes of his missed games could not be sourced.",
+   "confidence": "medium",
+   "coverage": "thin"
+  },
+  "jarenjackson": {
+   "key": "jarenjackson",
+   "name": "Jaren Jackson Jr.",
+   "as_of": "2026-09-02",
+   "age": 26,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 48,
+    "2024-25": 74,
+    "2023-24": 66,
+    "2022-23": 63
+   },
+   "events": [
+    {
+     "season": "2022-23",
+     "date": "2022-06-30",
+     "body_part": "right foot",
+     "diagnosis": "stress fracture, surgically repaired; ruled out four-to-six months, missed the first 14 games and debuted 2022-11-15",
+     "kind": "bone",
+     "mechanism": "acute",
+     "games_missed": 14,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/Jaren_Jackson_Jr.",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://instreetclothes.com/2022/11/15/understanding-desmond-banes-grade-2-big-toe-sprain/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2022-11-15"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-07-02",
+     "body_part": "big toe",
+     "diagnosis": "turf toe repaired surgically; 10-to-12 week timeline announced 2025-07-02, returned in time for the opener (first game 2025-10-22)",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 0,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/Jaren_Jackson_Jr.",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.espn.com/nba/player/gamelog/_/id/4277961/type/nba/year/2026",
+       "publisher": "ESPN",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-12",
+     "body_part": "left knee",
+     "diagnosis": "localized pigmented villonodular synovitis growth removed; season-ending surgery announced 2026-02-12, last game played 2026-02-11",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 26,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/player/1628991/jaren-jackson-jr",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://en.wikipedia.org/wiki/Jaren_Jackson_Jr.",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://en.wikipedia.org/wiki/2025%E2%80%9326_Utah_Jazz_season",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": null
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "rehabbing the February 2026 left-knee surgery; still carried as day-to-day (knee) with an estimated return around Oct 1, no confirmed full clearance",
+   "expert_reads": [],
+   "suggested_tier": "HIGH",
+   "rationale": "Two surgeries in twelve months (July 2025 turf toe, Feb 2026 left-knee PVNS removal that ended his season at 48 GP) and still listed day-to-day with a knee designation in September.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "jaysontatum": {
+   "key": "jaysontatum",
+   "name": "Jayson Tatum",
+   "as_of": "2026-09-02",
+   "age": 28,
+   "pos_group": "wing",
+   "gp": {
+    "2025-26": 16,
+    "2024-25": 72,
+    "2023-24": 74,
+    "2022-23": 74
+   },
+   "events": [
+    {
+     "season": "2024-25",
+     "date": "2025-05-12",
+     "body_part": "right Achilles",
+     "diagnosis": "ruptured right Achilles tendon, surgically repaired within 24 hours by Dr. Martin O'Malley",
+     "kind": "tendon",
+     "mechanism": "acute",
+     "games_missed": 66,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://instreetclothes.com/2025/05/13/understanding-jayson-tatums-achilles-tear/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2025-05-13"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/45149253/jayson-tatum-achilles-tear-celtics-star-faces-recovery",
+       "publisher": "ESPN",
+       "author": "Stephania Bell",
+       "date": "2025-05-14"
+      },
+      {
+       "url": "https://www.cbssports.com/nba/news/jayson-tatum-injury-update-celtics-season-debut-nba/",
+       "publisher": "CBS Sports",
+       "author": null,
+       "date": "2026-03-06"
+      },
+      {
+       "url": "https://sports.yahoo.com/articles/jayson-tatum-boston-celtics-2025-151547067.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2026-05-09"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-05-01",
+     "body_part": "left calf",
+     "diagnosis": "left calf tightness/discomfort; exited Game 6 vs. Philadelphia in the third quarter after 29 minutes and did not return",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/celtics-superstar-jayson-tatum-leaves-022305331.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.boston.com/sports/boston-celtics/2026/05/02/jayson-tatum-knee-stiffness-injury-celtics-76ers/",
+       "publisher": "Boston.com",
+       "author": null,
+       "date": "2026-05-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-05-02",
+     "body_part": "left knee",
+     "diagnosis": "stiffness behind the left knee; ruled out of Game 7 vs. Philadelphia, decision tied to the return-to-play protocol from the Achilles repair; described as day-to-day, no procedure",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.boston.com/sports/boston-celtics/2026/05/02/jayson-tatum-knee-stiffness-injury-celtics-76ers/",
+       "publisher": "Boston.com",
+       "author": null,
+       "date": "2026-05-02"
+      },
+      {
+       "url": "https://www.nbcsportsboston.com/nba/boston-celtics/jayson-tatum-injury-update-knee-achilles-game-7/786903/",
+       "publisher": "NBC Sports Boston",
+       "author": null,
+       "date": "2026-05-03"
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "Cleared, no restrictions reported; first full offseason since the Achilles repair, entering year two post-op",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://instreetclothes.com/2025/05/13/understanding-jayson-tatums-achilles-tear/",
+     "date": "2025-05-13",
+     "read": "Projected roughly a 10-month absence and cited a 2024 study showing ~80% return-to-play but only 40% of All-Star-level players returning to their prior level"
+    },
+    {
+     "analyst": "Stephania Bell",
+     "outlet": "ESPN",
+     "url": "https://www.espn.com/nba/story/_/id/45149253/jayson-tatum-achilles-tear-celtics-star-faces-recovery",
+     "date": "2025-05-14",
+     "read": "Repair within 24 hours is the ideal scenario and youth favors him, but most athletes do not fully regain explosiveness until their second season back"
+    },
+    {
+     "analyst": "Dr. Jesse Morse",
+     "outlet": "Fantasy Doctors",
+     "url": "https://sports.yahoo.com/article/doctor-reveals-devastating-potential-concern-040601779.html",
+     "date": "2025-05-13",
+     "read": "Read the mechanism as a full Achilles rupture on sight - push-off, leg gave out, no weight-bearing - and rated other diagnoses unlikely"
+    }
+   ],
+   "suggested_tier": "HIGH",
+   "rationale": "Played 16 games in 2025-26 after a repaired right Achilles, then left calf and left knee issues ended his playoffs; cleared for year two but soft-tissue and rest risk stays high.",
+   "confidence": "high",
+   "coverage": "full"
+  },
+  "kawhileonard": {
+   "key": "kawhileonard",
+   "name": "Kawhi Leonard",
+   "as_of": "2026-09-02",
+   "age": 35,
+   "pos_group": "wing",
+   "gp": {
+    "2025-26": 65,
+    "2024-25": 37,
+    "2023-24": 68,
+    "2022-23": 52
+   },
+   "events": [
+    {
+     "season": "older",
+     "date": "2021-06-14",
+     "body_part": "right knee",
+     "diagnosis": "partial ACL tear",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 82,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/36295747/kawhi-leonard-diagnosed-torn-meniscus-sources-confirm",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2023-04-26"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-10-20",
+     "body_part": "right knee",
+     "diagnosis": "right knee soreness/sprain in first season back from ACL reconstruction; repeated absences, coach stated it was injury and not load management",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://bleacherreport.com/articles/10073645-clippers-lue-says-kawhi-leonard-definitely-has-injury-its-not-load-management",
+       "publisher": "Bleacher Report",
+       "author": null,
+       "date": "2023-04-24"
+      },
+      {
+       "url": "https://bleacherreport.com/articles/10074177-clippers-kawhi-leonard-had-cleanup-surgery-on-knee-injury-faces-8-week-recovery",
+       "publisher": "Bleacher Report",
+       "author": null,
+       "date": "2023-06-23"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-04-26",
+     "body_part": "right knee",
+     "diagnosis": "torn meniscus; arthroscopic cleanup surgery early June 2023, 8-week recovery",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 0,
+     "surgery": "minor",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/36295747/kawhi-leonard-diagnosed-torn-meniscus-sources-confirm",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2023-04-26"
+      },
+      {
+       "url": "https://bleacherreport.com/articles/10074177-clippers-kawhi-leonard-had-cleanup-surgery-on-knee-injury-faces-8-week-recovery",
+       "publisher": "Bleacher Report",
+       "author": null,
+       "date": "2023-06-23"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-03-31",
+     "body_part": "right knee",
+     "diagnosis": "right knee inflammation; missed final 8 regular-season games and 4 playoff games vs Dallas, persisted into the offseason",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 8,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nbclosangeles.com/news/sports/nba/clippers-kawhi-leonard-out-indefinitely-knee-inflammation-report/3538666/",
+       "publisher": "NBC Los Angeles",
+       "author": null,
+       "date": "2024-10-17"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-10-17",
+     "body_part": "right knee",
+     "diagnosis": "right knee inflammation in the surgically repaired knee; ruled out indefinitely to start the season, missed the first 34 games and debuted 2025-01-04",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 34,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nbclosangeles.com/news/sports/nba/clippers-kawhi-leonard-out-indefinitely-knee-inflammation-report/3538666/",
+       "publisher": "NBC Los Angeles",
+       "author": null,
+       "date": "2024-10-17"
+      },
+      {
+       "url": "https://www.nba.com/news/kawhi-leonard-is-fresh-in-mind-and-body-as-streaking-clippers-open-playoffs",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2025-04-18"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-11-03",
+     "body_part": "right ankle and right foot",
+     "diagnosis": "sprained right ankle plus a significant right foot sprain suffered on the same play vs Miami; missed 10 consecutive games, returned 2025-11-23",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 10,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/46949879/clippers-kawhi-leonard-dealing-ankle-foot-sprains",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-11-12"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47060386/sources-clippers-plan-kawhi-leonard-return-vs-cavaliers",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-11-22"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-11",
+     "body_part": "left knee",
+     "diagnosis": "left knee contusion (suffered at Detroit); played through it on a 30-minute limit for eight days before sitting, then sent home from the road trip for treatment. Opposite knee to his ACL/meniscus history. He was also carrying a right ankle sprain from 2026-01-07",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.si.com/nba/clippers/onsi/news/clippers-injury-report-kawhi-leonard-miss-at-least-2-more-games-01kf9nfbb0hj",
+       "publisher": "Sports Illustrated",
+       "author": null,
+       "date": "2026-01-18"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-14",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain, landed on DeMar DeRozan's foot vs Sacramento; day-to-day, bothered him on and off over the final month and he sat the regular-season finale to rest the ankle and a wrist",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.hoopsrumors.com/2026/03/kawhi-leonard-sprains-left-ankle.html",
+       "publisher": "Hoops Rumors",
+       "author": null,
+       "date": "2026-03-15"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48225533/clippers-star-kawhi-leonard-ankle-ruled-vs-spurs",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-03-16"
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "No known active injury; season ended in the April 2026 play-in, traded to Toronto and expected to report to Raptors training camp on Sept 29 (trade held up only by the NBA's Clippers cap probe, which reportedly cleared him in August)",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://www.cbssports.com/nba/news/medical-expert-discusses-kawhi-leonards-mysterious-injury-and-whats-next-for-him/",
+     "date": "2018-01-23",
+     "read": "Dated read on the original right-quad tendinopathy: tendinopathy is a catch-all spanning mild tendinitis to chronic degenerative change, and returning at less than 100 percent risks exacerbation and future setbacks"
+    }
+   ],
+   "suggested_tier": "HIGH",
+   "rationale": "Age 35 with a chronic surgically repaired right knee, no 70-game season since 2014-15, 34 games lost in 2024-25 and 17 in 2025-26 across knee and ankle issues.",
+   "confidence": "high",
+   "coverage": "full"
+  },
+  "kevindurant": {
+   "key": "kevindurant",
+   "name": "Kevin Durant",
+   "as_of": "2026-09-02",
+   "age": 37,
+   "pos_group": "wing",
+   "gp": {
+    "2025-26": 78,
+    "2024-25": 62,
+    "2023-24": 75,
+    "2022-23": 47
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2026-04-24",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain with bone bruise, suffered in the fourth quarter of playoff Game 2 when he landed on an opponent's shoe; described as a 2-3 week absence in-season",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/kevin-durant-injury-timeline-vs-185516299.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2026-05-01"
+      },
+      {
+       "url": "https://www.rotowire.com/basketball/player/kevin-durant-2811",
+       "publisher": "RotoWire",
+       "author": null,
+       "date": "2026-08-05"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": null,
+     "body_part": "right knee",
+     "diagnosis": "right knee contusion from a collision with a teammate in pre-series practice; missed playoff Game 1",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/kevin-durant-injury-timeline-vs-185516299.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2026-05-01"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-02",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain after stepping on a courtside fan's foot; his only injury absence of the regular season",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47810580/durant-vs-pacers-stepping-fan-foot",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-02-02"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/kevin-durant-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-03-30",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain after stepping on Jabari Smith Jr.'s foot; ruled out for the remainder of the season",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 8,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/44636696/suns-all-star-kevin-durant-ankle-final-2-games",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-04-11"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-12-03",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain after stepping on Julian Champagnie's foot; 1-2 week timeline, four games after returning from the calf strain",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/suns-star-kevin-durant-to-miss-1-2-weeks-with-ankle-sprain-just-games-after-return-from-calf-injury-211456236.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2024-12-04"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-11-08",
+     "body_part": "left calf",
+     "diagnosis": "left calf strain",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 6,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/suns-star-kevin-durant-to-miss-1-2-weeks-with-ankle-sprain-just-games-after-return-from-calf-injury-211456236.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2024-12-04"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-01-01",
+     "body_part": "right hamstring",
+     "diagnosis": "right hamstring strain; missed at least three straight games",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://clutchpoints.com/nba/phoenix-suns/suns-news-is-kevin-durant-playing-vs-heat-latest-injury-update",
+       "publisher": "ClutchPoints",
+       "author": null,
+       "date": "2024-01-05"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/kevin-durant-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-01-08",
+     "body_part": "right knee",
+     "diagnosis": "low-grade right MCL sprain without meniscus involvement, after Jimmy Butler fell into his leg; out from January 8 until his March 1 Suns debut",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nbcsports.com/nba/news/kevin-durant-out-minimum-of-two-weeks-with-mcl-sprain-in-right-knee",
+       "publisher": "NBC Sports",
+       "author": null,
+       "date": "2023-01-09"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-03-09",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain rolled during pregame warmups before his Suns home debut",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/kevin-durant-ankle-slips-during-warmups-misses-home-suns-debut",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2023-03-09"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "No reported injury since the April playoff ankle sprain; preparing normally for his 20th season, though RotoWire still carries a stale ankle tag with a 10/1/2026 estimated return",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Played 78 games at 37, his healthiest season since 2013-14, but has sprained the same left ankle four times in two years and missed five of six playoff games with an ankle bone bruise.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "lebronjames": {
+   "key": "lebronjames",
+   "name": "LeBron James",
+   "as_of": "2026-09-02",
+   "age": 41,
+   "pos_group": "wing",
+   "gp": {
+    "2025-26": 60,
+    "2024-25": 70,
+    "2023-24": 71,
+    "2022-23": 55
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-10-09",
+     "body_part": "lower back / sciatic nerve",
+     "diagnosis": "sciatica (nerve irritation); missed the Lakers' first 14 games, season debut November 18, 2025",
+     "kind": "other",
+     "mechanism": "chronic",
+     "games_missed": 14,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/w/index.php?title=LeBron_James&action=raw&section=26",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/lebron-james-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-11-29",
+     "body_part": "foot",
+     "diagnosis": "recurrent foot soreness; repeated injury-report listings on 11/29/25, 1/7/26, 2/10/26, 4/7/26 and 4/11/26, plus a back listing 12/5/25. Games-missed split not establishable, but 22 of his 82 were missed in total against 14 for the sciatica",
+     "kind": "other",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/lebron-james-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/lebron-james-games-played-by-season-last-5-seasons",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-03-08",
+     "body_part": "left groin",
+     "diagnosis": "groin injury sustained against Boston; sidelined seven straight games, returned March 22, 2025",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 7,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/w/index.php?title=LeBron_James&action=raw&section=25",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/lebron-james-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-12-05",
+     "body_part": "foot / ankle",
+     "diagnosis": "persistent foot soreness listed on nearly every injury report from December 2024 through early March 2025; also withdrew from the All-Star Game with foot and ankle soreness",
+     "kind": "other",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/lebron-james-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://en.wikipedia.org/w/index.php?title=LeBron_James&action=raw&section=25",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-04-30",
+     "body_part": "left knee",
+     "diagnosis": "MCL sprain suffered in the first-round elimination game; rehabbed through the offseason targeting close to 100% by training camp",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/w/index.php?title=LeBron_James&action=raw&section=25",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2023-11-11",
+     "body_part": "calf",
+     "diagnosis": "calf injury carried on the injury report from November 11 through December 19, 2023",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/lebron-james-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-01-04",
+     "body_part": "ankle",
+     "diagnosis": "ankle injury carried on essentially every injury report from January 4 through the end of the 2023-24 regular season",
+     "kind": "tendon",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/lebron-james-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-02-26",
+     "body_part": "right foot",
+     "diagnosis": "foot tendon injury sustained against Dallas; missed 13 consecutive games, returned March 26, 2023 off the bench",
+     "kind": "tendon",
+     "mechanism": "acute",
+     "games_missed": 13,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/w/index.php?title=LeBron_James&action=raw&section=23",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "signed with Philadelphia July 26, 2026; no injury designation on the 76ers' August roster, but the sciatica and chronic foot issues are unresolved at 41",
+   "expert_reads": [],
+   "suggested_tier": "HIGH",
+   "rationale": "Age 41 with four straight seasons of 55-71 games; 2025-26 opened with 14 missed to sciatica and closed with recurring foot listings, on top of chronic ankle and foot history.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "lukadoncic": {
+   "key": "lukadoncic",
+   "name": "Luka Doncic",
+   "as_of": "2026-09-02",
+   "age": 27,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 64,
+    "2024-25": 50,
+    "2023-24": 70,
+    "2022-23": 66
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2026-04-02",
+     "body_part": "left hamstring",
+     "diagnosis": "Grade 2 (partial/incomplete tear) left hamstring strain; out for the remaining 5 regular-season games and the entire playoff run",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 5,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48389387/lakers-doncic-hamstring-miss-least-rest-regular-season",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-04-03"
+      },
+      {
+       "url": "https://www.nba.com/news/luka-doncic-out-for-remainder-of-regular-season-with-left-hamstring-strain",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2026-04-03"
+      },
+      {
+       "url": "https://www.rotowire.com/basketball/player/luka-doncic-4396",
+       "publisher": "RotoWire",
+       "author": null,
+       "date": "2026-08-04"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-05",
+     "body_part": "left hamstring",
+     "diagnosis": "left hamstring strain; exited the Feb 5 game vs Philadelphia after ~15 minutes and missed the four games before the All-Star break",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 4,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.newsweek.com/sports/nba/luka-doncic-issues-important-injury-update-after-all-star-game-11531275",
+       "publisher": "Newsweek",
+       "author": null,
+       "date": "2026-02-16"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/luka-doncic-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-10-26",
+     "body_part": "left finger / lower left leg",
+     "diagnosis": "left finger sprain and lower left leg contusion; missed three games, returned Nov 1 vs Memphis",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/luka-doncic-return-injury-lakers-grizzlies-missed-3-games",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2025-11-01"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-12-25",
+     "body_part": "left calf",
+     "diagnosis": "left calf strain suffered on Christmas Day vs Minnesota; missed the Mavericks' next 19 games, was traded to the Lakers, and missed three more before debuting Feb 10, 2025",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 22,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/articles/nba/when-will-luka-doncic-debut-with-the-lakers-soon-but-not-before-his-calf-strain-is-totally-healed",
+       "publisher": "FOX Sports / Associated Press",
+       "author": null,
+       "date": "2025-02-04"
+      },
+      {
+       "url": "https://www.cbsnews.com/losangeles/news/luka-doncic-to-make-highly-anticipated-debut-with-lakers-against-utah-jazz/",
+       "publisher": "CBS News Los Angeles",
+       "author": null,
+       "date": "2025-02-11"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": null,
+     "body_part": "left thigh",
+     "diagnosis": "left thigh strain requiring an MRI; missed five straight games (about two weeks) before returning vs Golden State",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 5,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/mavericks-luka-doncic-return-from-thigh-injury",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2023-03-22"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "no surgery; says his hamstring is '100 percent healthy' entering 2026-27, no reported restrictions",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://www.nbcsports.com/nba/news/luka-doncic-diagnosed-with-grade-2-hamstring-strain-out-for-remainder-of-season-at-least",
+     "date": "2026-04-03",
+     "read": "\"A G2 strain is also known as a partial or incomplete tear. The average time lost for this type of injury is 35 days (~14.7 games).\""
+    },
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://sports.yahoo.com/nba/breaking-news/article/lakers-star-luka-doncic-to-miss-remainder-of-regular-season-with-hamstring-strain-will-challenge-nbas-65-game-minimum-for-awards-eligibility-220140014.html",
+     "date": "2026-04-03",
+     "read": "Grade 2 hamstring strains lead to an average time lost of 35 days, per his NBA injury database"
+    }
+   ],
+   "suggested_tier": "HIGH",
+   "rationale": "Recurrent left-hamstring soft-tissue problem: a February strain then a season-ending Grade 2 tear in April, on top of a 22-game calf strain in 2024-25; has not cleared 70 GP in four years.",
+   "confidence": "high",
+   "coverage": "full"
+  },
+  "nikolajokic": {
+   "key": "nikolajokic",
+   "name": "Nikola Jokic",
+   "as_of": "2026-09-02",
+   "age": 31,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 65,
+    "2024-25": 70,
+    "2023-24": 79,
+    "2022-23": 69
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-12-29",
+     "body_part": "left knee",
+     "diagnosis": "hyperextension with bone bruise; no structural damage, no surgery required",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 16,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/nuggets-star-nikola-jokic-hurts-left-knee-exits-at-halftime-in-miami",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2025-12-30"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47454834/nuggets-nikola-jokic-miss-4-weeks-hyperextended-knee",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-12-30"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47780244/sources-nuggets-nikola-jokic-knee-return-vs-clippers",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-01-30"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-04",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain after stepping on OG Anunoby's foot; listed questionable, roughly one week after returning from the knee",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/nikola-jokics-ankle-injury-raises-225137567.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2026-02-06"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-02",
+     "body_part": "right (shooting) wrist",
+     "diagnosis": "long-running wrist problem, roughly six years on and off; taped it before the All-Star break, shooting splits fell to 47/28/76 over a ten-game stretch; largely absent from the official injury report",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/nikola-jokic-secretly-battling-chronic-210047409.html",
+       "publisher": "Yahoo Sports (reporting ESPN's Tim MacMahon)",
+       "author": null,
+       "date": "2026-03-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-03-17",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle impingement, alongside a right elbow contusion suffered 2025-03-10; Denver shut him down rather than chase seeding",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 5,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/44375875/nuggets-nikola-jokic-plans-return-some-point-5-game-homestand-says-michael-malone",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-03-23"
+      },
+      {
+       "url": "https://www.nbcsports.com/nba/news/after-missing-five-games-nikola-jokic-returns-with-triple-double-sparking-nuggets-win-over-bucks",
+       "publisher": "NBC Sports",
+       "author": null,
+       "date": "2025-03-27"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "healthy entering 2026-27; knee bone bruise resolved with no surgery, chronic shooting-wrist soreness ongoing, played through illness for Serbia in the August 2026 FIBA qualifiers",
+   "expert_reads": [
+    {
+     "analyst": "Jeff Stotts",
+     "outlet": "In Street Clothes",
+     "url": "https://www.nbcsports.com/nba/news/nuggets-reportedly-optimistic-nikola-jokic-will-be-back-playing-by-the-all-star-break",
+     "date": "2026-01-06",
+     "read": "Called Denver's 'hyperextension' label a description of the mechanism rather than a diagnosis, and said the case had the markings of a bone bruise - which the eventual diagnosis confirmed."
+    }
+   ],
+   "suggested_tier": "MED",
+   "rationale": "Career-low 65 games at 31 after a 16-game knee bone bruise, but no surgery, no structural damage, and 69-79 games in each of the three prior seasons.",
+   "confidence": "high",
+   "coverage": "full"
+  },
+  "scottiebarnes": {
+   "key": "scottiebarnes",
+   "name": "Scottie Barnes",
+   "as_of": "2026-09-02",
+   "age": 25,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 80,
+    "2024-25": 65,
+    "2023-24": 60,
+    "2022-23": 77
+   },
+   "events": [
+    {
+     "season": "2023-24",
+     "date": "2024-03-01",
+     "body_part": "left hand",
+     "diagnosis": "broken metacarpal",
+     "kind": "bone",
+     "mechanism": "freak",
+     "games_missed": 22,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/w/index.php?title=Scottie_Barnes&action=raw",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/scottie-barnes-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-10-28",
+     "body_part": "right eye",
+     "diagnosis": "right orbital bone fracture (elbowed on a drive)",
+     "kind": "bone",
+     "mechanism": "freak",
+     "games_missed": 11,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/scottie-barnes-orbital-fracture-injury",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2024-10-29"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/42911227/sources-raptors-scottie-barnes-ankle-set-weeks",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2024-12-11"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-12-09",
+     "body_part": "right ankle",
+     "diagnosis": "right ankle sprain (landed on Karl-Anthony Towns contesting a shot)",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/42911227/sources-raptors-scottie-barnes-ankle-set-weeks",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2024-12-11"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "healthy entering 2026-27; no known off-season procedure after a career-high 80 games and a seven-game playoff run",
+   "expert_reads": [],
+   "suggested_tier": "LOW",
+   "rationale": "Both big absences were freak fractures (hand, orbital), not soft tissue; played a career-high 80 games in 2025-26 with only day-to-day knee, quad and illness notes.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "shaigilgeousalexander": {
+   "key": "shaigilgeousalexander",
+   "name": "Shai Gilgeous-Alexander",
+   "as_of": "2026-09-02",
+   "age": 28,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 68,
+    "2024-25": 76,
+    "2023-24": 75,
+    "2022-23": 68
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-12-06",
+     "body_part": "elbow",
+     "diagnosis": "elbow injury, day-to-day",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.salaryswish.com/injury/players/shai-gilgeousalexander",
+       "publisher": "SalarySwish",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-08",
+     "body_part": "ankle",
+     "diagnosis": "ankle injury, day-to-day",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.foxsports.com/nba/shai-gilgeous-alexander-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-03",
+     "body_part": "abdomen",
+     "diagnosis": "abdominal strain suffered in the Feb. 3 win over Orlando; ruled out through the All-Star break, later week-to-week, cleared Feb. 26",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 9,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48047322/shai-gilgeous-alexander-cleared-return-thunder",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-02-26"
+      },
+      {
+       "url": "https://www.cbssports.com/nba/news/thunder-shai-gilgeous-alexander-injury-abdominal-strain/",
+       "publisher": "CBS Sports",
+       "author": null,
+       "date": "2026-02-04"
+      },
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-02",
+     "body_part": "abdomen",
+     "diagnosis": "abdominal strain injury management; held out of the first half of a back-to-back four games after returning",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.cbssports.com/fantasy/basketball/news/thunders-shai-gilgeous-alexander-ruled-out-for-tuesday/",
+       "publisher": "CBS Sports",
+       "author": null,
+       "date": "2026-03-02"
+      },
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-09",
+     "body_part": "oblique",
+     "diagnosis": "oblique injury, day-to-day; sat the last two regular-season games, which the Thunder also treated as playoff rest, and was off the injury report for Game 1",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.si.com/nba/thunder/onsi/news/okc-thunder-hope-late-season-rest-will-be-as-beneficial-for-shai-gilgeous-alexander-as-it-was-last-year",
+       "publisher": "Sports Illustrated (Thunder On SI)",
+       "author": null,
+       "date": "2026-04-13"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-01-17",
+     "body_part": "right wrist",
+     "diagnosis": "right wrist soreness, day-to-day",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.salaryswish.com/injury/players/shai-gilgeousalexander",
+       "publisher": "SalarySwish",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-04-09",
+     "body_part": "shin",
+     "diagnosis": "shin injury, day-to-day; sat the last three regular-season games",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.salaryswish.com/injury/players/shai-gilgeousalexander",
+       "publisher": "SalarySwish",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2023-11-03",
+     "body_part": "left knee",
+     "diagnosis": "left knee sprain, day-to-day",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.salaryswish.com/injury/players/shai-gilgeousalexander",
+       "publisher": "SalarySwish",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-03-27",
+     "body_part": "right quadriceps",
+     "diagnosis": "right quadriceps contusion; two separate day-to-day stints in late March and early April",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 6,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.salaryswish.com/injury/players/shai-gilgeousalexander",
+       "publisher": "SalarySwish",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-10-23",
+     "body_part": "left hip",
+     "diagnosis": "left hip contusion; two separate day-to-day stints in October and November",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-12-17",
+     "body_part": "lower back",
+     "diagnosis": "lower back contusion, day-to-day",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-02-24",
+     "body_part": "right ankle",
+     "diagnosis": "sore right ankle, day-to-day",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-02-28",
+     "body_part": "n/a",
+     "diagnosis": "health and safety protocols",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-03-12",
+     "body_part": "abdomen",
+     "diagnosis": "abdominal strain, day-to-day",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-03-28",
+     "body_part": "left ankle",
+     "diagnosis": "left ankle sprain, day-to-day",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sportsforecaster.com/nba/p/232963/Shai_Gilgeous-Alexander/transactions",
+       "publisher": "Sportsforecaster",
+       "author": null,
+       "date": null
+      },
+      {
+       "url": "https://www.salaryswish.com/injury/players/shai-gilgeousalexander",
+       "publisher": "SalarySwish",
+       "author": null,
+       "date": null
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "Healthy, no injury to report; skipped Canada's late-August World Cup qualifiers purely to rest and is expected to be a full go for training camp",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Durable and never operated on, but a Feb 2026 abdominal strain cost 9 games and recurred twice as core management, and OKC routinely rests him late in the season.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "stephencurry": {
+   "key": "stephencurry",
+   "name": "Stephen Curry",
+   "as_of": "2026-09-02",
+   "age": 38,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 43,
+    "2024-25": 70,
+    "2023-24": 74,
+    "2022-23": 56
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2026-01-30",
+     "body_part": "right knee",
+     "diagnosis": "patellofemoral pain syndrome (runner's knee) with bone bruising; MRI showed no structural damage",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 27,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48397821/warriors-curry-details-new-normal-unpredictable-knee-rehab",
+       "publisher": "ESPN",
+       "author": "Anthony Slater",
+       "date": "2026-04-04"
+      },
+      {
+       "url": "https://www.nba.com/news/stephen-curry-injury-out-10-more-days",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2026-03-12"
+      },
+      {
+       "url": "https://heavy.com/sports/nba/golden-state-warriors/stephen-curry-warriors-knee-injury-explained/",
+       "publisher": "Heavy",
+       "author": "Alder Almo",
+       "date": "2026-02-20"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-11-26",
+     "body_part": "right quadriceps",
+     "diagnosis": "quad contusion and muscle strain (MRI-confirmed) after a hard fall vs. Houston",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/stephen-curry-quad-injury",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2025-11-27"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47185952/warriors-stephen-curry-make-road-trip-miss-3-more-games-76ers-cavaliers-bulls",
+       "publisher": "ESPN",
+       "author": "Anthony Slater",
+       "date": "2025-12-03"
+      },
+      {
+       "url": "https://www.landofbasketball.com/nba_players_game_logs/2026/stephen_curry.htm",
+       "publisher": "Land of Basketball",
+       "author": null,
+       "date": "2026-04-12"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-11-18",
+     "body_part": "right ankle",
+     "diagnosis": "ankle sprain; tweaked twice on a six-game road trip (vs. San Antonio, then vs. Orlando)",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/nba/breaking-news/article/stephen-curry-out-with-ankle-injury-for-warriors-heat-tail-end-of-latest-back-to-back-on-6-game-road-trip-203130618.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2025-11-19"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/stephen-curry-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-11-05",
+     "body_part": "n/a",
+     "diagnosis": "illness",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/stephen-curry-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.landofbasketball.com/nba_players_game_logs/2026/stephen_curry.htm",
+       "publisher": "Land of Basketball",
+       "author": null,
+       "date": "2026-04-12"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-03-20",
+     "body_part": "pelvis",
+     "diagnosis": "left pelvic contusion after a hard fall vs. Toronto; MRI showed no structural damage",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/44344704/warriors-stephen-curry-pelvic-contusion-no-structural-damage",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-03-21"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/44450962/steph-curry-returns-2-game-absence-warriors",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-03-29"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-10-27",
+     "body_part": "left lower leg/ankle",
+     "diagnosis": "left peroneal strain after twisting the ankle twice vs. the Clippers; MRI showed no significant structural damage",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/42057525/warriors-mri-shows-no-structural-damage-curry-left-ankle",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2024-10-28"
+      },
+      {
+       "url": "https://www.landofbasketball.com/nba_players_game_logs/2025/stephen_curry.htm",
+       "publisher": "Land of Basketball",
+       "author": null,
+       "date": "2025-04-13"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-02-04",
+     "body_part": "left lower leg",
+     "diagnosis": "Grade 2 sprains of the anterior and posterior tibiofibular ligaments, partial tear of the proximal interosseous membrane, and fibular bone contusion after a collision",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 11,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://instreetclothes.com/2023/02/05/understanding-stephen-currys-latest-injury/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2023-02-05"
+      },
+      {
+       "url": "https://www.profootballnetwork.com/nba/stephen-curry-injury-history/",
+       "publisher": "Pro Football Network",
+       "author": null,
+       "date": "2025-03-21"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-12-14",
+     "body_part": "left shoulder",
+     "diagnosis": "shoulder subluxation with labral injury; no surgery required",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 11,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://instreetclothes.com/2022/12/15/understanding-steph-currys-shoulder-subluxation/",
+       "publisher": "In Street Clothes",
+       "author": "Jeff Stotts",
+       "date": "2022-12-15"
+      },
+      {
+       "url": "https://www.profootballnetwork.com/nba/stephen-curry-injury-history/",
+       "publisher": "Pro Football Network",
+       "author": null,
+       "date": "2025-03-21"
+      }
+     ]
+    }
+   ],
+   "load_management": true,
+   "open_status": "No surgery; cleared with no stated limitations, but the right knee (patellofemoral pain) is a 'new normal' he must actively manage, and the Warriors are expected to modulate his workload",
+   "expert_reads": [],
+   "suggested_tier": "HIGH",
+   "rationale": "Age 38, only 43 games in 2025-26; a chronic right-knee patellofemoral issue cost 27 straight and still needs daily management entering camp, on top of recurrent ankle and soft-tissue absences.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "traeyoung": {
+   "key": "traeyoung",
+   "name": "Trae Young",
+   "as_of": "2026-09-02",
+   "age": 27,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 15,
+    "2024-25": 76,
+    "2023-24": 54,
+    "2022-23": 73
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-10-29",
+     "body_part": "right knee",
+     "diagnosis": "sprained MCL (right knee); teammate fell into his leg vs. Brooklyn, ruled out at least four weeks, no major structural damage",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 22,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/46809520/sources-trae-young-mcl-sprain-least-four-weeks",
+       "publisher": "ESPN",
+       "author": "Shams Charania and Ohm Youngmisuk",
+       "date": "2025-11-01"
+      },
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47348317/sources-hawks-trae-young-return-thu-22-game-absence",
+       "publisher": "ESPN",
+       "author": "Shams Charania and Ohm Youngmisuk",
+       "date": "2025-12-18"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": null,
+     "body_part": "right quad and right knee",
+     "diagnosis": "right quad contusion plus lingering right knee MCL sprain; last played for Atlanta on Dec 27, traded to Washington Jan 9 while still sidelined, did not debut for the Wizards until Mar 5",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 30,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/47565175/opportunity-trae-young-savors-fresh-start-wizards",
+       "publisher": "ESPN",
+       "author": "Marc J. Spears",
+       "date": "2026-01-09"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/trae-young-2025-26-game-log",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": null,
+     "body_part": "low back and right quad",
+     "diagnosis": "low back pain and a right quad contusion; last appearance Mar 16, ruled out for the remainder of the season on Apr 7, 2026",
+     "kind": "other",
+     "mechanism": "chronic",
+     "games_missed": 15,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/wizards-anthony-davis-trae-young-002154849.html",
+       "publisher": "Yahoo Sports",
+       "author": "Chase Hughes",
+       "date": "2026-04-08"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/washington-wizards-games-after-march-16-2026",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-11-12",
+     "body_part": "right Achilles",
+     "diagnosis": "right Achilles tendinitis, managed for most of the season; first game missed Nov 12, 2024, played through it thereafter",
+     "kind": "tendon",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/article/trae-young-injury-where-hawks-180433845.html",
+       "publisher": "Yahoo Sports / For The Win",
+       "author": "Robert Zeglinski",
+       "date": "2025-04-15"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-02-23",
+     "body_part": "left pinky finger",
+     "diagnosis": "torn radial collateral ligament, left fifth finger; surgery Feb 27, 2024, returned Apr 11, 2024",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 23,
+     "surgery": "minor",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/hawks-trae-young-returns-finger-injury",
+       "publisher": "NBA.com",
+       "author": null,
+       "date": "2024-04-11"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "No reported restrictions entering 2026-27; posting offseason workouts in late August after a season-ending back/quad shutdown, but no public medical clearance update",
+   "expert_reads": [],
+   "suggested_tier": "HIGH",
+   "rationale": "Played 15 of 82 in 2025-26 across three separate lower-body absences (MCL sprain, quad contusion, back/quad shutdown) on top of chronic Achilles tendinitis.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "treymurphy": {
+   "key": "treymurphy",
+   "name": "Trey Murphy III",
+   "as_of": "2026-09-02",
+   "age": 26,
+   "pos_group": "wing",
+   "gp": {
+    "2025-26": 66,
+    "2024-25": 53,
+    "2023-24": 57,
+    "2022-23": 79
+   },
+   "events": [
+    {
+     "season": "2023-24",
+     "date": "2023-10-25",
+     "body_part": "left knee",
+     "diagnosis": "meniscus tear, arthroscopic repair; missed the first 19 games of the season rehabilitating",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 19,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401584906",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2023-12-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2023-12-31",
+     "body_part": "left knee",
+     "diagnosis": "left knee soreness during the return from meniscus surgery; two separate games out (2023-12-31 and 2024-01-13)",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401585074",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2024-01-01"
+      },
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401585175",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2024-01-14"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-10-03",
+     "body_part": "right hamstring",
+     "diagnosis": "right hamstring strain suffered in preseason practice, MRI-confirmed, three-week re-evaluation; missed the first 10 games and a further maintenance night on 2024-11-16",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 11,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/41593253/pels-trey-murphy-hamstring-likely-start-regular-season",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2024-10-03"
+      },
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401704797",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2024-11-17"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-11-27",
+     "body_part": "left knee",
+     "diagnosis": "left knee bruise",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 1,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401704861",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2024-11-28"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-03-17",
+     "body_part": "right shoulder",
+     "diagnosis": "dislocated right shoulder diving for a loose ball; torn labrum and partial rotator cuff tear, out for the season's final 13 games",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 13,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/44298273/pelicans-trey-murphy-suffers-season-ending-torn-labrum-right-shoulder",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-03-18"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-11-29",
+     "body_part": "right elbow",
+     "diagnosis": "right elbow soreness",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401810153",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2025-11-30"
+      },
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401810163",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2025-12-01"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-01-02",
+     "body_part": "back",
+     "diagnosis": "back soreness",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401810337",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2026-01-03"
+      },
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401810374",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2026-01-08"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-02-20",
+     "body_part": "right shoulder",
+     "diagnosis": "soreness in the same right shoulder he tore the labrum in during March 2025; sat out five straight games",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 5,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401810662",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2026-02-21"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-26",
+     "body_part": "right ankle",
+     "diagnosis": "right ankle sprain; missed three games, returned for two, then sat the final four games of the season with the same ankle",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 7,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401810926",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2026-03-28"
+      },
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401811008",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2026-04-08"
+      },
+      {
+       "url": "http://www.espn.com/nba/recap?gameId=401811029",
+       "publisher": "ESPN (AP)",
+       "author": null,
+       "date": "2026-04-11"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "no injury designation entering 2026-27; last seen sitting the final four games of 2025-26 with a right ankle sprain, no offseason procedure reported",
+   "expert_reads": [],
+   "suggested_tier": "HIGH",
+   "rationale": "Missed 16, 29 and 25 games the last three seasons across nine distinct injuries, including a meniscus repair and a right shoulder that has already recurred.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "tyresehaliburton": {
+   "key": "tyresehaliburton",
+   "name": "Tyrese Haliburton",
+   "as_of": "2026-09-02",
+   "age": 26,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 0,
+    "2024-25": 73,
+    "2023-24": 69,
+    "2022-23": 56
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-06-22",
+     "body_part": "right Achilles tendon",
+     "diagnosis": "torn right Achilles tendon, suffered in Game 7 of the 2025 NBA Finals; surgically repaired June 2025",
+     "kind": "tendon",
+     "mechanism": "acute",
+     "games_missed": 82,
+     "surgery": "major",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/tyrese-haliburton-struggles-with-shingles-on-top-of-achilles-tendon-recovery",
+       "publisher": "NBA.com / Associated Press",
+       "author": "Michael Marot",
+       "date": "2026-04-14"
+      },
+      {
+       "url": "https://bleacherreport.com/articles/25457464-pacers-tyrese-haliburton-gives-achilles-injury-update-new-video-amid-nba-offseason",
+       "publisher": "Bleacher Report",
+       "author": "Paul Kasabian",
+       "date": "2026-07-23"
+      },
+      {
+       "url": "https://en.wikipedia.org/wiki/Tyrese_Haliburton",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-06-15",
+     "body_part": "right calf",
+     "diagnosis": "right calf strain aggravated in Game 5 of the 2025 NBA Finals; MRI indicated a multi-week recovery. He played through it and ruptured the right Achilles two games later",
+     "kind": "soft_tissue",
+     "mechanism": "chronic",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://en.wikipedia.org/wiki/Tyrese_Haliburton",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-01-08",
+     "body_part": "left hamstring",
+     "diagnosis": "Grade 1 left hamstring strain, sustained against Boston; re-aggravated after an early return",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 10,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.statmuse.com/nba/ask/tyrese-haliburton-games-played-in-january-2024",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://en.wikipedia.org/wiki/Tyrese_Haliburton",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2023-01-11",
+     "body_part": "left knee and left elbow",
+     "diagnosis": "left knee bone contusion and sprained left elbow; returned Feb 2, 2023 after missing 10 games",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 10,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.nba.com/news/tyrese-haliburton-returns-from-knee-elbow-sprains-to-pacers-lineup",
+       "publisher": "NBA.com",
+       "author": "NBA.com News Services",
+       "date": "2023-02-03"
+      },
+      {
+       "url": "https://en.wikipedia.org/wiki/Tyrese_Haliburton",
+       "publisher": "Wikipedia",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "Cleared and playing five-on-five; expected available for opening night ~15 months post-Achilles repair, but not yet game-tested",
+   "expert_reads": [],
+   "suggested_tier": "HIGH",
+   "rationale": "Missed all 82 games of 2025-26 after a June 2025 right Achilles rupture and repair; cleared and in 5-on-5 but has not played an NBA game in over a year.",
+   "confidence": "high",
+   "coverage": "full"
+  },
+  "tyresemaxey": {
+   "key": "tyresemaxey",
+   "name": "Tyrese Maxey",
+   "as_of": "2026-09-02",
+   "age": 25,
+   "pos_group": "guard",
+   "gp": {
+    "2025-26": 70,
+    "2024-25": 52,
+    "2023-24": 70,
+    "2022-23": 60
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2026-03-07",
+     "body_part": "right pinkie finger",
+     "diagnosis": "tendon injury to right fifth finger (same finger injured the prior season); no fracture on imaging",
+     "kind": "tendon",
+     "mechanism": "chronic",
+     "games_missed": 10,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48167237/philadelphia-76ers-tyrese-maxey-diagnosed-tendon-injury-finger-reevaluated-3-weeks",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-03-10"
+      },
+      {
+       "url": "https://www.cbssports.com/nba/news/tyrese-maxey-injury-update-76ers-thunder-draft-pick/",
+       "publisher": "CBS Sports",
+       "author": null,
+       "date": "2026-03-10"
+      },
+      {
+       "url": "https://www.nbcsportsphiladelphia.com/nba/philadelphia-76ers/tyrese-maxey-return-sixers-vs-hornets-kelly-oubre-jr/723371/",
+       "publisher": "NBC Sports Philadelphia",
+       "author": null,
+       "date": "2026-03-28"
+      },
+      {
+       "url": "https://www.espn.com/nba/player/stats/_/id/4431678/tyrese-maxey",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-12-12",
+     "body_part": "non-orthopedic",
+     "diagnosis": "illness (a bug that also sidelined three teammates)",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.hoopsrumors.com/2025/12/sixers-tyrese-maxey-to-miss-first-game-of-season-friday.html",
+       "publisher": "Hoops Rumors",
+       "author": null,
+       "date": "2025-12-12"
+      },
+      {
+       "url": "https://www.inquirer.com/sixers/tyrese-maxey-sits-out-illness-hawks-20251214.html",
+       "publisher": "The Philadelphia Inquirer",
+       "author": null,
+       "date": "2025-12-14"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-03-03",
+     "body_part": "right pinkie finger",
+     "diagnosis": "sprained right fifth finger, later a tendon injury; re-injured in a return attempt and shut down for the season",
+     "kind": "tendon",
+     "mechanism": "acute",
+     "games_missed": 23,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.cbsnews.com/philadelphia/news/tyrese-maxey-injury-out-for-sixers-season/",
+       "publisher": "CBS News Philadelphia",
+       "author": null,
+       "date": "2025-04-09"
+      },
+      {
+       "url": "https://www.inquirer.com/sixers/sixers-tyrese-maxey-injury-summer-league-vj-edgecombe-vegas-trendon-watford-20250713.html",
+       "publisher": "The Philadelphia Inquirer",
+       "author": null,
+       "date": "2025-07-13"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/how-many-games-did-the-76ers-play-after-march-3-2025",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2024-11-06",
+     "body_part": "right hamstring",
+     "diagnosis": "right hamstring strain",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 6,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.inquirer.com/sixers/tyrese-maxey-return-sixers-grizzlies-hamstring-injury-20241120.html",
+       "publisher": "The Philadelphia Inquirer",
+       "author": null,
+       "date": "2024-11-20"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-03-03",
+     "body_part": "head",
+     "diagnosis": "concussion from a blow to the back of the head vs Dallas; NBA concussion protocol",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.inquirer.com/sixers/tyrese-maxey-injury-concussion-update-timeline-20240308.html",
+       "publisher": "The Philadelphia Inquirer",
+       "author": null,
+       "date": "2024-03-08"
+      }
+     ]
+    },
+    {
+     "season": "2022-23",
+     "date": "2022-11-18",
+     "body_part": "left foot",
+     "diagnosis": "small fracture in the left foot after stepping on a teammate's foot",
+     "kind": "bone",
+     "mechanism": "acute",
+     "games_missed": 18,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.phillyvoice.com/sixers-injury-news-tyrese-maxey-out-approximately-3-4-weeks-due-bone-injury-left-foot/",
+       "publisher": "PhillyVoice",
+       "author": null,
+       "date": "2022-11-19"
+      },
+      {
+       "url": "https://www.espn.com/nba/player/gamelog/_/id/4431678/type/nba/year/2023",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-09-02"
+      },
+      {
+       "url": "https://www.statmuse.com/nba/ask/76ers-games-from-november-19-2022-to-december-29-2022",
+       "publisher": "StatMuse",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "no surgery reported; finished 2025-26 playing through the right pinkie tendon injury and into the playoffs, with no 2026 off-season health update found",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Durable when healthy and never load-managed, but has lost 12, 30, 12 and 22 games over four seasons, and the right pinkie tendon injury has now recurred in back-to-back years.",
+   "confidence": "medium",
+   "coverage": "full"
+  },
+  "victorwembanyama": {
+   "key": "victorwembanyama",
+   "name": "Victor Wembanyama",
+   "as_of": "2026-09-02",
+   "age": 22,
+   "pos_group": "big",
+   "gp": {
+    "2025-26": 64,
+    "2024-25": 46,
+    "2023-24": 71
+   },
+   "events": [
+    {
+     "season": "2025-26",
+     "date": "2025-11-14",
+     "body_part": "left calf",
+     "diagnosis": "left calf strain (MRI-confirmed 2025-11-17); returned 2025-12-13 on a minutes limit and came off the bench for seven straight games before rejoining the starting lineup 2025-12-28",
+     "kind": "soft_tissue",
+     "mechanism": "acute",
+     "games_missed": 12,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://sports.yahoo.com/articles/many-games-wemby-missed-season-160920584.html",
+       "publisher": "Yahoo Sports",
+       "author": null,
+       "date": "2025-12-13"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/victor-wembanyama-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2025-12-31",
+     "body_part": "left knee",
+     "diagnosis": "left knee hyperextension vs. NYK; MRI showed no ligament damage. Missed the next two games, then missed a further game 2026-01-30 with knee trouble",
+     "kind": "joint",
+     "mechanism": "acute",
+     "games_missed": 3,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48189458/spurs-rule-victor-wembanyama-ankle-vs-nuggets",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-03-12"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/victor-wembanyama-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-03-12",
+     "body_part": "right ankle",
+     "diagnosis": "right ankle soreness; ruled out vs. DEN after testing it in warmups in a brace. Coach Mitch Johnson called it 'very short term'. Same ankle led to a rest/injury-management sit on the second night of a back-to-back 2026-04-03",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/48189458/spurs-rule-victor-wembanyama-ankle-vs-nuggets",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-03-12"
+      },
+      {
+       "url": "https://www.espn.ph/nba/story/_/id/48380360/spurs-rule-victor-wembanyama-ankle-clippers",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2026-04-03"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-06",
+     "body_part": "left ribcage",
+     "diagnosis": "left rib contusion after a fall vs. PHI; clean MRI. Sat two of the last five regular-season games, then was off the injury report for the playoff opener",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 2,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.hoopsrumors.com/2026/04/victor-wembanyama-exits-mondays-game-with-rib-contusion.html",
+       "publisher": "Hoops Rumors",
+       "author": null,
+       "date": "2026-04-06"
+      },
+      {
+       "url": "https://www.foxsports.com/nba/victor-wembanyama-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2025-26",
+     "date": "2026-04-21",
+     "body_part": "head",
+     "diagnosis": "concussion sustained in the first round vs. POR; cost playoff games only, no regular-season games",
+     "kind": "other",
+     "mechanism": "freak",
+     "games_missed": 0,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/victor-wembanyama-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2024-25",
+     "date": "2025-02-20",
+     "body_part": "right shoulder",
+     "diagnosis": "deep vein thrombosis (blood clot) in the right shoulder, found on return from All-Star weekend; season-ending, treated with blood thinners. Spurs called it an isolated clot with 'no concern for Victor's long-term health'. He had played 46 games for a 23-29 team, so the shutdown cost the final 30 regular-season games",
+     "kind": "other",
+     "mechanism": "acute",
+     "games_missed": 30,
+     "surgery": "none",
+     "lower_body": false,
+     "sources": [
+      {
+       "url": "https://www.espn.com/nba/story/_/id/43937353/spurs-shut-victor-wembanyama-blood-clot-shoulder",
+       "publisher": "ESPN",
+       "author": null,
+       "date": "2025-02-20"
+      },
+      {
+       "url": "https://www.rotowire.com/basketball/player/victor-wembanyama-5809",
+       "publisher": "RotoWire",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    },
+    {
+     "season": "2023-24",
+     "date": "2024-03-06",
+     "body_part": "right ankle",
+     "diagnosis": "recurring ankle sprains/soreness across the rookie year (logged 2023-12-18, 2023-12-23, 2024-03-06, 2024-03-25, 2024-04-10, 2024-04-13), plus a hip issue in late November 2023; 11 games missed in total that season including scheduled rest on a lottery team",
+     "kind": "joint",
+     "mechanism": "chronic",
+     "games_missed": null,
+     "surgery": "none",
+     "lower_body": true,
+     "sources": [
+      {
+       "url": "https://www.foxsports.com/nba/victor-wembanyama-player-injuries",
+       "publisher": "FOX Sports",
+       "author": null,
+       "date": "2026-09-02"
+      }
+     ]
+    }
+   ],
+   "load_management": false,
+   "open_status": "Healthy entering 2026-27; no surgery, no reported restrictions. Trained in France over the summer, hosted Spurs teammates in Paris and rejoined the French national team for the late-August FIBA World Cup qualifying window",
+   "expert_reads": [],
+   "suggested_tier": "MED",
+   "rationale": "Three NBA seasons, never more than 71 games: 12 lost to a calf strain plus recurring knee/ankle sits in 2025-26, and a season-ending shoulder DVT in 2024-25, but he is fully healthy now.",
+   "confidence": "medium",
+   "coverage": "full"
+  }
+ }
+}

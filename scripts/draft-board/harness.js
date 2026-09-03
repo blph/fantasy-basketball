@@ -206,7 +206,8 @@ if (fs.existsSync('Data.gs')) {
       +(fta * 0.79).toFixed(1), fta, 0.79,
       +(0.6 + 2.8 * t).toFixed(1), +(6 + 22 * t).toFixed(1), +(2 + 8 * t).toFixed(1),
       +(1 + 7 * t).toFixed(1), +(0.4 + 1.1 * t).toFixed(1), +(0.2 + 1.4 * t).toFixed(1),
-      +(0.8 + 2.4 * t).toFixed(1)
+      +(0.8 + 2.4 * t).toFixed(1),
+      ['LOW', 'MED', 'HIGH', '?'][i % 4]        // the injury tier, all four tokens present
     ];
   });
 }
@@ -571,12 +572,15 @@ CAT_LABELS.forEach(lab => {
   old.cells[`${HDR},${oldGone}`] = 'GONE';
   old.cells[`${HDR},${oldMine}`] = 'MINE';
   old.cells[`${HDR},${oldNotes}`] = 'Notes';
+  // Left in place deliberately. INJ is no longer captured, and the way to prove that is to
+  // put one in front of readCheckState and show it comes back untouched -- an absent
+  // column would prove nothing.
   old.cells[`${HDR},${oldInj}`] = 'INJ';
   old.cells[`${R0},${oldPlayer}`] = 'Ada Lovelace';
   old.cells[`${R0},${oldGone}`] = false;
   old.cells[`${R0},${oldMine}`] = true;
   old.cells[`${R0},${oldNotes}`] = 'target';
-  old.cells[`${R0},${oldInj}`] = 'GTD';
+  old.cells[`${R0},${oldInj}`] = 'STALE';
   old.getLastRow = () => R0;
 
   const at = draftHeaderCols(old);
@@ -592,10 +596,23 @@ CAT_LABELS.forEach(lab => {
     // The precise corruption to guard against: reading MINE as GONE.
     check('MINE is not read as GONE', rec.gone === false && rec.mine === true,
       `gone=${rec.gone} mine=${rec.mine}`);
-    check('Notes and Injuries travel with the checkboxes',
-      rec.notes === 'target' && rec.inj === 'GTD', JSON.stringify(rec));
+    check('Notes travel with the checkboxes', rec.notes === 'target', JSON.stringify(rec));
+    // The Board owns INJ now, and the Draft Board cell is a formula into it. Capturing it
+    // here would restore a literal over that formula on the next re-sort and freeze the
+    // tier -- no #REF!, no error, just a stale value that reads as current. ADR-0022.
+    check('Injuries do NOT travel with the checkboxes', rec.inj === undefined,
+      `readCheckState still captures INJ: ${JSON.stringify(rec)}`);
+    check('draftHeaderCols no longer resolves INJ', at.INJ === undefined);
   }
 }
+
+// The injury tier is a pipeline column. Both halves of that have to hold: it must be
+// refreshed, and it must not be listed as hand-edited.
+check('B.injuries is refreshed from the pipeline',
+  REFRESH_MAP.some(([col]) => col === B.injuries));
+check('B.injuries is not a hand column', !HAND_COLS.includes(B.injuries));
+check('the injury tier is the 21st PLAYERS field',
+  REFRESH_MAP.some(([col, idx]) => col === B.injuries && idx === 20));
 
 // --- conditional formats ---------------------------------------------------
 // These carry column letters, which is exactly what drifts when a column is inserted.
@@ -623,6 +640,20 @@ CAT_LABELS.forEach(lab => {
         pairs++;
   check('every tag column has its own disagreement rule',
     pairs === SOURCES.length * VALUE_KINDS.length, `found ${pairs}`);
+
+  // The INJ column changed meaning: it used to hold a current status (OUT / GTD) and now
+  // holds a durability tier. The old rules cannot be left behind, because `OUT` and `GTD`
+  // would still paint any cell that happened to hold them while every tier went unpainted.
+  const texts = seen.sheets['Draft Board'].rules.map(r => r.text).filter(Boolean);
+  ['HIGH', 'MED', 'LOW', '?'].forEach(t => {
+    check(`INJ has a rule for ${t}`, texts.includes(t), texts.join(' '));
+  });
+  ['OUT', 'GTD'].forEach(t => {
+    check(`the old ${t} status rule is gone`, !texts.includes(t), texts.join(' '));
+  });
+  check('the Board paints its injury column too',
+    ['HIGH', 'MED', 'LOW', '?'].every(
+      t => seen.sheets['Board'].rules.map(r => r.text).includes(t)));
 
   // A conditional format rule MAY NOT reference another sheet, and every named range in
   // this workbook lives on Settings. Referencing one takes down the entire rule set for
