@@ -26,7 +26,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 
 import bbm_constants as BC  # noqa: E402
 import board_values as BV  # noqa: E402
-import injury_risk as IR  # noqa: E402
 import sources as S  # noqa: E402
 from bbm_reference import H2H_WEIGHTS, LAMBDAS_BBM_2026_27_JOSH, per_game  # noqa: E402
 
@@ -60,9 +59,20 @@ CONSTANT_FILES = {
     "BMP-ALT": "BMP-ALT Constants",
 }
 
+#: Basketball Monster's published table, read for one column: `Inj Risk`. It moves with
+#: the projections because their risk grades do -- a tier paired with a fortnight-old
+#: export describes a player who has since been cleared, or hurt.
+INJURY_FILE = "BBM Injury Risk"
+
 #: Everything a complete set needs, as {key: (stem, extension)}.
 SET_FILES = ({lab: (stem, "csv") for lab, stem in SOURCE_FILES.items()}
-             | {f"{lab}:const": (stem, "json") for lab, stem in CONSTANT_FILES.items()})
+             | {f"{lab}:const": (stem, "json") for lab, stem in CONSTANT_FILES.items()}
+             | {"inj": (INJURY_FILE, "csv")})
+
+#: The injury tiers the board admits, worst first, plus the token for a player Basketball
+#: Monster does not grade. `verify.py` and `injuryRules()` in Build.gs hold the same set.
+INJ_TIERS = ("EXTREME", "HIGH", "MED", "LOW")
+INJ_UNKNOWN = "?"
 
 #: The nine builds the board ships (ADR-0010), as DURANT H2H category keys.
 PUNTS = [
@@ -77,7 +87,7 @@ DATE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def find_set(date: str | None) -> tuple[str, dict[str, Path]]:
-    """Locate one complete, same-dated set: three exports and the two vendor fits.
+    """Locate one complete, same-dated set: three exports, two vendor fits, one risk table.
 
     Refuses a partial or mixed-date set unless forced. Scoring a fresh vendor file against
     a two-week-old Hashtag file produces a board that is wrong everywhere and looks wrong
@@ -152,23 +162,24 @@ def load(paths: dict[str, Path]) -> tuple[list[dict], dict[str, dict], dict, dic
     return board, vendors, constants, report
 
 
-def load_injuries(board: list[dict]) -> dict:
-    """Tier every board row from the committed research (ADR-0022).
+def load_injuries(board: list[dict], path: Path) -> dict:
+    """Tier every board row from Basketball Monster's own `Inj Risk` column.
 
-    Loaded and validated before any scoring runs, so a malformed research file fails on its
-    own terms rather than a thousand lines later inside `emit`.
+    We do not compute a tier. Basketball Monster grades injury risk and we copy the grade;
+    a board player they do not grade renders `?` and is reported, never guessed at.
+
+    Loaded and validated before any scoring runs, so a malformed table fails on its own
+    terms rather than a thousand lines later inside `emit`.
     """
     try:
-        data = IR.load()
-    except IR.InjuryDataError as exc:
+        risk = S.load_injury_risk(path)
+    except S.SourceError as exc:
         raise SystemExit(str(exc)) from None
-    tiers, missing, unused = IR.tiers_for(board, data)
-    disagree = [(row["name"], rec["suggested_tier"], tiers[i])
-                for i, row in enumerate(board)
-                if (rec := data["players"].get(row["key"]))
-                and rec["suggested_tier"] != tiers[i]]
-    return {"tiers": tiers, "missing": missing, "unused": unused,
-            "disagree": disagree, "generated": data.get("generated", "")}
+    tiers = [risk.get(row["key"], INJ_UNKNOWN) for row in board]
+    missing = [row["name"] for row in board if row["key"] not in risk]
+    on_board = {row["key"] for row in board}
+    unused = sorted(risk.keys() - on_board)
+    return {"tiers": tiers, "missing": missing, "unused": unused}
 
 
 def rerank(rows: list[dict]) -> None:
@@ -367,10 +378,9 @@ def emit(board, scored, report, date, paths, mixed, injuries) -> str:
 
     meta = {"generated": date, "mixedDates": mixed, "boardRows": len(board),
             "sources": {k: v.name for k, v in paths.items()},
-            # Dated separately from the projections on purpose: the research moves on its
-            # own schedule, and a refresh that leaves it behind has to be visible.
-            "injuries": {"generated": injuries["generated"],
-                         "researched": len(board) - len(injuries["missing"]),
+            # No separate date: the risk table is part of the dated set, so it carries
+            # the same date as everything else here.
+            "injuries": {"graded": len(board) - len(injuries["missing"]),
                          "missing": len(injuries["missing"]),
                          "unused": len(injuries["unused"])}}
 
@@ -405,7 +415,7 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--dry-run", action="store_true", help="report and write nothing")
     ap.add_argument("--require-injuries", action="store_true",
-                    help="refuse to build while any board player is unresearched")
+                    help="refuse to build while any board player is ungraded")
     ap.add_argument("--allow-mixed-dates", action="store_true",
                     help="score sources carrying different dates (stamped into META)")
     args = ap.parse_args()
@@ -433,29 +443,23 @@ def main() -> int:
               f"overlap {s['pool_overlap']}/{Q}, pool GP min "
               f"{s['pools']['durant']['gp_min']:.0f}")
 
-    injuries = load_injuries(board)
+    injuries = load_injuries(board, paths["inj"])
     counts: dict[str, int] = {}
     for t in injuries["tiers"]:
         counts[t] = counts.get(t, 0) + 1
-    tiered = len(board) - len(injuries["missing"])
-    print(f"  injury tiers: {tiered} of {len(board)} researched "
-          f"({injuries['generated'] or 'undated'}); "
-          + ", ".join(f"{counts.get(t, 0)} {t}" for t in (*IR.TIERS, IR.UNKNOWN)))
+    graded = len(board) - len(injuries["missing"])
+    print(f"  injury tiers: {graded} of {len(board)} graded by Basketball Monster; "
+          + ", ".join(f"{counts.get(t, 0)} {t}" for t in (*INJ_TIERS, INJ_UNKNOWN)))
     if injuries["missing"]:
         shown = injuries["missing"][:12]
         more = len(injuries["missing"]) - len(shown)
-        print(f"    unresearched: {', '.join(shown)}"
+        print(f"    ungraded: {', '.join(shown)}"
               + (f", and {more} more" if more else ""))
     if injuries["unused"]:
-        print(f"    {len(injuries['unused'])} records for players not on the board")
-    if injuries["disagree"]:
-        print(f"    {len(injuries['disagree'])} rubric/researcher disagreements")
-    high = counts.get("HIGH", 0) / len(board)
-    if not 0.10 <= high <= 0.35:
-        print(f"    note: HIGH is {high:.0%} of the board, outside the usual 10-35%")
+        print(f"    {len(injuries['unused'])} graded players are not on the board")
     if args.require_injuries and injuries["missing"]:
         raise SystemExit(f"--require-injuries: {len(injuries['missing'])} board players "
-                         "have no injury research. Run those, then merge.")
+                         "carry no Basketball Monster injury grade.")
 
     print("\nChange report")
     for line in change_report(board, scored, args.out):

@@ -178,6 +178,47 @@ def load_board(path: Path) -> list[dict]:
     return out
 
 
+def load_injury_risk(path: Path) -> dict[str, str]:
+    """A Basketball Monster published table -> {normalised name: injury tier}.
+
+    The tier is Basketball Monster's own `Inj Risk`, copied verbatim rather than scored
+    from anything of ours. We have no injury model and no business having one: the column
+    is theirs, and the only work here is reading it.
+
+    The file is their published table pasted as CSV, so it repeats its header roughly
+    every thirteen players the way the Hashtag export does. Those rows are dropped by
+    requiring a `Name` that is not the literal header.
+    """
+    tiers = {"low": "LOW", "med": "MED", "high": "HIGH", "extreme": "EXTREME"}
+    out: dict[str, str] = {}
+    names: dict[str, str] = {}
+    for row in _rows(path):
+        name = (row.get("Name") or "").strip()
+        if not name or name == "Name":
+            continue  # a repeated header row
+        raw = (row.get("Inj Risk") or "").strip().lower()
+        if not raw:
+            continue  # rated by Basketball Monster but not risk-graded; renders `?`
+        if raw not in tiers:
+            # Never fall through to `?`. A token we do not recognise means their
+            # vocabulary moved, and silently blanking it would hide that behind a
+            # column that already has a legitimate reason to be empty.
+            raise SourceError(
+                f"{path.name}: {name} has an unknown injury risk {raw!r} "
+                f"-- expected one of {', '.join(sorted(tiers))}"
+            )
+        key = normalise(name)
+        if key in names and names[key] != name:
+            raise AmbiguousName(
+                f"{path.name}: '{name}' and '{names[key]}' both normalise to '{key}'"
+            )
+        names[key] = name
+        out[key] = tiers[raw]
+    if not out:
+        raise SourceError(f"{path.name}: no player carries an injury risk")
+    return out
+
+
 def join(board: list[dict], vendors: dict[str, dict[int, dict]]) -> dict[str, list[str]]:
     """Attach each vendor's id to every board row. Returns a per-vendor report.
 

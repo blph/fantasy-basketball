@@ -11,7 +11,6 @@ import bbm_constants as BC
 import bbm_reference as B
 import board_values as BV
 import build_data as BD
-import injury_risk as IR
 import pytest
 import sources as S
 
@@ -42,9 +41,27 @@ def write_constants(directory, label, date, rates, q=20, shift=0.0, stretch=1.0)
     return path
 
 
+def write_injury_risk(directory, date, graded, ungraded=(), extra=()):
+    """A synthetic Basketball Monster risk table beside the synthetic exports.
+
+    Invented players and invented grades (ADR-0006). `ungraded` names appear in the file
+    with a blank grade, which is how their table carries a player it has not assessed;
+    `extra` names are graded but are not on the board.
+    """
+    tiers = ("LOW", "MED", "HIGH", "EXTREME")
+    lines = ["Rank,Name,Team,Pos,Inj,Inj Risk,Status"]
+    for i, name in enumerate([*graded, *extra]):
+        lines.append(f"{i + 1},{name},BOS,PG,,{tiers[i % 4].lower()},")
+    for name in ungraded:
+        lines.append(f"{len(lines)},{name},BOS,PG,,,")
+    path = directory / f"BBM Injury Risk - {date}.csv"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
 @pytest.fixture
 def projection_set(tmp_path, monkeypatch):
-    """A complete, same-dated set: three exports and a fit for each vendor."""
+    """A complete, same-dated set: three exports, a fit for each vendor, a risk table."""
     names = [made_up_name(i) for i in range(200)]
     monkeypatch.setattr(BD, "DATA", tmp_path)
     hbp_200(tmp_path, names)
@@ -55,6 +72,7 @@ def projection_set(tmp_path, monkeypatch):
         vendor_file(tmp_path, rows, path.name)
         rates = {k: r for k, v in S.load_vendor(path).items() if (r := B.per_game(v))}
         write_constants(tmp_path, label, "2026-01-01", rates, shift=0.05, stretch=1.03)
+    write_injury_risk(tmp_path, "2026-01-01", names)
     return tmp_path, names
 
 
@@ -128,7 +146,7 @@ class TestEmit:
     def _injuries(self, board, tiers=None):
         """Synthetic tiers, one per board row. The rubric is tested in its own file."""
         return {"tiers": tiers if tiers is not None else ["?"] * len(board),
-                "missing": [], "unused": [], "disagree": [], "generated": "2026-09-02"}
+                "missing": [], "unused": []}
 
     def _emit(self, projection_set, tiers=None):
         tmp_path, names = projection_set
@@ -225,25 +243,58 @@ class TestEmit:
         assert players[0][20] == "HIGH"
         assert {p[20] for p in players[1:]} == {"LOW"}
 
-    def test_an_unresearched_player_emits_a_question_mark_not_a_blank(self, projection_set):
+    def test_an_ungraded_player_emits_a_question_mark_not_a_blank(self, projection_set):
         # A blank in a risk column reads as LOW, the one reading that would cost a pick.
         text, _, _ = self._emit(projection_set)
         assert {p[20] for p in self._block(text, "PLAYERS")} == {"?"}
 
     def test_meta_records_injury_coverage(self, projection_set):
-        # The research is dated separately from the projections, and a refresh that leaves
-        # it behind has to be visible rather than inferred.
         text, _, _ = self._emit(projection_set)
         inj = self._block(text, "META")["injuries"]
-        assert inj["generated"] == "2026-09-02"
-        assert inj["researched"] + inj["missing"] == len(self._block(text, "PLAYERS"))
+        assert inj["graded"] + inj["missing"] == len(self._block(text, "PLAYERS"))
 
 
 class TestLoadInjuries:
-    def test_a_board_player_with_no_record_is_named_not_dropped(self):
-        board = [{"key": "aa", "name": "Ada Aaronson"}, {"key": "bb", "name": "Bo Bergstrom"}]
-        data = {"schema": 1, "generated": "2026-09-02", "players": {}}
-        tiers, missing, unused = IR.tiers_for(board, data)
-        assert tiers == ["?", "?"]
-        assert missing == ["Ada Aaronson", "Bo Bergstrom"]
-        assert unused == []
+    """Board rows tiered from Basketball Monster's table. No tier is computed here."""
+
+    def test_every_board_row_is_tiered_in_board_order(self, projection_set):
+        _tmp, names = projection_set
+        _date, paths = BD.find_set(None)
+        board = S.load_board(paths["HBP"])
+        inj = BD.load_injuries(board, paths["inj"])
+        risk = S.load_injury_risk(paths["inj"])
+        assert inj["tiers"] == [risk[row["key"]] for row in board]
+        assert inj["missing"] == [] and inj["unused"] == []
+
+    def test_a_board_player_they_do_not_grade_is_named_not_dropped(self, projection_set):
+        # `?`, never a tier and never a blank: a blank in a risk column reads as LOW, and
+        # a guessed tier is the failure this whole column was rebuilt to avoid.
+        tmp_path, names = projection_set
+        write_injury_risk(tmp_path, "2026-01-01", names[1:], ungraded=[names[0]])
+        _date, paths = BD.find_set(None)
+        board = S.load_board(paths["HBP"])
+        inj = BD.load_injuries(board, paths["inj"])
+        assert inj["tiers"][0] == "?"
+        assert inj["missing"] == [names[0]]
+        assert "?" not in inj["tiers"][1:]
+
+    def test_a_graded_player_who_is_not_on_the_board_is_reported_unused(self, projection_set):
+        tmp_path, names = projection_set
+        write_injury_risk(tmp_path, "2026-01-01", names, extra=["Fictional Benchwarmer"])
+        _date, paths = BD.find_set(None)
+        board = S.load_board(paths["HBP"])
+        inj = BD.load_injuries(board, paths["inj"])
+        assert inj["missing"] == []
+        assert inj["unused"] == ["fictionalbenchwarmer"]
+
+    def test_a_malformed_table_stops_the_build(self, projection_set):
+        # Validated before any scoring runs, so it fails on its own terms rather than a
+        # thousand lines later inside `emit`.
+        tmp_path, names = projection_set
+        (tmp_path / "BBM Injury Risk - 2026-01-01.csv").write_text(
+            "Rank,Name,Team,Pos,Inj,Inj Risk,Status\n1,Ardent Bellweather,BOS,PG,,severe,\n",
+            encoding="utf-8")
+        _date, paths = BD.find_set(None)
+        board = S.load_board(paths["HBP"])
+        with pytest.raises(SystemExit, match="severe"):
+            BD.load_injuries(board, paths["inj"])

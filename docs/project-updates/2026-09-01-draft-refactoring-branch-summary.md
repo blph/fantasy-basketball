@@ -244,10 +244,12 @@ G-score is what makes the argument against it legible.
 ### Not started
 
 8. ~~**The `Injuries` column is empty by design.** It has formatting rules for `OUT` and
-   `GTD`/`Q`/`DTD` and nothing feeds it.~~ **Superseded 2026-09-02.** The column now carries
-   a computed `HIGH` / `MED` / `LOW` durability tier from committed, cited research; the
-   `OUT` / `GTD` rules are gone. See
-   [ADR-0022](../decisions/ADR-0022-injury-risk-pipeline-column.md).
+   `GTD`/`Q`/`DTD` and nothing feeds it.~~ **Superseded 2026-09-03.** The column now carries
+   Basketball Monster's own `Inj Risk` — `EXTREME` / `HIGH` / `MED` / `LOW`, copied verbatim
+   from a dated export — and the `OUT` / `GTD` rules are gone. A first attempt scored the
+   tier ourselves from cited injury history; it graded Jayson Tatum `MED` months after
+   Achilles surgery, and the rubric, its research file and its report were deleted rather
+   than retuned.
 
 9. **`XRank` is still empty**, as it was before this branch.
 

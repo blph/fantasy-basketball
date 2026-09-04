@@ -33,7 +33,7 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | **Green or red tag** | That projection ranks him at least DISAGREE_GAP places away from where the board does. Green means it likes him more. These are the rows worth slowing down on. |
 | **Thick horizontal line** | A tier break. |
 | **▲ / ▼ on GAP** | Positive means the room drafts him later than the board ranks him — he is cheap. |
-| **Red or amber INJ** | HIGH or MED injury risk. LOW is left plain on purpose — about half the column is LOW, and the column exists to make you stop on the other half. |
+| **Filled red, red or amber INJ** | EXTREME, HIGH or MED injury risk. LOW is left plain on purpose — the column exists to make you stop on the rest of it. |
 
 ## CHEAT SHEET — WHAT EVERY NUMBER ON THIS SHEET MEANS
 
@@ -84,10 +84,10 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | **GAP** | `= ADP − #` | Positive means cheap. Blank ADP means the market has not priced him, which is not the same as pricing him last. |
 | **XRank** | `` | Yours to fill in, if you want a second market opinion. |
 | **INJURY RISK** | `` |  |
-| **INJ** | `HIGH / MED / LOW` | How injury-prone he is, from his cited injury history — not whether he is hurt right now, and never from games played. The score adds surgery, the same body part failing across seasons, age and position; a freak injury (a broken hand, an illness) never counts toward recurrence. |
-| **?** | `` | Nobody researched him. It is not a low tier — it is no tier. |
-| **Where it comes from** | `` | scripts/draft-board/injury_risk.json, scored by injury_risk.py. The per-player evidence behind every tier is in docs/draft-board/injury-risk.md. |
-| **It changes no value** | `` | Nothing on this board is scaled by it, and it never reads games played either. Two players with the same injury history tier identically no matter how many games either one played — the GP columns are a separate signal. |
+| **INJ** | `EXTREME / HIGH / MED / LOW` | How injury-prone Basketball Monster rates him — how likely he is to miss time, not whether he is hurt right now. |
+| **?** | `` | Basketball Monster does not grade him. It is not a low tier — it is no tier. |
+| **Where it comes from** | `` | Basketball Monster's own Inj Risk column, copied verbatim from the dated export. We do not score injury risk ourselves and this column is not our opinion. |
+| **It changes no value** | `` | Nothing on this board is scaled by it, and it never reads games played either — the GP columns are a separate signal. |
 
 ### PUNT BUILDS
 

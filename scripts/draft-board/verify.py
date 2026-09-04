@@ -64,9 +64,10 @@ SOURCES = ("BMP", "HBP", "BMP-ALT")
 PULL_FIRST_VALUE = 9
 #: INJ, 0-based, inside those nine identity columns: #, TIER, RND, Player, Tm, Pos, INJ.
 PULL_INJ = 6
-#: The injury tier's index in a PLAYERS row, and the closed set it may hold (ADR-0022).
+#: The injury tier's index in a PLAYERS row, and the closed set it may hold. The tiers are
+#: Basketball Monster's own, so this set moves only when theirs does.
 P_INJ = 20
-INJ_TIERS = ("HIGH", "MED", "LOW", "?")
+INJ_TIERS = ("EXTREME", "HIGH", "MED", "LOW", "?")
 KINDS = (("DURH", V_DURH, V_DURH_RANK, V_DURH_DROP),
          ("ZSH", V_ZSH, V_ZSH_RANK, V_ZSH_DROP),
          ("ZSC", V_ZSC, V_ZSC_RANK, None))
@@ -251,7 +252,7 @@ def diff_sheet(data: dict, pull: Path, places: int = 3) -> list[str]:
 
         # The INJ cell is a formula into the Board, so this is the one check that proves
         # the mirror still resolves -- a clobbered formula shows a stale tier that looks
-        # entirely ordinary, with no #REF! and no error anywhere (ADR-0022).
+        # entirely ordinary, with no #REF! and no error anywhere.
         shown_inj = row[PULL_INJ].strip()
         want_inj = str(data["PLAYERS"][i][P_INJ])
         if shown_inj != want_inj:

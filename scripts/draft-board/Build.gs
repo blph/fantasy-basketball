@@ -70,6 +70,11 @@ var COLOR = {
 
   flagBg:   '#FCE8E6',
   flagText: '#C5221F',
+
+  // EXTREME injury risk. A filled red with white text rather than another tint of
+  // flagBg: it has to separate from HIGH at a glance, and two pale reds do not.
+  gravBg:   '#B31412',
+  gravText: '#FFFFFF',
   // Was #FFF3D6, four hex points from inputBg — two meanings, one swatch. "You may type
   // here" and "the projection is guessing" have to be distinguishable at 9pt.
   warnBg:   '#FFECC7',
@@ -348,19 +353,24 @@ function addRule(sh, rule) {
 
 /**
  * Paint an injury-risk column. One function so the Board and the Draft Board cannot drift
- * apart: the same four tokens have to mean the same thing on both tabs.
+ * apart: the same five tokens have to mean the same thing on both tabs.
  *
  * LOW is deliberately unfilled rather than green. The MINE rule paints an entire row
  * `mineBg`, and a green cell inside the frozen identity block would collide with the one
  * signal read fastest on the clock. About half the column is LOW; leaving it plain is what
  * makes the other half stop you.
  *
- * `?` is chrome, not amber -- it means "nobody researched him", not "some risk". Reading
- * it as a middle tier is exactly the mistake a blank cell would cause.
+ * `?` is chrome, not amber -- it means "Basketball Monster does not grade him", not
+ * "some risk". Reading it as a middle tier is exactly the mistake a blank cell would cause.
  */
+//: Wide enough for `EXTREME` in bold. 56 fits `HIGH` and clips the longest token to
+//: `EXTREM`, which is the one word in this column that has to be read exactly.
+var INJ_WIDTH = 74;
+
 function injuryRules(sh, col) {
   var span = [sh.getRange(R0, col, POOL_ROWS, 1)];
   var tiers = [
+    ['EXTREME', COLOR.gravBg, COLOR.gravText, true],
     ['HIGH', COLOR.flagBg, COLOR.flagText, true],
     ['MED', COLOR.warnBg, COLOR.warnText, false],
     ['LOW', null, COLOR.muted, false],
@@ -1068,9 +1078,10 @@ function writeSanityBlock(sh) {
   // COUNTIF matches any single character, which would silently count nothing useful.
   var inj = colIndirect('Board', B.injuries);
   sh.getRange(S_SANITY + 7, 2).setFormula(
-    '=COUNTIF(' + inj + ',"HIGH")&" HIGH / "&COUNTIF(' + inj + ',"MED")&" MED / "'
-    + '&COUNTIF(' + inj + ',"LOW")&" LOW"&IF(COUNTIF(' + inj + ',"~?")=0,"",'
-    + '" — "&COUNTIF(' + inj + ',"~?")&" UNRESEARCHED")');
+    '=COUNTIF(' + inj + ',"EXTREME")&" EXTREME / "&COUNTIF(' + inj + ',"HIGH")&" HIGH / "'
+    + '&COUNTIF(' + inj + ',"MED")&" MED / "&COUNTIF(' + inj + ',"LOW")&" LOW"'
+    + '&IF(COUNTIF(' + inj + ',"~?")=0,"",'
+    + '" — "&COUNTIF(' + inj + ',"~?")&" UNGRADED")');
 }
 
 // ----------------------------------------------------------- named ranges
@@ -1492,7 +1503,7 @@ function readCheckState(sh) {
     // cell is `='Board'!AA<row>`, which follows the player through any re-sort by
     // construction. Capturing it here would restore a literal over that formula and
     // freeze the tier at whatever it was the day of the last re-sort -- with no #REF!,
-    // no error, and a value that looks perfectly ordinary. See ADR-0022.
+    // no error, and a value that looks perfectly ordinary.
     var gone  = sh.getRange(R0, at.GONE,  n, 1).getValues();
     var mine  = sh.getRange(R0, at.MINE,  n, 1).getValues();
     var notes = sh.getRange(R0, at.Notes, n, 1).getValues();
@@ -1579,7 +1590,7 @@ function formatBoard(sh) {
   sh.setColumnWidth(B.player, 170);
   sh.setColumnWidth(B.team, 48);
   sh.setColumnWidth(B.pos, 74);
-  sh.setColumnWidth(B.injuries, 56);
+  sh.setColumnWidth(B.injuries, INJ_WIDTH);
   sh.setColumnWidth(B.notes, 260);
 
   sh.getRange(R0, 1, POOL_ROWS, B_LAST).setFontSize(10).setVerticalAlignment('middle');
@@ -1759,7 +1770,7 @@ function formatDraftTab(sh, si, ki) {
 
   sh.setColumnWidth(D.rank, 34); sh.setColumnWidth(D.tier, 36);
   sh.setColumnWidth(D.round, 34); sh.setColumnWidth(D.player, 168);
-  sh.setColumnWidth(D.team, 40); sh.setColumnWidth(D.pos, 68); sh.setColumnWidth(D.inj, 56);
+  sh.setColumnWidth(D.team, 40); sh.setColumnWidth(D.pos, 68); sh.setColumnWidth(D.inj, INJ_WIDTH);
   sh.setColumnWidth(D.drafted, 46); sh.setColumnWidth(D.mine, 46);
   for (var s3 = 0; s3 < SOURCES.length; s3++) {
     for (var k3 = 0; k3 < VALUE_KINDS.length; k3++) {
@@ -2333,9 +2344,9 @@ var README_ROWS = [
   ['Thick horizontal line', '', 'A tier break.'],
   ['▲ / ▼ on GAP', '',
    'Positive means the room drafts him later than the board ranks him — he is cheap.'],
-  ['Red or amber INJ', '',
-   'HIGH or MED injury risk. LOW is left plain on purpose — about half the column is LOW, '
-   + 'and the column exists to make you stop on the other half.'],
+  ['Filled red, red or amber INJ', '',
+   'EXTREME, HIGH or MED injury risk. LOW is left plain on purpose — the column exists to '
+   + 'make you stop on the rest of it.'],
   ['', '', ''],
 
   ['CHEAT SHEET — WHAT EVERY NUMBER ON THIS SHEET MEANS', '', ''],
@@ -2405,19 +2416,16 @@ var README_ROWS = [
   ['', '', ''],
 
   ['INJURY RISK', '', ''],
-  ['INJ', ' HIGH / MED / LOW',
-   'How injury-prone he is, from his cited injury history — not whether he is hurt right '
-   + 'now, and never from games played. The score adds surgery, the same body part '
-   + 'failing across seasons, age and position; a freak injury (a broken hand, an '
-   + 'illness) never counts toward recurrence.'],
-  ['?', '', 'Nobody researched him. It is not a low tier — it is no tier.'],
+  ['INJ', ' EXTREME / HIGH / MED / LOW',
+   'How injury-prone Basketball Monster rates him — how likely he is to miss time, not '
+   + 'whether he is hurt right now.'],
+  ['?', '', 'Basketball Monster does not grade him. It is not a low tier — it is no tier.'],
   ['Where it comes from', '',
-   'scripts/draft-board/injury_risk.json, scored by injury_risk.py. The per-player '
-   + 'evidence behind every tier is in docs/draft-board/injury-risk.md.'],
+   'Basketball Monster\'s own Inj Risk column, copied verbatim from the dated export. We '
+   + 'do not score injury risk ourselves and this column is not our opinion.'],
   ['It changes no value', '',
-   'Nothing on this board is scaled by it, and it never reads games played either. Two '
-   + 'players with the same injury history tier identically no matter how many games '
-   + 'either one played — the GP columns are a separate signal.'],
+   'Nothing on this board is scaled by it, and it never reads games played either — the '
+   + 'GP columns are a separate signal.'],
   ['', '', ''],
 
   ['PUNT BUILDS', '', ''],

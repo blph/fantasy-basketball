@@ -227,3 +227,74 @@ class TestJoin:
         board = S.load_board(hbp_200(tmp_path, names))
         report = S.join(board, self._vendors(tmp_path, names))
         assert "somenewname" in report["aliases"][0]
+
+
+class TestLoadInjuryRisk:
+    """Basketball Monster's own `Inj Risk` column, copied verbatim.
+
+    The board computes no injury tier of its own, so everything worth testing here is
+    about reading their file faithfully and refusing to invent a tier when it cannot.
+    """
+
+    HEADER = "Rank,Name,Team,Pos,Inj,Inj Risk,Status"
+
+    def write_risk(self, tmp_path, rows, name="BBM Injury Risk - 2026-09-10.csv"):
+        return write(tmp_path, name, "\n".join([self.HEADER, *rows]) + "\n")
+
+    def test_reads_every_tier_and_uppercases_it(self, tmp_path):
+        p = self.write_risk(tmp_path, [
+            "1,Ardent Bellweather,BOS,PG,,low,",
+            "2,Cassius Thorngood,LAL,SF,,med,",
+            "3,Percival Quaid,MIA,C,P,high,",
+            "4,Horatio Winkelmann,PHX,SG,,extreme,",
+        ])
+        assert S.load_injury_risk(p) == {
+            "ardentbellweather": "LOW",
+            "cassiusthorngood": "MED",
+            "percivalquaid": "HIGH",
+            "horatiowinkelmann": "EXTREME",
+        }
+
+    def test_repeated_header_rows_are_dropped(self, tmp_path):
+        # Their published table repeats its header roughly every thirteen players, the
+        # same way the Hashtag export does.
+        p = self.write_risk(tmp_path, [
+            "1,Ardent Bellweather,BOS,PG,,low,",
+            ",Name,Team,Pos,Inj,Inj Risk,Status",
+            "2,Cassius Thorngood,LAL,SF,,high,",
+        ])
+        assert S.load_injury_risk(p) == {
+            "ardentbellweather": "LOW", "cassiusthorngood": "HIGH"}
+
+    def test_an_ungraded_player_is_absent_rather_than_low(self, tmp_path):
+        # A blank grade must not become a tier. The caller renders `?` for a key that is
+        # not here; inventing LOW would read as "durable" on a player nobody assessed.
+        p = self.write_risk(tmp_path, [
+            "1,Ardent Bellweather,BOS,PG,,,",
+            "2,Cassius Thorngood,LAL,SF,,med,",
+        ])
+        assert S.load_injury_risk(p) == {"cassiusthorngood": "MED"}
+
+    def test_an_unknown_token_is_an_error(self, tmp_path):
+        # Falling through to `?` would hide a changed vendor vocabulary behind a column
+        # that already has a legitimate reason to be empty.
+        p = self.write_risk(tmp_path, ["1,Ardent Bellweather,BOS,PG,,severe,"])
+        with pytest.raises(S.SourceError, match="severe"):
+            S.load_injury_risk(p)
+
+    def test_two_names_colliding_on_one_key_is_an_error(self, tmp_path):
+        p = self.write_risk(tmp_path, [
+            "1,Ardent Bellweather,BOS,PG,,low,",
+            "2,Ardent Bellweather Jr.,LAL,SF,,high,",
+        ])
+        with pytest.raises(S.AmbiguousName):
+            S.load_injury_risk(p)
+
+    def test_matches_across_a_diacritic_difference(self, tmp_path):
+        p = self.write_risk(tmp_path, ["1,Nikola Jokić,DEN,C,,low,"])
+        assert S.load_injury_risk(p) == {"nikolajokic": "LOW"}
+
+    def test_an_empty_table_is_an_error(self, tmp_path):
+        p = self.write_risk(tmp_path, ["1,Ardent Bellweather,BOS,PG,,,"])
+        with pytest.raises(S.SourceError, match="no player"):
+            S.load_injury_risk(p)

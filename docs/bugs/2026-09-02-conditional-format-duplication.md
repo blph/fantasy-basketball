@@ -1,7 +1,8 @@
 # Rebuild & re-sort duplicates the Draft Board's conditional formats
 
-- Found: 2026-09-02, while adding the injury-risk column (ADR-0022)
-- Status: **Open.** Recorded, not fixed. The full rebuild that shipped ADR-0022 flushed
+- Found: 2026-09-02, while adding the injury-risk column
+- Status: **Open.** Recorded, not fixed. The full rebuild that shipped the injury
+  column flushed
   the accumulated backlog once, so the count is currently correct and climbing again.
 - Severity: low now, and it degrades rather than breaks.
 
@@ -53,10 +54,10 @@ re-sorts could approach, and the Conditional format side panel becomes unreadabl
 ever need to debug a rule by hand.
 
 It also quietly hid a second problem. When `INJ` changed meaning from a current status
-(`OUT` / `GTD`) to a durability tier (ADR-0022), the old rules could not be removed by a
-re-sort — a re-sort would have *appended* the new `HIGH` / `MED` / `LOW` rules on top of the
-stale pair and kept both forever. That is what forced a `Full rebuild` to deploy ADR-0022,
-which is a much more expensive operation because it wipes the Board's hand-edited columns.
+(`OUT` / `GTD`) to a durability tier, the old rules could not be removed by a re-sort — a
+re-sort would have *appended* the new tier rules on top of the stale pair and kept both
+forever. That is what forced a `Full rebuild` to deploy the column, which is a much more
+expensive operation because it wipes the Board's hand-edited columns.
 
 ## The fix
 
@@ -66,7 +67,7 @@ One line, in `formatDraftTab`, before its first `addRule`:
 sh.clearConditionalFormatRules();
 ```
 
-Deliberately not done in the ADR-0022 commit, to keep that change reviewable. It needs its
+Deliberately not done in the injury-column commit, to keep that change reviewable. It needs its
 own commit and its own in-sheet verification, because it changes what `Rebuild & re-sort`
 does to a live board — and the harness cannot prove it, since the harness never evaluates a
 conditional format, only records that one was registered.
@@ -76,7 +77,5 @@ Board, counting the rules in the side panel.
 
 ## Related
 
-- [ADR-0022](../decisions/ADR-0022-injury-risk-pipeline-column.md) — the change that
-  surfaced this.
 - `AGENTS.md`: "DO NOT trust the harness to prove a formula works." The same applies to a
   conditional format; the harness compares registrations, never renders.

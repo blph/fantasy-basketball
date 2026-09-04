@@ -207,7 +207,7 @@ if (fs.existsSync('Data.gs')) {
       +(0.6 + 2.8 * t).toFixed(1), +(6 + 22 * t).toFixed(1), +(2 + 8 * t).toFixed(1),
       +(1 + 7 * t).toFixed(1), +(0.4 + 1.1 * t).toFixed(1), +(0.2 + 1.4 * t).toFixed(1),
       +(0.8 + 2.4 * t).toFixed(1),
-      ['LOW', 'MED', 'HIGH', '?'][i % 4]        // the injury tier, all four tokens present
+      ['LOW', 'MED', 'HIGH', 'EXTREME', '?'][i % 5]  // the tier, all five tokens present
     ];
   });
 }
@@ -599,7 +599,7 @@ CAT_LABELS.forEach(lab => {
     check('Notes travel with the checkboxes', rec.notes === 'target', JSON.stringify(rec));
     // The Board owns INJ now, and the Draft Board cell is a formula into it. Capturing it
     // here would restore a literal over that formula on the next re-sort and freeze the
-    // tier -- no #REF!, no error, just a stale value that reads as current. ADR-0022.
+    // tier -- no #REF!, no error, just a stale value that reads as current.
     check('Injuries do NOT travel with the checkboxes', rec.inj === undefined,
       `readCheckState still captures INJ: ${JSON.stringify(rec)}`);
     check('draftHeaderCols no longer resolves INJ', at.INJ === undefined);
@@ -645,14 +645,14 @@ check('the injury tier is the 21st PLAYERS field',
   // holds a durability tier. The old rules cannot be left behind, because `OUT` and `GTD`
   // would still paint any cell that happened to hold them while every tier went unpainted.
   const texts = seen.sheets['Draft Board'].rules.map(r => r.text).filter(Boolean);
-  ['HIGH', 'MED', 'LOW', '?'].forEach(t => {
+  ['EXTREME', 'HIGH', 'MED', 'LOW', '?'].forEach(t => {
     check(`INJ has a rule for ${t}`, texts.includes(t), texts.join(' '));
   });
   ['OUT', 'GTD'].forEach(t => {
     check(`the old ${t} status rule is gone`, !texts.includes(t), texts.join(' '));
   });
   check('the Board paints its injury column too',
-    ['HIGH', 'MED', 'LOW', '?'].every(
+    ['EXTREME', 'HIGH', 'MED', 'LOW', '?'].every(
       t => seen.sheets['Board'].rules.map(r => r.text).includes(t)));
 
   // A conditional format rule MAY NOT reference another sheet, and every named range in

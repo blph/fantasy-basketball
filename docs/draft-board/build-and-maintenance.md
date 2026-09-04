@@ -197,8 +197,7 @@ value on the Draft Board is attached to the wrong player. Stop there.
 
 **11. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes and notes
 reattach by player name. Injury tiers do not need to — the Board owns that column and the
-Draft Board mirrors it, so a tier follows its player through any sort by construction
-([ADR-0022](../decisions/ADR-0022-injury-risk-pipeline-column.md)).
+Draft Board mirrors it, so a tier follows its player through any sort by construction.
 
 **12. Look at it.** Screenshot the Draft Board and the Category Tracker. Two real defects on
 the tracker were invisible in the cell values and obvious on sight.
@@ -211,6 +210,8 @@ its own cause:
 | Failure | What to do |
 |---|---|
 | A source file is missing | Export it. All three are required. |
+| The risk table is missing | Save Basketball Monster's table as `BBM Injury Risk - <date>.csv` for that date. |
+| `unknown injury risk` | Their vocabulary moved. Read the token, then widen `INJ_TIERS` in `build_data.py`, `verify.py` and `injuryRules()` in `Build.gs` together. |
 | A constants file is missing | Run `calibrate_bbm.py` for that source and date. The message names the command. |
 | Constants `fitted against` another export | The fit and the export have drifted apart. Refit; do not rename the file. A fit paired with the wrong export is wrong on every row and looks wrong on none. |
 | Mixed dates | Re-export so all three match. `--allow-mixed-dates` forces it and stamps the mismatch onto Settings — scoring a fresh vendor file against a two-week-old Hashtag file is wrong everywhere and looks wrong nowhere. |
@@ -232,9 +233,9 @@ calculation tabs; the raw stat lines; ADP; seed rank; the reported pool constant
 `Punted` ticks, the `GONE` and `MINE` checkboxes, the `Sort by` selection, the projection
 filter state — and every formula, format, column width and named range.
 
-`Injuries` moved from the second list to the first in ADR-0022. It is now written from
-`injury_risk.json` like any other pipeline column, and a board player with no research
-shows `?` rather than a blank — a blank in a risk column reads as `LOW`.
+`Injuries` belongs to the first list. It is written from Basketball Monster's risk table
+like any other pipeline column, and a board player they do not grade shows `?` rather than
+a blank — a blank in a risk column reads as `LOW`.
 
 An untouched `My GP Est` still holds its seeding formula, and the refresh reads *formulas*
 rather than values to tell an override from an untouched cell. No bookkeeping column.
@@ -297,39 +298,29 @@ so two runs produce byte-identical output. On HBP that is still a fixed point. O
 vendors the constants are borrowed and fixed, so there is nothing for membership to feed back
 into: the pool is one pass, and it decides only which players the GP diagnostics describe.
 
-### Refreshing the injury research
+### The injury column
 
-The `INJ` column runs on its own clock. A projection refresh does **not** update it; it
-reads `scripts/draft-board/injury_risk.json`, which is committed and dated separately
-([ADR-0022](../decisions/ADR-0022-injury-risk-pipeline-column.md)).
+`INJ` is Basketball Monster's `Inj Risk`, copied verbatim: `EXTREME` / `HIGH` / `MED` /
+`LOW`, their vocabulary and their opinion. We do not score injury risk. The one time we
+tried — a rubric over cited injury history — it graded Jayson Tatum `MED` months after
+Achilles surgery and a lost season, and the whole apparatus was deleted.
 
-The file holds cited evidence, not tiers. `injury_risk.py` computes `HIGH` / `MED` / `LOW`
-from it at build time, so retuning the rubric needs no new research — edit the constants at
-the top of that module, run `pytest tests/test_injury_risk.py`, and rebuild.
+The risk table is part of the dated set, so it refreshes with everything else. Open
+Basketball Monster's projections page in the `fantasy` profile, copy the table, and save it
+as `data/player_data/BBM Injury Risk - YYYY-MM-DD.csv` carrying the same date as the three
+exports. `build_data.py` will not resolve a date that has no risk table.
 
-To research players who have no record — new arrivals after a projection refresh, or the
-whole board from scratch:
+**Do not take this column from `BBM Published - *.tsv`**, even though those files carry it
+and the calibration already pulls them. On 2026-09-10 the `BMP` scrape disagreed with a
+fresh export on 121 of 232 players and graded only three of them `low`. Whatever that page
+was serving, it was not the risk column.
 
-1. `python3 scripts/draft-board/build_data.py --dry-run` and read the `injury tiers:` line.
-   It names who is unresearched.
-2. Run one research agent per missing player. Each writes a checkpoint to
-   `data/injury_research/<key>.json` — gitignored, because raw agent output is working
-   data and only the reviewed merge is committed.
-3. `python3 scripts/draft-board/injury_risk.py --merge --date YYYY-MM-DD`. It validates
-   every checkpoint and **rejects** any that fails — an event with no source URL, a
-   games-missed count outside 0–82, a bad enum. Delete a rejected checkpoint and re-run
-   that player; a half-written one is worse than none.
-4. Review before committing: every `HIGH`, and every case where the researcher's
-   `suggested_tier` disagrees with the rubric. `build_data.py` counts the disagreements.
-   Those are the rows where a wrong tier costs a pick.
-5. Regenerate the report:
-   `python3 scripts/draft-board/injury_risk.py --report --out docs/draft-board/injury-risk.md`
-6. Rebuild and push as usual. `--require-injuries` makes an unresearched player fatal
-   rather than a `?`, which is the gate to use the day before the draft.
-
-The key is `sources.normalise()` — the same key the projection join uses. The file is a
-superset of the board on purpose: a player who drops out of Hashtag's top 200 in September
-is often back in October, and his record is waiting.
+The join is `sources.normalise()`, the same key the projection join uses. Their table is
+roughly a superset of the board, but not entirely: about nine of the 200 are ungraded — deep
+rookies and late free agents — and they render `?`. That is not a low tier, it is no tier,
+and it must never be filled in by hand. `build_data.py --dry-run` names every one of them.
+`--require-injuries` makes an ungraded player fatal instead, which is the gate to use the
+day before the draft.
 
 ## Traps worth knowing
 
