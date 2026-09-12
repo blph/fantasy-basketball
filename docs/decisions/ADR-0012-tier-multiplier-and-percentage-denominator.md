@@ -4,6 +4,12 @@
 - Date: 2026-08-28
 - Owner: Bryan
 
+> **Superseded in part by [ADR-0015](ADR-0015-durant-h2h-primary-value.md).** The tier
+> mechanism and `TIER_MULT = 2.0` are unchanged, but they now measure the selected DURANT
+> H2H column rather than Adjusted Value, and the percentage-denominator question below is
+> settled differently upstream: Basketball Monster's method standardises the impact column
+> with a population SD, which is what the board now uses.
+
 ## Context
 
 Two loose ends from the [methodology review](../reviews/2026-08-27-draft-board-methodology-review.md),

@@ -1,12 +1,21 @@
 """The playbook's valuation, in Python.
 
-A second implementation of what `Build.gs` writes into the sheet, kept
-deliberately independent of it: this file is derived from
-`docs/references/fantasy-basketball-draft-playbook.md`, which AGENTS.md names as
-the specification, not from the spreadsheet formulas. Two implementations that
-agree are evidence; one implementation checking itself is not.
+**This is no longer what the board runs on.** ADR-0015 moved the board to Basketball
+Monster's DURANT H2H, which lives in `scripts/bbm/bbm_reference.py` and is assembled by
+`board_values.py`. Nothing here feeds the sheet any more.
 
-`verify.py` runs this against the real export and diffs it against the sheet.
+It is kept, unchanged, for two reasons. `docs/roadmap.md` has Phase 2 inheriting it rather
+than starting over, and it remains the only executable statement of the model in
+`docs/references/fantasy-basketball-draft-playbook.md` — the z-score, the G-score
+volatility discount, value over replacement, and the games-played scaling. That model is
+the record of how the board was reasoned about before the Basketball Monster research, and
+deleting it would lose the reasoning along with the code.
+
+Read it as history, not as the current specification. In particular it uses a sample
+standard deviation where `bbm_reference.py` uses a population one, deliberately left
+alone: the two now compute different quantities, so making their standard deviations agree
+would not make their answers agree.
+
 `tests/test_valuation.py` runs it against hand-authored synthetic players.
 
 Contains no player data and no I/O.

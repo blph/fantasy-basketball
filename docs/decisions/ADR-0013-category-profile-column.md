@@ -1,8 +1,13 @@
 # ADR-0013: The Category profile column names strengths from z, not G
 
-- Status: Accepted
+- Status: Superseded by ADR-0018
 - Date: 2026-08-27
 - Owner: Bryan
+
+> **Superseded by [ADR-0018](ADR-0018-tracker-on-durant-basis.md).** The column now
+> thresholds unweighted DURANT values rather than plain z, and splits into separate
+> Strengths and Weaknesses columns. The band stays at 1.00 and the calibration method
+> below is the one used to re-derive it on the new basis.
 
 ## Context
 

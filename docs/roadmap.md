@@ -2,7 +2,9 @@
 
 **A living document.** This is the initial sketch, not a complete plan. Phases will be added, reordered, and rewritten as the season approaches.
 
-Current position: **Phase 0 complete.** The pipeline is not built. Two things are: the 2026-27 draft board, shipped ahead of the pipeline because the draft would not wait (see Phase 3 below and [ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)), and the valuation itself in Python — [`valuation.py`](../scripts/draft-board/valuation.py), written from the playbook and covered by tests, which Phase 2 inherits rather than rewrites.
+Current position: **Phase 0 complete.** The pipeline is not built. Two things are: the 2026-27 draft board, shipped ahead of the pipeline because the draft would not wait (see Phase 3 below and [ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)), and the valuation itself in Python.
+
+**Two valuation implementations now exist, and Phase 2 has to choose.** [`scripts/bbm/bbm_reference.py`](../scripts/bbm/bbm_reference.py) is Basketball Monster's DURANT H2H and is what the board runs on ([ADR-0015](decisions/ADR-0015-durant-h2h-primary-value.md)); it is validated against their published numbers and assembled into the board by [`build_data.py`](../scripts/draft-board/build_data.py). [`valuation.py`](../scripts/draft-board/valuation.py) is the playbook's older z/G/VOR model, written from the spec and covered by tests, no longer live but the one this roadmap originally had Phase 2 inheriting. Decide which one Phase 2 ports before porting either.
 
 ---
 
@@ -44,7 +46,7 @@ A dedicated, visually strong table with everything needed on draft day: consensu
 
 Data is available now: ESPN supplies ROTO category ranks, ADP with trend deltas, and auction values; Sleeper supplies 2026-27 projections. ESPN's own projections publish later (expect late September to mid-October).
 
-**Shipped in the interim:** a Google Sheet draft board built by [scripts/draft-board/](../scripts/draft-board/) from manual exports, implementing the [playbook](references/fantasy-basketball-draft-playbook.md) in full — z-scores on the 156-player pool, G-score multipliers, VOR, a games-played adjustment, tiering, nine punt builds with a tunable soft-punt weight ([ADR-0009](decisions/ADR-0009-soft-punt-weighting.md), [ADR-0010](decisions/ADR-0010-punt-build-set.md)), and a live category tracker. It covers the 2026-27 draft; the requirements below still stand for the real assistant ([ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)). Operating manual in [docs/draft-board/](draft-board/build-and-maintenance.md).
+**Shipped in the interim:** a Google Sheet draft board built by [scripts/draft-board/](../scripts/draft-board/) from manual exports, reproducing Basketball Monster's DURANT H2H across three projection sources ([ADR-0014](decisions/ADR-0014-three-projection-sources.md), [ADR-0015](decisions/ADR-0015-durant-h2h-primary-value.md)) — Yeo-Johnson per category, fixed head-to-head weights, drop the worst live category, with the standardisation constants recovered from Basketball Monster's own published columns on every refresh ([ADR-0021](decisions/ADR-0021-borrowed-bbm-pool-constants.md)). Plus tiering, nine punt builds with a tunable soft-punt weight ([ADR-0009](decisions/ADR-0009-soft-punt-weighting.md), [ADR-0010](decisions/ADR-0010-punt-build-set.md)), and a live category tracker. The [playbook](references/fantasy-basketball-draft-playbook.md)'s G-score/VOR model and its games-played adjustment are no longer what the board runs on ([ADR-0017](decisions/ADR-0017-no-games-played-adjustment.md)). It covers the 2026-27 draft; the requirements below still stand for the real assistant ([ADR-0008](decisions/ADR-0008-google-sheet-draft-board.md)). Operating manual in [docs/draft-board/](draft-board/build-and-maintenance.md).
 
 Requirements to settle before building:
 - How draft state is tracked live (manual entry, import, or Yahoo sync) — needs an ADR.

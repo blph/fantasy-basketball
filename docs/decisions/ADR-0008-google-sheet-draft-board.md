@@ -4,6 +4,12 @@
 - Date: 2026-08-27
 - Owner: Bryan
 
+> **Superseded in part.** [ADR-0015](ADR-0015-durant-h2h-primary-value.md) replaces the
+> G-score valuation this record describes; [ADR-0016](ADR-0016-values-computed-in-python.md)
+> replaces its "every value is a live formula" commitment; and
+> [ADR-0017](ADR-0017-no-games-played-adjustment.md) removes the games-played adjustment.
+> The decision to build the board as a Google Sheet fed by manual exports still stands.
+
 ## Context
 
 The 2026-27 draft arrives before the pipeline does. Phase 2 ingestion does not

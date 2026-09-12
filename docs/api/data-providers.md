@@ -70,7 +70,7 @@ answer lived only in ADR-0008 and a docstring.
 
 Not an API and not automated: a **manual markdown export**, saved by hand into
 gitignored `data/player_data/` and parsed by
-[`gen_data.py`](../../scripts/draft-board/gen_data.py). It supplies per-game
+[`build_data.py`](../../scripts/draft-board/build_data.py). It supplies per-game
 projections for 200 players **with makes and attempts** (as `0.573(10.5/18.3)`,
 which is what makes volume-weighted FG%/FT% possible), its own rank — used as the
 draft board's pool seed — and its own ADP.

@@ -1,8 +1,14 @@
 # ADR-0011: Pool membership also requires a minimum projected games played
 
-- Status: Accepted
+- Status: Superseded by ADR-0017
 - Date: 2026-08-27
 - Owner: Bryan
+
+> **Superseded by [ADR-0017](ADR-0017-no-games-played-adjustment.md).** The gate was bolted
+> to the `Seed Rank` circularity, which no longer exists: pool membership is now a fixed
+> point computed in Python, and rows projected at zero games are dropped before scoring.
+> The availability concern recorded below is still real and is now reported as a
+> diagnostic rather than enforced as a gate.
 
 ## Context
 

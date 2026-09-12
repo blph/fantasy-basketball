@@ -23,8 +23,15 @@ _spec.loader.exec_module(export)
 
 
 def board_rows(n, team="BOS", pos="PG"):
-    """n synthetic Draft Board rows: [#, TIER, Player, Team, Pos]."""
-    return [[str(i), "1", f"Player {i:03d}", team, pos] for i in range(1, n + 1)]
+    """n synthetic Draft Board rows: [#, TIER, RND, Player, Tm, Pos, INJ].
+
+    Seven columns, matching the range the exporter fetches. RND and INJ carry no
+    information the export needs; they are here because they sit between the columns
+    that do, and getting their positions wrong is precisely the failure this shape
+    check exists to catch.
+    """
+    return [[str(i), "1", f"R{(i - 1) // 12 + 1}", f"Player {i:03d}", team, pos, ""]
+            for i in range(1, n + 1)]
 
 
 def test_header_and_shape(tmp_path):
@@ -56,8 +63,10 @@ def test_unknown_team_is_an_error():
 
 def test_unknown_team_reports_the_sheet_row():
     rows = board_rows(3)
-    rows[1][3] = "XYZ"
-    with pytest.raises(export.ExportError, match="sheet row 4"):
+    rows[1][export.COL_TEAM] = "XYZ"
+    # Data starts at row 4 now that row 1 is the control strip, so the second row of the
+    # fetched range is sheet row 5.
+    with pytest.raises(export.ExportError, match="sheet row 5"):
         export.convert(rows, limit=3)
 
 
@@ -109,15 +118,19 @@ def test_short_input_fails_loudly():
 
 
 def test_wrong_column_count_fails():
+    # A short row is how an outdated pull range arrives: it must fail rather than read
+    # the wrong columns, because every column past Player would be off by one.
     rows = board_rows(2)
-    rows[1] = rows[1][:4]
-    with pytest.raises(export.ExportError, match="expected 5 columns, got 4"):
+    rows[1] = rows[1][:export.RANGE_WIDTH - 1]
+    with pytest.raises(export.ExportError,
+                       match=f"expected {export.RANGE_WIDTH} columns, "
+                             f"got {export.RANGE_WIDTH - 1}"):
         export.convert(rows, limit=2)
 
 
 def test_missing_name_fails():
     rows = board_rows(2)
-    rows[1][2] = ""
+    rows[1][export.COL_PLAYER] = ""
     with pytest.raises(export.ExportError, match="no player name"):
         export.convert(rows, limit=2)
 

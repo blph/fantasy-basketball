@@ -16,19 +16,21 @@ Builds the 9-cat draft board as a Google Sheet, implementing
 | File | What it is |
 |---|---|
 | `Build.gs` | Layout, every formula, all formatting, the menu |
-| `gen_data.py` | Parses a provider export into `Data.gs` |
+| `sources.py` | Reads the three projection exports and joins them |
+| `board_values.py` | The nine values: ZSC, ZSH and DURH, per projection |
+| `build_data.py` | Runs the pipeline and writes `Data.gs` |
 | `harness.js` | Mocks the Sheets API and dry-runs the build in Node |
 | `export_readme.js` | Regenerates `docs/draft-board/cheat-sheet.md` |
-| `valuation.py` | The playbook's math in Python, written from the spec rather than from the sheet |
-| `verify.py` | Recomputes the board with it, iterating the pool to convergence, and diffs against the sheet's own constants |
+| `valuation.py` | The playbook's z/G/VOR math. No longer what the board runs on — kept because Phase 2 inherits it |
+| `verify.py` | Re-checks `Data.gs`'s invariants and diffs a pull of the live board against it |
 | `export_yahoo_rankings.py` | Turns the finished board into a CSV Yahoo will import |
 | `Data.gs` | The players. Provider data — **gitignored, never commit** |
 
 ```bash
-python3 scripts/draft-board/gen_data.py data/player_data/player_data_MMDD.md \
-        scripts/draft-board/Data.gs      # 1. build the data file
-cd scripts/draft-board && node harness.js # 2. dry-run before touching Google
-python3 scripts/draft-board/verify.py     # 3. check the numbers independently
+python3 scripts/draft-board/build_data.py --dry-run  # 1. what would change
+python3 scripts/draft-board/build_data.py            # 2. write Data.gs
+cd scripts/draft-board && node harness.js            # 3. dry-run before touching Google
+python3 scripts/draft-board/verify.py                # 4. check the numbers independently
 ```
 
 Then paste into the bound Apps Script project and run **`Draft Board ▸ Refresh
