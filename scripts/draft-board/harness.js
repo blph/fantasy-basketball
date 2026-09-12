@@ -192,7 +192,8 @@ global.SpreadsheetApp = {
 
 // Real data if it happens to be here, otherwise synthetic. The test must run on
 // a clean clone: this repo is public and holds no provider data.
-if (fs.existsSync('Data.gs')) {
+const SYNTHETIC = !fs.existsSync('Data.gs');
+if (!SYNTHETIC) {
   eval(fs.readFileSync('Data.gs', 'utf8'));
 } else {
   global.PLAYERS = Array.from({ length: 200 }, (_, i) => {
@@ -212,6 +213,49 @@ if (fs.existsSync('Data.gs')) {
   });
 }
 eval(fs.readFileSync('Build.gs','utf8'));
+
+if (SYNTHETIC) {
+  // PLAYERS alone is not enough: `requireData` refuses to build without VALUES for every
+  // source, so synthesising only the roster left the harness dead on a clean clone -- green
+  // locally, where Data.gs happens to exist, and red in CI, which is the one place this
+  // branch is checked the way a new contributor would see it.
+  //
+  // Row layout, 32 wide, mirrored from verify.py's V_* constants:
+  //   0-2  DURH value, rank, dropped category
+  //   3-5  ZSH  value, rank, dropped category
+  //   6-7  ZSC  value, rank
+  //   8-15 weighted DURANT H2H per category, 16-23 DURANT, 24-31 plain z
+  const CATS = ['FG%', 'FT%', '3PM', 'PTS', 'REB', 'AST', 'STL', 'BLK'];
+  const valueRow = (i, srcIdx) => {
+    const t = 1 - i / 220;
+    const base = +(1.2 * t - 0.35 + srcIdx * 0.004).toFixed(4);
+    const drop = CATS[(i + srcIdx) % CATS.length];
+    // Rank is the identity permutation: every consumer asserts 1..200 with no gaps, and a
+    // synthetic disagreement would test the fixture rather than the board.
+    const row = [base, i + 1, drop, +(base - 0.02).toFixed(4), i + 1, drop,
+                 +(base + 0.01).toFixed(4), i + 1];
+    for (let block = 0; block < 3; block++) {
+      for (let c = 0; c < CATS.length; c++) {
+        row.push(+(base * (0.6 + 0.1 * c) - 0.05 * block).toFixed(4));
+      }
+    }
+    return row;                                  // 8 + 24 = 32
+  };
+  global.VALUES = {};
+  SOURCES.map(s => s.key).forEach((key, s) => {
+    global.VALUES[key] = Array.from({ length: 200 }, (_, i) => valueRow(i, s));
+  });
+
+  // Punt builds ship for the default source only, and Build.gs guards on `typeof`, so this
+  // is not required to build -- but leaving it out means the punt block is never exercised
+  // on a clean clone, which is exactly where it would go unnoticed.
+  global.PUNT_VALUES = {};
+  PUNTS.map(p => p.key).forEach((key, b) => {
+    global.PUNT_VALUES[key] = Array.from({ length: 200 }, (_, i) => (
+      [+(1.1 * (1 - i / 220) - 0.3 - b * 0.01).toFixed(4), i + 1]
+    ));
+  });
+}
 
 try { buildDraftBoard(); }
 catch (e) { problems.push('THREW: ' + e.message + '\n' + (e.stack||'').split('\n').slice(1,4).join('\n')); }
