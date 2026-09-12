@@ -374,12 +374,15 @@ Adjust a cell when you know something the projection does not, or when you can s
 
 **Take games away for:**
 
-- Recurring soft-tissue or joint problems. Chronic issues are the part of injury history that actually predicts.
-- Age past about 32. Two or three games per year beyond that.
 - Announced load management for an older star.
 - Anyone projected above roughly 76. Even iron men miss games.
 
-Two things the research supports here: season-long durability is more predictable than week-to-week risk, and the signal lives in prior injury *type* combined with age and workload rather than in raw absence counts. Guards carry the highest injury ratios by position.
+**Do not build a durability forecast of your own.** This section used to carry one — rules
+keyed on injury type, chronic recurrence, age past 32 and position, plus a numeric fallback
+that averaged three years of games played and regressed it to a pool baseline. It is gone
+on purpose. The board reads Basketball Monster's `Inj Risk` and nothing else, because the
+one time this repository scored durability itself it graded Jayson Tatum `MED` months after
+Achilles surgery. If you want to know how injury-prone a player is, read the `INJ` column.
 
 One league-context note: the 65-game rule, in effect since 2023-24, ties award and All-NBA eligibility to playing 65 games. That gives stars a real incentive to suit up and has firmed up availability at the top of the board relative to the load-management era.
 
@@ -389,14 +392,12 @@ They are your audit, not your input. Put projected GP next to the last three act
 
 This is the mirror image of how you treat everything else. For points, rebounds, and assists, the projection builds the number and history audits it. For games played, history audits the projection. Availability is the one place where the past is more honest than the forecast.
 
-### Fallback method
+### If the projection fails the spread test
 
-If your projection source fails the spread test, build the estimate yourself:
-
-1. **Weighted three-year average of actual GP.** Most recent completed season x3, the one before x2, the one before that x1, divided by 6.
-2. **Regress toward your pool baseline.** 70% of that weighted average plus 30% of the average GP across your 156-player pool. Compute the baseline from your own pool rather than using a fixed number, because it drifts year to year.
-3. **Age adjustment.** Nothing until about 32, then subtract two or three games per year past that.
-4. **Override by hand** using the same criteria above.
+Leave the column alone and lean on `INJ` instead. There is no fallback formula here any
+more: a homemade availability estimate is exactly the thing this repository removed, and a
+projection that hedges everyone toward the pool average is telling you it has no
+player-level opinion — which is information, not a gap to fill with arithmetic of your own.
 
 ### Two things not worth worrying about
 
@@ -806,9 +807,14 @@ Note on standing: these are arXiv preprints, not peer-reviewed journal articles.
 
 ### D. Sports science and news reporting
 
-Used only in section 6a, on games played.
+- The 65-game rule and its effect on availability at the top of the board, in section 6a.
 
-- Peer-reviewed injury forecasting literature, including Cohan, Schuster and Fernandez (Journal of Sports Analytics, 2021) and NBA injury epidemiology work in PLOS ONE, for: season-long durability being more predictable than week-to-week risk, prior injury type and age carrying more signal than raw absence counts, and guards showing the highest injury ratios by position.
+This section previously cited injury-forecasting literature (Cohan, Schuster and Fernandez,
+*Journal of Sports Analytics* 2021; NBA injury epidemiology in PLOS ONE) in support of a
+durability estimate of my own. That estimate has been removed and the citations with it:
+the board reads Basketball Monster's `Inj Risk` and this document no longer teaches how to
+forecast availability. The papers are sound; using them to justify a homemade grade was the
+mistake.
 - General NBA reporting on the 65-game rule, in effect since 2023-24, for the availability-incentive note.
 
 ### E. My own contributions, not sourced to any expert
@@ -823,7 +829,6 @@ You asked specifically about this, so here it is plainly. The following are my s
 | The chunked z-score simulation (correlation 0.28, 57 players moving 50+ spots) | Section 11 | I ran this during our conversation on **synthetic** data, not real NBA projections. It demonstrates a mathematical property that holds regardless, but the specific numbers are from made-up players |
 | The stacking vs punting simulation (79.4%, 80.5%, 72.5%, 63.6%) | Section 10 | Also mine, also synthetic. A simplified model with independent categories and a fixed capital budget. It illustrates Rosenof's finding rather than independently proving it |
 | "Aim for 60%, not 90%" and "win six or seven, not five" | Section 10 | My translation of Rosenof's results into a usable rule of thumb. He does not state these targets |
-| The GP estimation procedure (weighted 3-year, 70/30 regression, age adjustment) | Section 6a | Mine, informed by the injury literature but not a published method |
 | The spreadsheet column schema | Section 6 | Mine |
 | "The later you switch, the more you waste" | Section 6b | Mine. Previously stated as a hard "not after round 7", which read as sourced and was not. The instinct holds; the round number was invented, and published guides are more relaxed about mid-draft pivots than it implied |
 | Dividing the percentage impact by the SD of the impact column | Section 4 | Mine, or at least not Rosenof's — his Table 5(b) defines that sigma over the raw rate. The reasoning is that if a team's category outcome is the mean of its members' impacts, dividing by SD(impact) puts the percentages on the same "share of a team standard deviation" footing the counting categories get. Settled in ADR-0012 after measuring the alternative: it moves the mean player 4.5 places and touches the top 50 four times |
@@ -840,7 +845,7 @@ The document was reviewed against the sources above and two formula errors were 
 A second review, recorded in `docs/reviews/2026-08-27-draft-board-methodology-review.md`, found four more:
 
 - **`BLK + FG%` was listed as a working pairing.** It is not one. The two are competing routes to the same roster, and a punt-blocks build is trying to protect FG%. Removed from section 10; the sheet had never implemented it.
-- **"Soften the GP discount for a deep bench"** would have double-counted the replacement-level backfill the linear form already assumes. The correct refinement runs the opposite way. Section 6a now derives it.
+- **"Soften the GP discount for a deep bench"** would have double-counted the replacement-level backfill the linear form already assumes. The correct refinement runs the opposite way, and section 6a derives it.
 - **The percentage-impact formula was attributed to Rosenof.** It does not match his Table 5(b). Moved to section 12E above.
 - **The tier local-median window in the spreadsheet was described as centred and was not** — nine rows above, five below, which inflated the median and made breaks fire late. This document's `OFFSET($D$2,ROW()-9,0,15,1)` is correct and resolves to rows `r-7` through `r+7`; the sheet's `INDEX` translation of it was off by two in each direction and has been fixed to match. The review that surfaced this initially blamed the formula here as well, which was wrong.
 

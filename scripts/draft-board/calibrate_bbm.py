@@ -30,6 +30,7 @@ Standard library only (AGENTS.md: a runtime dependency needs an ADR). Every fit 
 from __future__ import annotations
 
 import argparse
+import csv
 import datetime as dt
 import json
 import math
@@ -38,6 +39,7 @@ import statistics as st
 import subprocess
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -61,6 +63,15 @@ DATA = REPO / "data" / "player_data"
 
 #: Our label -> (their ProjectionSourceControl value, their name for it).
 SOURCES = {"BMP": ("17329", "Josh"), "BMP-ALT": ("1", "Bonus")}
+
+#: Which source supplies the board's `INJ` column. Their injury grades are per-source and
+#: they disagree substantially -- on 2026-09-12, Josh graded 3 of 234 players `low` and
+#: called Jayson Tatum `med` months after Achilles surgery, while Bonus graded 54 `low` and
+#: called him `high`. Bonus is the one the board carries. It is deliberately NOT tied to
+#: whichever source the board ranks on: the tier scales no value (ADR-0017), so there is
+#: nothing for it to be consistent with, and picking the grader that discriminates beats
+#: picking the one that matches a filename.
+INJURY_SOURCE = "BMP-ALT"
 
 PROJECTIONS_URL = "https://basketballmonster.com/projections.aspx"
 SESSION = "fantasy"
@@ -246,6 +257,54 @@ def scrape(source: str) -> str:
     if text == "NO_TABLE":
         raise CalibrationError("no projections table on the page after the postback")
     return text
+
+
+def injury_rows(text: str) -> list[tuple[str, str]]:
+    """Their scraped grid -> [(name, injury risk)], for the rows that carry a grade.
+
+    Read off the scrape the calibration already performed rather than fetched separately:
+    one page load, one source selection, and no chance of the tier and the constants
+    describing two different pulls.
+
+    Ungraded players are dropped rather than emitted blank. `build_data.py` renders a board
+    player with no grade as `?`, and the distinction between "they have not assessed him"
+    and "they assessed him as durable" is the whole reason that token exists.
+    """
+    lines = [ln.split("\t") for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        raise CalibrationError("the scrape is empty")
+    header = lines[0][1:]
+    idx = {h: i + 1 for i, h in enumerate(header)}
+    for col in ("Name", "Inj Risk"):
+        if col not in idx:
+            raise CalibrationError(
+                f"their table has no {col!r} column. Turn it back on under "
+                f"'Edit Display Columns' on the projections page."
+            )
+    out = []
+    for cells in lines[1:]:
+        if not cells[0].isdigit():
+            continue  # a repeated header row, or a row with no player link
+        name = cells[idx["Name"]].strip() if idx["Name"] < len(cells) else ""
+        risk = cells[idx["Inj Risk"]].strip() if idx["Inj Risk"] < len(cells) else ""
+        if name and risk:
+            out.append((name, risk))
+    if not out:
+        raise CalibrationError(
+            "not one player carries an injury risk. Their table has the column but no "
+            "values, which means the scrape landed mid-postback."
+        )
+    return out
+
+
+def write_injury_risk(text: str, path: Path) -> int:
+    """Write the two columns `sources.load_injury_risk` reads. Returns the row count."""
+    rows = injury_rows(text)
+    with path.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["Name", "Inj Risk"])
+        w.writerows(rows)
+    return len(rows)
 
 
 def parse_published(text: str) -> tuple[dict[int, dict[str, float]], int]:
@@ -664,9 +723,33 @@ def main() -> int:
     ap.add_argument("--date", required=True, help="the export date to fit against")
     ap.add_argument("--from-file", action="store_true",
                     help="refit from the saved scrape instead of driving the browser")
+    ap.add_argument("--injury-only", action="store_true",
+                    help="pull only the injury grades; fit nothing and touch no other file")
     ap.add_argument("--dry-run", action="store_true", help="report and write nothing")
     ap.add_argument("--force", action="store_true", help="write despite a gate failure")
     args = ap.parse_args()
+
+    # Their injury grades move faster than their projections, so refreshing the tier must
+    # not require an export to fit against -- and must not overwrite the published scrape
+    # that the dated constants were fitted from. This path writes exactly one file.
+    if args.injury_only:
+        if args.source != INJURY_SOURCE:
+            raise SystemExit(
+                f"--injury-only reads {INJURY_SOURCE}, not {args.source}. Their injury "
+                f"grades are per-source and they disagree; the board carries one of them."
+            )
+        text = scrape(args.source)
+        inj = DATA / f"BBM Injury Risk - {args.date}.csv"
+        rows = injury_rows(text)
+        tiers = Counter(r.lower() for _, r in rows)
+        if args.dry_run:
+            print(f"  --dry-run: {len(rows)} injury grades would go to {inj.name}")
+        else:
+            write_injury_risk(text, inj)
+            print(f"  wrote {inj.name}: {len(rows)} graded")
+        print("  " + ", ".join(f"{tiers[t]} {t}"
+                               for t in ("extreme", "high", "med", "low") if tiers[t]))
+        return 0
 
     export = DATA / f"{args.source} Projections - {args.date}.csv"
     if not export.exists():
@@ -686,6 +769,19 @@ def main() -> int:
         if not args.dry_run:
             tsv.write_text(text, encoding="utf-8")
         print(f"  scraped {len(text.splitlines())} lines")
+
+    # The injury tier rides along with the scrape rather than being pasted by hand. Only
+    # one source supplies it, so only that source's run writes the file.
+    if args.source == INJURY_SOURCE:
+        inj = DATA / f"BBM Injury Risk - {args.date}.csv"
+        if args.dry_run:
+            print(f"  --dry-run: {len(injury_rows(text))} injury grades would go to {inj.name}")
+        else:
+            n = write_injury_risk(text, inj)
+            tiers = Counter(r.lower() for _, r in injury_rows(text))
+            print(f"  wrote {inj.name}: {n} graded  ("
+                  + ", ".join(f"{tiers[t]} {t}" for t in ("extreme", "high", "med", "low")
+                              if tiers[t]) + ")")
 
     published, skipped = parse_published(text)
     if len(published) < MIN_ROWS:

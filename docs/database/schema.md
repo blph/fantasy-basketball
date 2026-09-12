@@ -174,7 +174,7 @@ Per-player, per-`as_of_date` **G-score**: each z-score multiplied by that catego
 
 Composite value, tier, and value over replacement, built from `g_total`. Joins with injury status and games projected.
 
-Value over replacement is scaled by projected availability, `vor × games / divisor`, and that scaling is **switched off where VOR is negative** — otherwise a fraction moves a negative value toward zero, ranking the less available of two equal players higher.
+Value over replacement is **not** scaled by games played ([ADR-0017](../decisions/ADR-0017-no-games-played-adjustment.md)). The GP columns are context for a judgement call, not a multiplier, and injury risk is Basketball Monster's `Inj Risk` carried alongside rather than folded into the number. An earlier draft of this spec called for `vor × games / divisor`; that is retired, and Phase 2 does not inherit it. If a GP term is ever reintroduced it must discount and never promote — below replacement the scaling has to be switched off, or a fraction moves a negative value toward zero and ranks the less available of two equal players higher.
 
 ### `mart_replacement_level`
 

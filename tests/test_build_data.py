@@ -144,7 +144,8 @@ class TestRerank:
 
 class TestEmit:
     def _injuries(self, board, tiers=None):
-        """Synthetic tiers, one per board row. The rubric is tested in its own file."""
+        """Synthetic tiers, one per board row. Reading the real table is tested in
+        test_sources.py; this is only about what `emit` does with them."""
         return {"tiers": tiers if tiers is not None else ["?"] * len(board),
                 "missing": [], "unused": []}
 

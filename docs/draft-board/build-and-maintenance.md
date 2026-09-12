@@ -84,8 +84,8 @@ context for a judgement call, not a multiplier.
 
 ## Bringing in new data
 
-A refresh is **five files moving together** — three exports you download and two fits the
-calibration produces. All five must carry the same date.
+A refresh is **six files moving together** — three exports you download, and three files
+the calibration produces for you. All six must carry the same date.
 
 ```
 data/player_data/
@@ -94,6 +94,7 @@ data/player_data/
   HBP Projections - YYYY-MM-DD.csv        Hashtag Basketball
   BMP Constants - YYYY-MM-DD.json         recovered by calibrate_bbm.py, step 2
   BMP-ALT Constants - YYYY-MM-DD.json     recovered by calibrate_bbm.py, step 2
+  BBM Injury Risk - YYYY-MM-DD.csv        written by calibrate_bbm.py, step 2 (BMP-ALT run)
 ```
 
 **HBP is the spine.** It decides which 200 players are on the board and supplies team,
@@ -108,7 +109,8 @@ pipeline will not resolve a date that has no fit, so step 2 below is not optiona
 ### The procedure
 
 **1. Drop the three exports in `data/player_data/`.** Gitignored, and the pre-commit hook
-blocks them if you try.
+blocks them if you try. Nothing else is downloaded by hand: the two fits and the injury
+table all fall out of step 2.
 
 **2. Recalibrate against Basketball Monster.**
 
@@ -120,7 +122,9 @@ python3 scripts/draft-board/calibrate_bbm.py --source BMP-ALT --date YYYY-MM-DD
 Each run drives the signed-in browser profile to their projections page, switches to that
 source, scrapes the value columns, regresses them on our own stat lines and writes the
 recovered means, SDs, pool rates and lambdas beside the export. It saves the raw scrape too,
-which step 8 reuses.
+which step 8 reuses. The `BMP-ALT` run also writes `BBM Injury Risk - <date>.csv` off the
+same scrape — that is where the board's `INJ` column comes from, and there is nothing to
+paste by hand.
 
 **Read the per-category table.** The `dmean%sd` and `dsd%` columns show how far our own
 top-156 pool sits from what was recovered — a few percent either way is normal and is the
@@ -210,7 +214,7 @@ its own cause:
 | Failure | What to do |
 |---|---|
 | A source file is missing | Export it. All three are required. |
-| The risk table is missing | Save Basketball Monster's table as `BBM Injury Risk - <date>.csv` for that date. |
+| The risk table is missing | Run the `BMP-ALT` calibration for that date, or `--injury-only` to write just that file. |
 | `unknown injury risk` | Their vocabulary moved. Read the token, then widen `INJ_TIERS` in `build_data.py`, `verify.py` and `injuryRules()` in `Build.gs` together. |
 | A constants file is missing | Run `calibrate_bbm.py` for that source and date. The message names the command. |
 | Constants `fitted against` another export | The fit and the export have drifted apart. Refit; do not rename the file. A fit paired with the wrong export is wrong on every row and looks wrong on none. |
@@ -301,22 +305,57 @@ into: the pool is one pass, and it decides only which players the GP diagnostics
 ### The injury column
 
 `INJ` is Basketball Monster's `Inj Risk`, copied verbatim: `EXTREME` / `HIGH` / `MED` /
-`LOW`, their vocabulary and their opinion. We do not score injury risk. The one time we
-tried — a rubric over cited injury history — it graded Jayson Tatum `MED` months after
-Achilles surgery and a lost season, and the whole apparatus was deleted.
+`LOW`, their vocabulary and their opinion. **We do not compute, score, estimate or infer an
+injury tier, and there is no code in this repository that does.** The one time we tried — a
+rubric over cited injury history — it graded Jayson Tatum `MED` months after Achilles
+surgery and a lost season, and the whole apparatus was deleted rather than retuned.
 
-The risk table is part of the dated set, so it refreshes with everything else. Open
-Basketball Monster's projections page in the `fantasy` profile, copy the table, and save it
-as `data/player_data/BBM Injury Risk - YYYY-MM-DD.csv` carrying the same date as the three
-exports. `build_data.py` will not resolve a date that has no risk table.
+**There is nothing to do by hand.** `calibrate_bbm.py --source BMP-ALT` writes
+`BBM Injury Risk - YYYY-MM-DD.csv` off the scrape it already performs for the constants, so
+the tier and the constants always come from one pull of one page. To refresh only the
+grades between projection refreshes — they move faster than the projections do — use:
 
-**Do not take this column from `BBM Published - *.tsv`**, even though those files carry it
-and the calibration already pulls them. On 2026-09-10 the `BMP` scrape disagreed with a
-fresh export on 121 of 232 players and graded only three of them `low`. Whatever that page
-was serving, it was not the risk column.
+```bash
+python3 scripts/draft-board/calibrate_bbm.py --source BMP-ALT --date YYYY-MM-DD --injury-only
+```
+
+That fits nothing and writes exactly one file. Use it rather than a bare calibration run,
+which re-scrapes `BBM Published - BMP-ALT - <date>.tsv` and would leave a published table
+newer than the constants fitted from it.
+
+**Their grades are per-source, and the sources disagree.** On 2026-09-12, across the same
+234 players:
+
+| | Josh (`BMP`) | Bonus (`BMP-ALT`) | Combined |
+|---|---|---|---|
+| `low` | 3 | 54 | 3 |
+| `med` | 124 | 107 | 122 |
+| `high` | 96 | 71 | 99 |
+| `extreme` | 11 | 2 | 10 |
+| Jayson Tatum | `med` | `high` | `med` |
+| Damian Lillard | `high` | `extreme` | `high` |
+
+The board takes **Bonus (`BMP-ALT`, source 1)**, set by `INJURY_SOURCE` in
+`calibrate_bbm.py`. Deliberately not the source the board ranks on: the tier scales no
+value ([ADR-0017](../decisions/ADR-0017-no-games-played-adjustment.md)), so it has nothing
+to be consistent with, and the choice that matters is which grader discriminates. Josh
+calls 3 of 234 players `low` — nearly the whole column would paint, and `LOW` being plain
+is what makes the painted rows stop you. Josh also grades Tatum `med`, which is the exact
+call that got our own rubric deleted.
+
+If you ever paste the table by hand instead, **select Bonus Projections first**. A table
+copied under another source is a different analyst and will not match. The reader takes
+either shape: the two-column file the calibration writes, or their full published table
+pasted whole — it keys on the `Name` and `Inj Risk` headers and drops the repeated header
+rows.
+
+**A stale table is the failure to watch for, not a wrong one.** A published scrape taken
+days before an export can carry grades Basketball Monster has since changed — on
+2026-09-01 both Lillard and Robert Williams were blank where they now read `extreme`, which
+is why the risk table is dated and moves with the set rather than being pulled once.
 
 The join is `sources.normalise()`, the same key the projection join uses. Their table is
-roughly a superset of the board, but not entirely: about nine of the 200 are ungraded — deep
+roughly a superset of the board, but not entirely: about ten of the 200 are ungraded — deep
 rookies and late free agents — and they render `?`. That is not a low tier, it is no tier,
 and it must never be filled in by hand. `build_data.py --dry-run` names every one of them.
 `--require-injuries` makes an ungraded player fatal instead, which is the gate to use the
