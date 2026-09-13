@@ -101,11 +101,17 @@ not soften a real one.
    wrong and the disagreement is the finding.
 9. `docs/reviews/` — earlier reviews. Do not re-file something already recorded and fixed;
    do check whether a fix actually holds.
+10. `docs/decisions/ADR-0022-local-draft-board.md` and `scripts/draft-board/board_engine.py`
+    — the draft-day formulas re-implemented in Python for the local board. Where the engine
+    and `Build.gs` disagree, `verify.py --local` against the live sheet decides which is wrong.
 
 `scripts/draft-board/harness.js` and `export_readme.js` are safe to run with `node` and
 work offline — use them to see the board's real formula strings without a live sheet.
 `python3 scripts/draft-board/verify.py` recomputes every pool constant independently, and
 `pytest` runs the valuation tests. All four work with no network and no live sheet.
+`python3 scripts/draft-board/board.py` reads the local board (`board`, `player`, `tracker`,
+`punts`) once `build_data.py` has written a snapshot. It needs no network either, and every
+line it prints is provider data.
 
 ## The review checklist
 
@@ -207,12 +213,14 @@ label it as your own judgment.
 ## Guardrails
 
 - **This repository is public and publishes no provider data.** Never quote player rows,
-  projections, ADP values, or any record from `data/`, `scripts/draft-board/Data.gs`, or a
-  live sheet into your report. Describe shapes, distributions, and archetypes. If you need a
+  projections, ADP values, or any record from `data/` (the local board in
+  `data/draft-board/` included), `scripts/draft-board/Data.gs`, the output of `board.py`, or
+  a live sheet into your report. Describe shapes, distributions, and archetypes. If you need a
   worked example, invent a player. This is enforced by a pre-commit hook and CI; a leak fails
   the build and is a licensing problem, not a style one.
 - **You are read-only outside `docs/reviews/`.** Do not edit `Build.gs`, the playbook, any
-  ADR, or any doc. You propose; the owner decides.
+  ADR, or any doc, and run no `board.py` write command: the draft state is the owner's. You
+  propose; the owner decides.
 - Separate *the playbook is wrong* from *the code diverges from the playbook*. They have
   different fixes and different owners.
 - Any recommendation that changes the valuation method must be flagged as needing an ADR, per

@@ -7,7 +7,9 @@ data/
 ├── raw/{endpoint}/{YYYY-MM-DD}.json   verbatim API responses, archived before parsing
 ├── parquet/{table}/as_of_date=…/      typed snapshots, partitioned by date
 ├── fantasy.duckdb                     dimensions, views over Parquet, and marts
-├── player_data/player_data_MMDD.md    manual provider exports that feed the draft board
+├── player_data/                       provider exports, their fits and the injury table
+├── draft-board/                       the local board: snapshots, draft state, backups
+│   └── pulls/                         pulls of the live sheet, for verify.py --local
 └── exports/                           files generated for elsewhere, e.g. Yahoo rankings CSVs
 ```
 
@@ -18,7 +20,10 @@ Partitions are **append-only**. A refresh adds one new dated directory and never
 Only `src/fantasy_bb/ingest/` writes to the pipeline directories — `raw/`,
 `parquet/` and `fantasy.duckdb`. The draft-board workflow is the standing
 exception: it reads its provider exports from `player_data/` and writes to
-`exports/`, neither of which the pipeline touches. See
+`exports/` and `draft-board/`, none of which the pipeline touches. `draft-board/`
+is the local copy of the board: snapshots written by `build_data.py`, draft state
+written by `board.py`, sheet pulls written by `pull_sheet.py`
+([ADR-0022](../docs/decisions/ADR-0022-local-draft-board.md)). See
 [docs/draft-board/build-and-maintenance.md](../docs/draft-board/build-and-maintenance.md).
 
 Layout and rationale: [docs/database/schema.md](../docs/database/schema.md).

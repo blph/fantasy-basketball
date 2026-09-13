@@ -216,10 +216,13 @@ evaluation, so it is worth pinning to lines:
 - [`review_mock_draft.py:8`](../../scripts/draft-board/review_mock_draft.py) and
   [`export_yahoo_rankings.py:17`](../../scripts/draft-board/export_yahoo_rankings.py) both
   take `playwright-cli` pulls as their input contract
+- [`pull_sheet.py`](../../scripts/draft-board/pull_sheet.py) runs `playwright-cli` itself,
+  so `verify.py --local` can hold the local board's engine to the live sheet
 - `build-and-maintenance.md` lines 454, 463, 555 and 585 — the documented commands
 
 Removing Playwright is therefore not a preference change. It is a rewrite of the
-calibration step, the mock-draft review, and the Yahoo export's input contract.
+calibration step, the mock-draft review, the Yahoo export's input contract, and the local
+board's parity check.
 
 **Pros**
 
@@ -237,7 +240,12 @@ calibration step, the mock-draft review, and the Yahoo export's input contract.
 
 - **The `gviz/tq?tqx=out:csv` read is a legacy endpoint.** It is undocumented for this use,
   could change without notice, and must be fetched from *inside* the sheet's page so the
-  request carries its cookies. A `goto` to another origin breaks it.
+  request carries its cookies. A `goto` to another origin breaks it. The JSON form,
+  `tqx=out:json`, which `pull_sheet.py` uses to get raw values beside formatted ones,
+  answers `access_denied` on this private sheet unless the fetch sends
+  `X-DataSource-Auth: true`. Both forms sniff each column's type and silently drop
+  minority-type cells, header labels included, so a pull must request single-type ranges
+  and count what comes back.
 - **The `Data.gs` push depends on editor internals.** It reaches into
   `monaco.editor.getModels()` and calls `setValue`. A Google redesign of the Apps Script
   editor breaks it, and the failure would arrive mid-deployment.
@@ -376,8 +384,9 @@ Playwright would keep every write and every menu action; the MCP would only ever
 3. A second failure mode in the verification path, which is the path whose reliability
    matters most.
 
-**Recommendation: not yet.** The gviz pull works today and `verify.py --sheet` already
-catches misalignment. Revisit if the gviz endpoint breaks, or if a collapsed-group misread
+**Recommendation: not yet.** The gviz pull works today, `verify.py --sheet` already
+catches misalignment, and `pull_sheet.py` asserts a cell count on every range it reads, so
+a silently short gviz response now fails loudly. Revisit if the gviz endpoint breaks, or if a collapsed-group misread
 ever produces a wrong conclusion in practice — at that point the trade flips, because the
 cost of the alternative is a forgotten share and the cost of the status quo is a silent
 wrong answer on draft night.
@@ -407,3 +416,23 @@ wrong answer on draft night.
 - **Should the Playwright rule become an ADR?** It is currently a `DO NOT` in `AGENTS.md`
   with its reasoning in this report. That is sufficient, but an ADR citing this evaluation
   would put it in the decision log where the other structural choices live.
+
+## Addendum — the local board
+
+The local-board branch
+([ADR-0022](../decisions/ADR-0022-local-draft-board.md)) adds a consumer, not a route.
+`pull_sheet.py` reads the sheet through the same `fantasy` profile, from the repo root
+because the persistent profile is keyed by working directory, and `verify.py --local`
+compares the pull with the local engine.
+
+Its tick scenario runs on a **copy** of the spreadsheet, made through Playwright with
+File ▸ Make a copy, which carries the bound script, named ranges and rules. The copy is a
+new Apps Script project and asks for its own consent, the screen the 2026-09-01 deploy
+declined. The scenario grants it for the copy alone and deletes the copy afterwards,
+because the copy is provider data in Drive. No credential or sharing change is added, so
+the verdict stands.
+
+The refresh procedure tabulated above has since grown from twelve steps to fourteen: step 12
+runs `pull_sheet.py` and `verify.py --local` after the re-sort, and step 14 rebases a local
+draft state. Step 12 reaches the sheet through the same `fantasy` profile; step 14 never
+touches it.
