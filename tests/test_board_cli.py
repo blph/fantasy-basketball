@@ -411,6 +411,18 @@ def test_pick_gaps_and_duplicates_reported(drafting, capsys):
     assert "logged twice" in err
 
 
+def test_reused_pick_warns_on_write_but_still_applies(drafting, capsys):
+    code1, _, err1 = run(drafting, capsys, "mine", name(0), "--pick", "7")
+    assert code1 == 0
+    assert "7" not in err1
+    code2, _, err2 = run(drafting, capsys, "mine", name(1), "--pick", "7")
+    assert code2 == 0
+    assert "pick 7" in err2
+    assert name(0) not in err2 and name(1) not in err2
+    entry = state(drafting)["players"][N.key_of(name(1))]
+    assert entry["pick"] == 7
+
+
 def test_pick_with_two_names_is_usage(drafting, capsys):
     assert run(drafting, capsys, "gone", name(0), name(1), "--pick", "3")[0] == 2
 

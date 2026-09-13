@@ -48,7 +48,8 @@ against the live sheet.**
 4. **CLI.** Agents read the board through `board.py`, never by opening the file. The file
    holds 200 players across three sources of named fields, well past 100k tokens. Draft
    state (GONE, MINE, conceded categories, hand columns) lives in a local state file keyed
-   by player name and pinned to one snapshot's date and digest.
+   by the normalised player key (`sources.normalise`), with the display name stored beside
+   it, and pinned to one snapshot's date and digest.
 5. **Parity.** Values are compared by construction. Formulas are compared by pulling the
    live sheet through Playwright and running the engine on the sheet's own ticks and order.
    A sheet change and its engine change land in the same commit.

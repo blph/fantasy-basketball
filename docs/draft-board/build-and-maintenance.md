@@ -202,6 +202,12 @@ itself](#changing-the-sheet-itself). It is about 185KB, so roughly fifteen chunk
 
 **8. Run `Draft Board ▸ Refresh data`.** Read the toast and the build log on Settings.
 
+Before running it, record every GONE and MINE tick and every Notes cell on the Draft Board
+by player name. A refresh that reorders rows can leave them beside the wrong players (see
+[I1](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md#workaround-until-it-is-fixed)
+for the workaround) — the checkboxes and Notes are the Draft Board's own values, not
+formulas into the Board, so nothing else recovers them.
+
 **9. Check the Settings sanity block.** In particular the **names line up across tabs** row:
 anything but `aligned` means the calculation tabs are out of step with the Board, and every
 value on the Draft Board is attached to the wrong player. Stop there.
@@ -209,8 +215,12 @@ value on the Draft Board is attached to the wrong player. Stop there.
 **10. Re-do any `My GP Est` overrides for new arrivals.**
 
 **11. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes and notes
-reattach by player name. Injury tiers do not need to — the Board owns that column and the
-Draft Board mirrors it, so a tier follows its player through any sort by construction.
+reattach by player name **only when the refresh did not reorder rows**. After a reordering
+refresh, that reattachment is by sheet row, not identity ([I1](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md)) —
+restore GONE, MINE and Notes from the names recorded in step 8 rather than trusting what the
+re-sort left in place. Injury tiers do not need either kind of recovery — the Board owns that
+column and the Draft Board mirrors it, so a tier follows its player through any sort by
+construction.
 
 **12. Verify the local engine against the sheet.** Required, and only after step 11 — before
 the re-sort the rows are still the previous board's order and the comparison is meaningless.
@@ -625,6 +635,10 @@ sheet:
 python3 scripts/draft-board/pull_sheet.py
 python3 scripts/draft-board/verify.py --local "data/draft-board/pulls/<timestamp> live.json"
 ```
+
+`pull_sheet.py` needs the `fantasy` session's tab on the sheet itself (docs.google.com), not
+the Apps Script editor. After [pushing `Code.gs`](#pushing-buildgs-into-the-sheet), navigate
+back to the sheet before pulling, or the pull fails.
 
 `pull_sheet.py` builds one `playwright-cli -s=fantasy eval` from
 [`board_layout.json`](../../scripts/draft-board/board_layout.json) and runs it from the repo

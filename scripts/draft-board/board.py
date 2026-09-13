@@ -598,6 +598,11 @@ def run_write(args, argv, root, path):
         else:
             ST.record(state, args.cmd, argv, before, after)
             ST.save(path, state)
+        pick = getattr(args, "pick", None)
+        if pick is not None:
+            _, dups = pick_report(snap, state)
+            if len(dups.get(pick, [])) > 1:
+                warn(f"pick {pick} is already recorded for another player")
     ranks = {r["key"]: r["rank"]
              for r in E.board_rows(snap, state, snap["settings"], state["applied_sort"])}
     rows = []

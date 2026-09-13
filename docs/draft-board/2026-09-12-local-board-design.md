@@ -1,6 +1,6 @@
 # Local draft board — design
 
-Branch: `local-draft-board` · Status: design approved section by section, awaiting spec review · 2026-09-12
+Branch: `local-draft-board` · Status: approved and implemented on this branch · 2026-09-12
 
 A complete local copy of the 2026-27 draft board, for AI agents rather than people. It holds
 the same player data as the Google Sheet and reproduces the sheet's live draft-day logic, so

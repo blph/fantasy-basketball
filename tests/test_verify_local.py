@@ -13,6 +13,7 @@ import json
 import math
 
 import board_engine as ENGINE
+import board_settings
 import board_values as BV
 import pull_sheet as PS
 import verify
@@ -617,3 +618,37 @@ def test_an_error_cell_in_a_punt_score_fails():
     assert code == 1
     assert any(line.startswith("FAIL: Punts") and "(score)" in line and f"row {row}" in line
               for line in fails(lines))
+
+
+def test_local_passes_through_verify_main_with_real_settings(tmp_path):
+    """No test exercised `run_local`/`verify.main(["--local", ...])` end to end: every other
+    test here calls `VL.diff_local` directly, which never runs the stale-settings check
+    `run_local` adds on top of it. Built with the league's own settings, that check has
+    nothing to report, and the whole path should return 0.
+    """
+    snapshot = make_snapshot(settings=board_settings.as_dict())
+    state = drafted_state(snapshot)
+    pulls = fake_pulls(snapshot, state, LAYOUT)
+    snap_path = write_snapshot(tmp_path, snapshot)
+    pull_path = tmp_path / "pull.json"
+    pull_path.write_text(json.dumps(pulls), encoding="utf-8")
+    code = verify.main(["--local", str(pull_path), "--snapshot", str(snap_path)])
+    assert code == 0
+
+
+def test_local_reports_stale_settings_through_verify_main(tmp_path, capsys):
+    """The fixture's default settings are scaled for a 15-row board (SCALED in
+    board_fixtures.py), not the league's -- exactly the drift the stale-settings check
+    exists to catch once a snapshot's settings and board_settings.py disagree.
+    """
+    snapshot = make_snapshot()
+    state = drafted_state(snapshot)
+    pulls = fake_pulls(snapshot, state, LAYOUT)
+    snap_path = write_snapshot(tmp_path, snapshot)
+    pull_path = tmp_path / "pull.json"
+    pull_path.write_text(json.dumps(pulls), encoding="utf-8")
+    code = verify.main(["--local", str(pull_path), "--snapshot", str(snap_path)])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert any(line.strip().startswith("FAIL: the snapshot was built with settings")
+              for line in out.splitlines())

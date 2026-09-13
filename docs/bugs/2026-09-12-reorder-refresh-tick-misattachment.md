@@ -78,7 +78,8 @@ On 2026-09-12 the sheet carries 13 MINE ticks, no GONE ticks, no Punted categori
 The next reordering `Refresh data` would move those 13 ticks onto whichever players then occupy
 their Board rows. Notes are empty, so the Notes half has not yet done any damage.
 
-Local draft state (`board.py`) is keyed by name and is unaffected.
+Local draft state (`board.py`) is keyed by the normalised player key (`sources.normalise`),
+with the display name stored beside it, and is unaffected.
 
 ## Workaround until it is fixed
 
