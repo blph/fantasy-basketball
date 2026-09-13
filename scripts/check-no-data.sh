@@ -31,10 +31,13 @@ FAILED=0
 # The draft board's local copy is provider data under its own names, blocked
 # wherever the file lands rather than only under data/, because a copy dragged
 # into docs/ or tests/ is still the same file: Data.gs is the sheet's generated
-# input, `board - <date>.json` the local snapshot, draft-state*.json the live
-# draft and its lock, and *.bak.json the backups board.py writes before it
-# replaces a state.
-BOARD_RE='^scripts/draft-board/Data\.gs$|(^|/)board - [^/]*\.json$|(^|/)draft-state[^/]*\.json(\.lock)?$|\.bak\.json$'
+# input (and its write_atomic temp, e.g. `.Data.gs.<random>.tmp`, in case a hard
+# kill lands between the temp write and the rename), `board - <date>.json` the
+# local snapshot, draft-state*.json the live draft and its lock, *.bak.json the
+# backups board.py writes before it replaces a state, and a pull filename
+# (`<timestamp> live.json` / `<timestamp> copy.json`, pull_sheet.py's format)
+# the sheet as read back by Playwright.
+BOARD_RE='(^|/)\.?Data\.gs(\.[^/]*\.tmp)?$|(^|/)board - [^/]*\.json$|(^|/)draft-state[^/]*\.json(\.lock)?$|\.bak\.json$|(^|/)[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}Z (live|copy)\.json$'
 
 BAD_PATHS=$(printf '%s\n' "$FILES" | grep -Ev '^data/README\.md$|^\.env\.example$' |
   grep -E -e '^data/|(^|/)\.env($|\.)|\.(duckdb|duckdb\.wal|parquet|csv|tsv)$' -e "$BOARD_RE" || true)

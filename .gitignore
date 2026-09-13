@@ -26,6 +26,9 @@ venv/
 .DS_Store
 # Generated from the provider exports. Rebuild it with scripts/draft-board/build_data.py.
 scripts/draft-board/Data.gs
+# write_atomic's temp file beside it, mkstemp(prefix=".Data.gs.", suffix=".tmp"), if a hard
+# kill lands between the temp write and the rename.
+scripts/draft-board/.Data.gs.*.tmp
 
 # Browser-automation artifacts. Page snapshots capture account details, and
 # this repo is public.

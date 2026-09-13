@@ -67,6 +67,17 @@ def guard(repo: Path, mode: str = "--staged") -> subprocess.CompletedProcess:
         "draft-state.20260101T000000.bak.json",
         "notes/anything.bak.json",
         "data/draft-board/pulls/2026-01-01T000000Z live.json",
+        # write_atomic's temp file, mkstemp(dir=path.parent, prefix=f".{path.name}.",
+        # suffix=".tmp") on Data.gs: a hard kill between the temp write and the rename
+        # must not leave the full provider dataset committable.
+        "scripts/draft-board/.Data.gs.ab12cd34.tmp",
+        # Data.gs is blocked anywhere, not only under scripts/draft-board/.
+        "docs/Data.gs",
+        # A pull file (pull_sheet.py's `%Y-%m-%dT%H%M%SZ` + " " + live|copy + ".json")
+        # copied out of data/ is the same provider dataset as the one already blocked
+        # under data/draft-board/pulls/ above.
+        "docs/2026-01-01T000000Z live.json",
+        "notes/2026-01-01T000000Z copy.json",
     ],
 )
 def test_local_board_files_are_blocked_anywhere(repo, rel):
@@ -84,6 +95,10 @@ def test_local_board_files_are_blocked_anywhere(repo, rel):
         "scripts/draft-board/Build.gs",
         "tests/test_board_state.py",
         "docs/draft-board/cheat-sheet.md",
+        # Contains "Data" or a date, but is not Data.gs or a pull filename.
+        "docs/DataNotes.md",
+        "docs/2026-01-01-project-update.md",
+        "tests/test_board_data.py",
     ],
 )
 def test_committed_board_files_pass(repo, rel):
