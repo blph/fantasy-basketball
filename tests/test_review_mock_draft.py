@@ -9,6 +9,9 @@ an error — a percentage averaged instead of aggregated, a snake seat off by on
 a forced pick graded as a choice.
 """
 
+import json
+from pathlib import Path
+
 import pytest
 import review_mock_draft as rv
 
@@ -466,3 +469,71 @@ def test_a_forced_pick_is_never_marked_dominated():
         dominated=True,
     )
     assert graded.components["dominated"] == 0.0
+
+
+# --- Layout guard -----------------------------------------------------------
+# The current Draft Board, A2:Z202: row 2 the block banners, row 3 the column headers,
+# then one row per player -- [#, TIER, RND, Player, Tm, Pos, INJ, GONE, MINE, DURH, ...].
+
+
+def current_header():
+    row = [""] * 26
+    row[:10] = ["#", "TIER", "RND", "Player", "Tm", "Pos", "INJ", "GONE", "MINE", "DURH"]
+    return row
+
+
+def current_row(rank, name, *, rnd=None):
+    row = [""] * 26
+    rnd = f"R{(rank - 1) // 12 + 1}" if rnd is None else rnd
+    row[:10] = [str(rank), "1", rnd, name, "BOS", "PG", "LOW", "FALSE", "FALSE", "0.512"]
+    return row
+
+
+def test_a_current_layout_pull_is_refused_by_its_header():
+    rows = [["WHO"] + [""] * 25, current_header(), current_row(1, "Quill Ardent")]
+
+    with pytest.raises(rv.ReviewError, match="predates the DURANT H2H board") as exc:
+        rv.parse_draft_board(rows)
+
+    assert "2026-09-01-draft-refactoring-branch-summary.md" in str(exc.value)
+
+
+def test_a_header_gviz_emptied_is_still_refused_by_player_in_column_d():
+    """gviz drops header cells it sniffs as a column's minority type; RND and Tm have both
+    come back blank from the live sheet. Player is the one label still in place."""
+    head = [""] * 26
+    head[3] = "Player"
+
+    with pytest.raises(rv.ReviewError, match="Player in column D"):
+        rv.parse_draft_board([head, current_row(1, "Quill Ardent")])
+
+
+@pytest.mark.parametrize("rnd", ["R1", "1"])
+def test_a_headerless_current_pull_is_refused_by_its_shape(rnd):
+    """No labels at all: the round number sitting where a name belongs gives it away,
+    whether the pull returns the displayed `R1` or the raw `1`."""
+    rows = [current_row(i, f"Quill Ardent{'e' * i}", rnd=rnd) for i in range(1, 4)]
+
+    with pytest.raises(rv.ReviewError, match="round number"):
+        rv.parse_draft_board(rows)
+
+
+def test_the_layout_this_tool_reads_still_parses():
+    """The old header -- `Gone`, `Mine`, Player in column C -- trips neither signal."""
+    head = [""] * 26
+    head[:5] = ["#", "TIER", "Player", "Team", "Pos"]
+    head[rv.DB_ADJVAL] = "ADJ\nVALUE"
+    head[19:21] = ["Gone", "Mine"]
+    rows = [["IDENTITY"] + [""] * 25, head, db_row(1, 1, "Quill Ardent")]
+
+    players = rv.parse_draft_board(rows)
+
+    assert [p.name for p in players.values()] == ["Quill Ardent"]
+
+
+def test_current_only_labels_are_labels_of_the_committed_layout():
+    """The literal set must not drift from what the harness says the board's headers are."""
+    layout = json.loads(Path(rv.__file__).with_name("board_layout.json").read_text("utf-8"))
+    labels = {col["label"] for col in layout["tabs"]["Draft Board"]["columns"].values()}
+
+    assert rv.CURRENT_ONLY_LABELS <= labels

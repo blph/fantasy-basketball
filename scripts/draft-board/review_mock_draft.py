@@ -119,6 +119,57 @@ class ReviewError(Exception):
     """The input does not look like a board pull or a draft log."""
 
 
+# --- Layout guard -----------------------------------------------------------
+# Header labels the current Draft Board carries and the layout this tool reads never did.
+# The old header said `Gone` and `Mine`, and had no round, injury or value-kind columns.
+# A literal rather than a read of board_layout.json, so this file still does no I/O beyond
+# its arguments; a test pins the set to that file.
+CURRENT_ONLY_LABELS = frozenset({"RND", "Tm", "INJ", "GONE", "MINE", "DURH", "ZSH", "ZSC"})
+# What the current layout's RND column holds where this tool expects a player name: `R3`
+# as displayed, or `3` when a pull returns the raw value. No player's name is a number.
+ROUND_CELL = re.compile(r"R?\d+")
+BLOCKING_ENTRY = (
+    "docs/project-updates/2026-09-01-draft-refactoring-branch-summary.md, "
+    "'Blocking, before the board is used for a real draft', item 1"
+)
+
+
+def check_layout(rows) -> None:
+    """Refuse a pull of the current Draft Board before any column is read.
+
+    A current `A2:Z202` pull parses cleanly under this tool's offsets and means nothing:
+    RND lands in the name column, team codes in Pos, a DURH value in ADJ VALUE. Two
+    independent signals, because gviz drops header cells it sniffs as a column's minority
+    type -- a live header row has come back without `RND` and `Tm` -- so a label check
+    alone can pass a current pull, and a header-less pull carries no labels at all:
+
+      - a header row with a label only the current layout has, or `Player` one column to
+        the right of where this tool reads it;
+      - a data row whose name cell is a round number.
+    """
+    for row in rows:
+        cells = [c.strip() for c in row]
+        if not cells:
+            continue
+        if cells[DB_RANK].isdigit():
+            if len(cells) > DB_NAME and ROUND_CELL.fullmatch(cells[DB_NAME]):
+                raise ReviewError(stale_layout("a round number where the player name belongs"))
+            continue
+        labels = sorted(CURRENT_ONLY_LABELS.intersection(cells))
+        if len(cells) > DB_NAME + 1 and cells[DB_NAME + 1] == "Player":
+            labels.append("Player in column D")
+        if labels:
+            raise ReviewError(stale_layout("header " + ", ".join(labels)))
+
+
+def stale_layout(evidence: str) -> str:
+    return (
+        f"this is a pull of the current Draft Board ({evidence}). review_mock_draft.py "
+        "predates the DURANT H2H board and would misread every column of it; it is blocked "
+        f"until it is ported. See {BLOCKING_ENTRY}."
+    )
+
+
 # --- Parsing ----------------------------------------------------------------
 
 
@@ -175,6 +226,8 @@ class Player:
 
 def parse_draft_board(rows) -> dict[str, Player]:
     """Read `Draft Board!A2:Z202`. Carries TIER, which nothing else does."""
+    rows = list(rows)
+    check_layout(rows)
     out: dict[str, Player] = {}
     for row in rows:
         if len(row) <= DB_LEFT or not row[DB_RANK].strip().isdigit():

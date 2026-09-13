@@ -44,7 +44,7 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Log a pick: `python3 scripts/draft-board/board.py mine|gone NAME --pick N --show board,tracker` (`mine` ticks GONE too; `--undo`, `--team T`, `--offboard`); also `concede CAT`, `sort S:K`, `note NAME TEXT`, `gp|xrank|gp1|gp2|gp3 NAME N|--clear`, and `undo` for the last edit. Exits 0 ok, 2 usage, 3 name not resolved, 4 integrity (pin, digest, corrupt state)
 - Move a draft state onto a newer snapshot: `python3 scripts/draft-board/board.py rebase` — writes a `.bak.json` first; never during a live draft, and only after `verify.py --local` passes
 - Draft day: follow [the draft-day procedure](docs/draft-board/build-and-maintenance.md#draft-day) — `board.py new` once, then `board.py gone|mine NAME --pick N --show board,tracker` for every pick; never refresh either board once the draft starts
-- Review a mock draft: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` (inputs are `playwright-cli` board pulls; see [the procedure](docs/draft-board/mock-draft-review.md))
+- Review a mock draft — **stale, blocked until ported**: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` reads the pre-DURANT layout and refuses a current pull; see the blocking entry in [the draft-refactoring summary](docs/project-updates/2026-09-01-draft-refactoring-branch-summary.md) and [the procedure](docs/draft-board/mock-draft-review.md)
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
 - Lint: `ruff check .`
 - Format: `ruff format .`

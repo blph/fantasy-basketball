@@ -1,5 +1,13 @@
 # Reviewing a mock draft
 
+> **Stale — do not run against the current board.** This procedure and
+> `review_mock_draft.py` describe the board before three projections and DURANT H2H: the
+> ranges, the column map, `Adjusted Value`, the G-score blocks and the replacement check
+> below are all gone. The tool now refuses a current-layout pull rather than misreading
+> it. The port is listed as blocking in
+> [the draft-refactoring branch summary](../project-updates/2026-09-01-draft-refactoring-branch-summary.md#blocking-before-the-board-is-used-for-a-real-draft)
+> and will build on the local board (`board_engine.py` and the draft state's pick log).
+
 How to grade a mock draft against the board and produce a report comparable across mocks.
 Run it after every mock from your real slot; the [playbook](../references/fantasy-basketball-draft-playbook.md)
 §7 prep list asks for two or three.
