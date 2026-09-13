@@ -36,6 +36,10 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Re-check `Data.gs` and diff the live board against it: `python3 scripts/draft-board/verify.py --sheet pull.csv` (a full `A4:AA203` pull also checks all 1800 rank tags; a `rank,name,value` pull checks only the sorted value)
 - Check the local board against `Data.gs`: `python3 scripts/draft-board/verify.py` (finds the snapshot this `Data.gs` was built with; `--snapshot PATH` names another) — every number equal, one digest in both
 - Diff the board against Basketball Monster's own published columns: `python3 scripts/draft-board/verify.py --published "data/player_data/BBM Published - BMP - YYYY-MM-DD.tsv"` — the only check that compares us to anything outside the repo
+- Start a draft state pinned to the newest local snapshot: `python3 scripts/draft-board/board.py new` (`--force` backs up and replaces a non-empty one; `--state mock1.json` keeps a mock draft apart, always under `data/draft-board/`)
+- Query the local board: `python3 scripts/draft-board/board.py status|board|player NAME…|tracker|punts [BUILD]|check` — TSV behind one `#` context line, `--json` for one object, `board --sort S:K` is a what-if. The output is provider data: never paste it into `docs/` or `tests/`
+- Log a pick: `python3 scripts/draft-board/board.py mine|gone NAME --pick N --show board,tracker` (`mine` ticks GONE too; `--undo`, `--team T`, `--offboard`); also `concede CAT`, `sort S:K`, `note NAME TEXT`, `gp|xrank|gp1|gp2|gp3 NAME N|--clear`, and `undo` for the last edit. Exits 0 ok, 2 usage, 3 name not resolved, 4 integrity (pin, digest, corrupt state)
+- Move a draft state onto a newer snapshot: `python3 scripts/draft-board/board.py rebase` — writes a `.bak.json` first; never during a live draft
 - Review a mock draft: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` (inputs are `playwright-cli` board pulls; see [the procedure](docs/draft-board/mock-draft-review.md))
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
 - Lint: `ruff check .`
