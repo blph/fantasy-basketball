@@ -24,7 +24,7 @@ venv/
 
 # macOS
 .DS_Store
-# Generated from a provider export. Rebuild it with scripts/draft-board/gen_data.py.
+# Generated from the provider exports. Rebuild it with scripts/draft-board/build_data.py.
 scripts/draft-board/Data.gs
 
 # Browser-automation artifacts. Page snapshots capture account details, and
