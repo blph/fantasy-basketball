@@ -57,8 +57,8 @@ profile labels split at the band, keep turnovers flipped exactly once, drop a
 punted category from both lists, and stay measured against the pool rather than
 the league.
 `tests/test_export_yahoo_rankings.py` covers the Yahoo CSV converter, from a pull
-and from the local snapshot. The engine, CLI, verification and export tests build on
-synthetic boards from `tests/board_fixtures.py`:
+and from the local snapshot. The engine, CLI, name resolution, state, verification and
+export tests build on synthetic boards from `tests/board_fixtures.py`:
 
 | File | What it holds the local board to |
 |---|---|
