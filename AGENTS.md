@@ -32,7 +32,7 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Refresh only the injury grades, fitting nothing: `python3 scripts/draft-board/calibrate_bbm.py --source BMP-ALT --date YYYY-MM-DD --injury-only`
 - Build the board's data from the three projection exports: `python3 scripts/draft-board/build_data.py` (`--dry-run` to see what would change first). The same run writes the local board, `data/draft-board/board - YYYY-MM-DD.json`, whenever `--out` is the default
 - Dry-run the draft board: `cd scripts/draft-board && node harness.js`
-- Export rankings for Yahoo: `python3 scripts/draft-board/export_yahoo_rankings.py raw.csv` (writes `data/exports/`, dated)
+- Export rankings for Yahoo: `python3 scripts/draft-board/export_yahoo_rankings.py raw.csv` (writes `data/exports/`, dated), or `--local [--sort S:K]` to export the local snapshot with no pull
 - Re-check `Data.gs` and diff the live board against it: `python3 scripts/draft-board/verify.py --sheet pull.csv` (a full `A4:AA203` pull also checks all 1800 rank tags; a `rank,name,value` pull checks only the sorted value)
 - Check the local board against `Data.gs`: `python3 scripts/draft-board/verify.py` (finds the snapshot this `Data.gs` was built with; `--snapshot PATH` names another) — every number equal, one digest in both
 - Diff the board against Basketball Monster's own published columns: `python3 scripts/draft-board/verify.py --published "data/player_data/BBM Published - BMP - YYYY-MM-DD.tsv"` — the only check that compares us to anything outside the repo

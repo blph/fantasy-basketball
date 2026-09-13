@@ -534,6 +534,22 @@ Export **after** `Rebuild & re-sort`, never between a refresh and a re-sort — 
 the row order is still the previous board's. The same applies after changing `Sort by`: the
 dropdown does not move any rows until you re-sort.
 
+**Or export from the local board, with no pull at all.**
+
+```bash
+python3 scripts/draft-board/export_yahoo_rankings.py --local
+python3 scripts/draft-board/export_yahoo_rankings.py --local --sort BMP-ALT:durh
+```
+
+`--local` reads the newest snapshot in `data/draft-board/` (`--snapshot PATH` pins another)
+and prints its date and digest prefix, so you know which board you exported. It orders by
+`--sort`, else by the applied sort in `data/draft-board/draft-state.json` if one exists, else
+by `BMP:durh`. Ticks are ignored. Rows reach the same converter as a pull, so the file is
+byte-for-byte what a pull of the same board produces. The refresh-to-re-sort window does not
+exist here: the order is computed from the sort, not read off rows that have not moved yet.
+Once the sheet is refreshed, the snapshot is as current as the sheet will be after its
+re-sort.
+
 The output is provider-derived, so it stays out of version control — but it does
 live in the project, in `data/exports/`. In the working tree and in a commit are
 different things: `data/**` and `*.csv` are both gitignored, and

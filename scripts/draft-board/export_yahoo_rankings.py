@@ -19,6 +19,11 @@ moved when the control strip was added (data now starts at row 4) and when Round
 and Injuries were inserted — an old A3:E202 pull silently yields the wrong
 columns rather than failing, which is why the header check below is strict.
 
+`--local` reads the local board snapshot instead (ADR-0022): the same seven columns laid
+out by board_engine.py and handed to the same converter, so the two paths cannot drift.
+It needs no pull, and it has no stale window between a refresh and a re-sort, because
+the order is computed from the applied sort rather than read off rows that have not moved.
+
 Output lands in `data/exports/`, dated, beside the provider exports that fed the
 board. Provider data in, provider data out — `data/` and `*.csv` are both
 gitignored and the pre-commit hook blocks them. Never commit the output.
@@ -32,7 +37,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import board_engine  # noqa: E402
 import board_settings as BSET  # noqa: E402
+import board_snapshot  # noqa: E402
+import board_state  # noqa: E402
 
 # `league.season` from config/league.yaml, by way of board_settings.py, which transcribes
 # it (pyyaml is not a declared dependency) and is tested against the file.
@@ -74,6 +82,11 @@ COL_PLAYER = 3
 COL_TEAM = 4
 COL_POS = 5
 RANGE_WIDTH = 7
+
+
+# Where --local looks for the snapshot and the draft state. A module attribute so tests can
+# point it at tmp_path.
+LOCAL_ROOT = board_snapshot.ROOT
 
 
 class ExportError(Exception):
@@ -134,6 +147,71 @@ def convert(rows, limit=DRAFTED_POOL):
     return out
 
 
+def parse_sort(text):
+    """`bmp-alt:DURH` -> {"source": "BMP-ALT", "kind": "durh"}, as board.py stores a sort."""
+    source, sep, kind = text.partition(":")
+    sources = {s.upper(): s for s in board_snapshot.SOURCES}
+    if not sep or source.upper() not in sources or kind.lower() not in board_snapshot.KINDS:
+        raise ExportError(
+            f"--sort {text!r}: expected SOURCE:KIND, SOURCE one of "
+            f"{', '.join(board_snapshot.SOURCES)} and KIND one of {', '.join(board_snapshot.KINDS)}"
+        )
+    return {"source": sources[source.upper()], "kind": kind.lower()}
+
+
+def rows_from_local(snapshot, applied_sort):
+    """The Draft Board range as the local engine lays it out, ready for `convert()`.
+
+    Seven cells per row in the pull's order -- #, TIER, RND, Player, Tm, Pos, INJ -- so the
+    local path and the sheet path meet at the same converter and cannot drift apart. Ticks
+    play no part: rank and tier run over all 200 rows whatever is GONE, exactly as on the
+    sheet, so an empty state is the whole input.
+    """
+    rows = board_engine.board_rows(
+        snapshot, board_engine.empty_state(), snapshot["settings"], applied_sort
+    )
+    return [
+        [str(r["rank"]), str(r["tier"]), f"R{r['rnd']}", r["name"], r["team"], r["pos"], r["inj"]]
+        for r in sorted(rows, key=lambda r: r["rank"])
+    ]
+
+
+def local_sort(root, override):
+    """--sort, else the live draft state's applied sort, else the board's default.
+
+    The state file is read for its sort alone. It is what the draft is being run on, so an
+    export taken mid-draft ranks the way the board in use does.
+    """
+    if override:
+        return parse_sort(override)
+    state_path = root / "draft-state.json"
+    if state_path.exists():
+        try:
+            return dict(board_state.load(state_path)["applied_sort"])
+        except board_state.StateError as exc:
+            raise ExportError(f"{state_path}: {exc}") from exc
+    return dict(board_engine.DEFAULT_SORT)
+
+
+def local_rows(snapshot_path, sort_text, root):
+    """Pin a snapshot, say which one on stderr, and lay out its board."""
+    path = Path(snapshot_path) if snapshot_path else board_snapshot.newest(root)
+    if path is None:
+        raise ExportError(f"no local board under {root} -- run build_data.py first")
+    try:
+        snapshot = board_snapshot.load(path)
+    except (OSError, board_snapshot.SnapshotError) as exc:
+        raise ExportError(f"{path}: {exc}") from exc
+    sort = local_sort(root, sort_text)
+    meta = snapshot["meta"]
+    print(
+        f"local board {meta['generated']} digest {meta['digest'][:12]}, "
+        f"sorted by {board_engine.sort_key(sort)}",
+        file=sys.stderr,
+    )
+    return rows_from_local(snapshot, sort)
+
+
 def default_output_path(today=None):
     """Where an export lands when no path is given.
 
@@ -157,6 +235,23 @@ def main(argv=None):
         help="raw Draft Board!A4:G203 CSV, or - for stdin (default: -)",
     )
     ap.add_argument(
+        "--local",
+        action="store_true",
+        help="export the local board snapshot instead of a sheet pull (ignores GONE/MINE)",
+    )
+    ap.add_argument(
+        "--snapshot",
+        default=None,
+        help="with --local: the snapshot to export (default: newest in data/draft-board/)",
+    )
+    ap.add_argument(
+        "--sort",
+        default=None,
+        metavar="S:K",
+        help="with --local: order by SOURCE:KIND, e.g. BMP-ALT:durh "
+        "(default: the draft state's applied sort, else BMP:durh)",
+    )
+    ap.add_argument(
         "-o",
         "--out",
         default=None,
@@ -169,13 +264,20 @@ def main(argv=None):
         help=f"how many players to export (default: {DRAFTED_POOL}, the drafted pool)",
     )
     args = ap.parse_args(argv)
+    if args.local and args.src != "-":
+        ap.error("--local reads the local snapshot; give it no CSV")
+    if not args.local and (args.snapshot or args.sort):
+        ap.error("--snapshot and --sort need --local")
 
-    src = sys.stdin if args.src == "-" else open(args.src, encoding="utf-8", newline="")
-    try:
-        rows = convert(list(csv.reader(src)), limit=args.limit)
-    finally:
-        if src is not sys.stdin:
-            src.close()
+    if args.local:
+        rows = convert(local_rows(args.snapshot, args.sort, LOCAL_ROOT), limit=args.limit)
+    else:
+        src = sys.stdin if args.src == "-" else open(args.src, encoding="utf-8", newline="")
+        try:
+            rows = convert(list(csv.reader(src)), limit=args.limit)
+        finally:
+            if src is not sys.stdin:
+                src.close()
 
     out = Path(args.out) if args.out else default_output_path()
     out.parent.mkdir(parents=True, exist_ok=True)
