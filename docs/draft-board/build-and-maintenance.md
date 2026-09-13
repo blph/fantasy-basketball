@@ -643,12 +643,20 @@ back to the sheet before pulling, or the pull fails.
 `pull_sheet.py` builds one `playwright-cli -s=fantasy eval` from
 [`board_layout.json`](../../scripts/draft-board/board_layout.json) and runs it from the repo
 root, because the persistent profile is keyed by working directory. The sheet id comes from
-`DRAFT_SHEET_ID` in `.env`; `--sheet-id` overrides it. Every range goes through gviz's JSON
-endpoint with the `X-DataSource-Auth: true` header — without it the private sheet answers
-`access_denied` — and every range is **one type**: gviz sniffs a type per column and silently
-drops the cells that do not match, so Settings `B4:B11` fetched whole returns 6 cells of 8. The
-pull is refused, and nothing written, when any range comes back with fewer filled cells than it
-must hold.
+`DRAFT_SHEET_ID` in `.env`; `--sheet-id` overrides it. Every range is fetched in turn inside
+that one eval, never with `Promise.all` — firing all ~94 fetches at once failed live on 5+
+consecutive attempts, one coming back non-JSON each time at a different index. Every range
+goes through gviz's JSON endpoint with the `X-DataSource-Auth: true` header — without it the
+private sheet answers `access_denied` — and every range is **one type**: gviz sniffs a type
+per column and silently drops the cells that do not match, so Settings `B4:B11` fetched whole
+returns 6 cells of 8. gviz also omits every row whose fetched cells are all empty wherever
+that falls in the range, not only at the end — Break alone came back 45 of 200 rows live, ADP/
+XRank/GAP together 171 of 200 — so a range whose columns can all be blank on one player row
+also fetches an always-filled anchor column and strips it back out. The pull is refused, and
+nothing written, when a string or number range comes back with fewer filled cells than it must
+hold, or when an anchored range comes back short at all; a boolean range never refuses on a
+blank cell, because an un-ticked checkbox is a genuinely empty cell rather than an explicit
+`FALSE`.
 
 `verify.py --local` never writes the draft state. It takes the sheet's own `GONE`, `MINE` and
 `Punted` ticks, the Board's hand columns, the Settings inputs and the displayed row order, runs

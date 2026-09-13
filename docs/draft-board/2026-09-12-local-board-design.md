@@ -272,8 +272,21 @@ repo root (the persistent profile is keyed by working directory), and writes
   answers `access_denied`. Each cell carries raw `v` and formatted `f`.
 - **Single-type ranges only.** gviz type-sniffs each column and silently drops minority-type
   cells, in CSV and JSON alike (verified live: Settings B4:B11 returned 6 of 8 cells). Ranges
-  are split by type from the layout, and every range asserts its expected cell count.
-- Everything is fetched in one eval with `Promise.all`.
+  are split by type from the layout, and every range asserts its expected cell count — except
+  a boolean range, which never refuses on a blank cell: an un-ticked checkbox is a genuinely
+  empty cell, not an explicit `FALSE`.
+- Every range is fetched in turn inside the one eval, not with `Promise.all`: firing all ~94 at
+  once made exactly one come back non-JSON on 5+ consecutive live attempts, at a different
+  index each time, and the resulting `SyntaxError` named no range. Sequential, the identical
+  plan succeeded 94 of 94; a bad reply now comes back as a structured error naming the range
+  (never the sheet id) and `main` exits 1 on it.
+- gviz omits every row whose fetched cells are all empty wherever that falls in the range, not
+  only at the end (verified live: Break alone came back 45 of 200 rows, ADP/XRank/GAP together
+  171 of 200), silently shifting every later row up one with nothing to say so. A range whose
+  columns can all be blank on the same player row also asks gviz, via `tq=select`, for an
+  always-filled anchor column (Draft Board and Board: `player`; Category Tracker's category
+  rows: `cat`) inside a wider bounding range, and strips the anchor's own cell back out once
+  the reply is in hand; an anchored reply that still comes back short is refused outright.
 
 Ranges: Draft Board header row and data rows by type block (strings, numbers, booleans,
 hidden blocks); Board hand columns; Settings input cells and reported cells (weights, k/w/K
