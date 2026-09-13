@@ -830,6 +830,11 @@ function refreshWithReorder(ss, board, oldNames, newNames) {
   writeBoardData(board);
   writeBoardFormulas(board);
 
+  // A column is rewritten whole, so every row in it has to be put back, not only the rows
+  // with a saved edit. For My GP that means the seeding formula writeBoardFormulas just
+  // laid down: writing '' there instead blanked every unoverridden row the moment one
+  // override existed, and the GP flag, which reads My GP, went silent on all of them.
+  // setValues stores a string beginning with '=' as a formula.
   var restored = 0;
   for (var h = 0; h < HAND_COLS.length; h++) {
     var hc = HAND_COLS[h], out = [], any = false;
@@ -837,6 +842,7 @@ function refreshWithReorder(ss, board, oldNames, newNames) {
       var rec = keep[newNames[j]];
       var v = rec && rec[hc] !== undefined ? rec[hc] : '';
       if (v !== '') { any = true; restored++; }
+      else if (hc === B.myGp) v = '=$' + a1col(B.gp) + (R0 + j);
       out.push([v]);
     }
     if (any) board.getRange(R0, hc, POOL_ROWS, 1).setValues(out);

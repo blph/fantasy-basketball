@@ -67,6 +67,11 @@ Range.prototype.setFormulas = function (g) {
   this.sheet._write(this, g); return this;
 };
 Range.prototype.getValue = function () { return this.sheet._read(this.row, this.col); };
+// refreshWithReorder tells a My GP override from its seeding formula by reading FORMULAS.
+// Without this the one path that re-attaches hand edits could not be run at all.
+Range.prototype.getFormulas = function () {
+  return this.getValues().map(r => r.map(v => (typeof v === 'string' && v.charAt(0) === '=' ? v : '')));
+};
 Range.prototype.getValues = function () {
   const out = [];
   for (let i = 0; i < this.nr; i++) {
@@ -759,6 +764,44 @@ check('the injury tier is the 21st PLAYERS field',
           fails.push(`${name}: a conditional format rule references another sheet\n     ${f}`);
       });
     });
+}
+
+// --- a reordering refresh keeps My GP live ----------------------------------
+// The restore loop used to write '' into every My GP row without a saved override, once any
+// override existed. The seeding formula was gone, so the GP flag went silent on those rows
+// and never came back. Reproduced on a scratch Board: seed it, override one row, then
+// refresh as though the previous order had been the reverse of this one.
+{
+  const tab = 'Reorder Board';
+  const sh = new Sheet(tab);
+  sh.maxCols = B_LAST; sh.maxRows = RN;
+  writeBoardData(sh);
+  writeBoardFormulas(sh);
+  const newNames = PLAYERS.map(p => p[1]);
+  const oldNames = newNames.slice().reverse();
+  const overrideAt = 0, noteAt = 5;
+  sh.cells[`${R0 + overrideAt},${B.myGp}`] = 55;
+  sh.cells[`${R0 + noteAt},${B.notes}`] = 'synthetic note';
+
+  // No Settings tab: the added/dropped note is not what is under test.
+  const report = refreshWithReorder({ getSheetByName: () => null }, sh, oldNames, newNames);
+
+  const landed = POOL_ROWS - 1 - overrideAt;
+  expect('a My GP override follows its player through a reorder',
+    cell(tab, R0 + landed, B.myGp), 55);
+  let lost = 0, firstLost = '';
+  for (let j = 0; j < POOL_ROWS; j++) {
+    if (j === landed) continue;
+    const got = cell(tab, R0 + j, B.myGp);
+    if (got !== `=${C(B.gp)}${R0 + j}`) { lost++; if (!firstLost) firstLost = `row ${R0 + j} holds "${got}"`; }
+  }
+  check('a reorder refresh leaves every unoverridden My GP on its seeding formula', lost === 0,
+    `${lost} rows lost it; first: ${firstLost}`);
+  expect('a note follows its player through a reorder',
+    cell(tab, R0 + POOL_ROWS - 1 - noteAt, B.notes), 'synthetic note');
+  check('a reseeded formula is not counted as a re-attached edit',
+    report.indexOf(' 2 hand edits re-attached') >= 0, report);
+  delete seen.sheets[tab];
 }
 
 // --- rebuilding over an existing sheet --------------------------------------
