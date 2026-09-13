@@ -187,7 +187,7 @@ class TestAssemble:
 
     def test_a_short_reply_that_ends_on_an_empty_row_is_refused(self):
         # A sparse range (min_cells 0) cannot count its way to safety, so its shape is checked:
-        # gviz trims only trailing empty rows, and the last row it returns is never empty.
+        # an unanchored range fills from the top, so the last row it returns is never empty.
         r = {"name": "Board!T4:T7", "sheet": "Board", "range": "T4:T7", "type": "number",
              "rows": 4, "cols": 1, "min_cells": 0}
         raw = {r["name"]: {"status": "ok", "cols": ["T"],

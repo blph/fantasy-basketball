@@ -9,7 +9,7 @@ no other route (AGENTS.md). One `eval` fetches every range through gviz's JSON e
 range at a time -- never with `Promise.all`. Firing all ~94 fetches in parallel failed live on
 5+ consecutive attempts: exactly one came back non-JSON each time, at a different index every
 run, and the resulting `SyntaxError` killed the whole eval without saying which range had
-failed. Fetched one at a time, the identical plan has succeeded 94 of 94 on every attempt. A
+failed. Fetched one at a time, the same plan succeeded live. A
 reply that is not JSON, or that gviz answers with `status: "error"`, stops the loop and comes
 back as a structured error naming the range (never the sheet id); `main` reports it and exits
 1. gviz answers a private sheet only when the request carries `X-DataSource-Auth: true`.
@@ -481,16 +481,17 @@ def assemble(raw: dict, ranges: list[dict], label: str, pulled_at: str) -> dict:
                 raise PullError(f"{r['name']}: returned columns {ids} do not fit the range")
         if len(rows) > r["rows"]:
             raise PullError(f"{r['name']}: {len(rows)} rows returned for {r['rows']} planned")
-        # Without an anchor, gviz leaves off only TRAILING rows that are entirely empty, so the
-        # last row it does return always holds something. A short reply that ends on an empty
-        # row was cut off some other way, and nothing can be assumed about the rows after it --
+        # gviz drops entirely empty rows anywhere in a range, which is why sparse ranges are
+        # anchored. Unanchored ranges fill from the top or require every cell, so their last
+        # returned row always holds something. A short reply that ends on an empty row was cut
+        # off some other way, and nothing can be assumed about the rows after it --
         # refuse it rather than pad a truncation into blanks the engine would read as "no
         # value". An anchored range never reaches this check: it was already required to
         # return every planned row above.
         if (anchor is None and 0 < len(rows) < r["rows"]
                 and all(_cell(c) is None for c in rows[-1])):
             raise PullError(f"{r['name']}: {len(rows)} of {r['rows']} rows came back and the "
-                            "last one is empty -- gviz omits only trailing empty rows, so the "
+                            "last one is empty -- this unanchored range fills from the top, so the "
                             "reply was truncated")
         grid = [[None] * r["cols"] for _ in range(r["rows"])]
         filled = 0
