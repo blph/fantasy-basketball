@@ -324,7 +324,11 @@ def build_eval(sheet_id: str, ranges: list[dict]) -> str:
     for r in ranges:
         entry = {"name": r["name"], "sheet": r["sheet"], "range": r.get("fetch_range", r["range"])}
         if "select" in r:
-            entry["select"] = ",".join(r["select"])
+            # Backtick-quoted: gviz's query language is case-insensitive and a plain `BY`
+            # parses as the `by` keyword (as in `group by`), not a column -- confirmed live,
+            # `select BY` refuses `invalid_query` while `select \`BY\`` returns the column.
+            # Every letter is quoted, not only the ones that happen to collide today.
+            entry["select"] = ",".join(f"`{c}`" for c in r["select"])
         plan.append(entry)
     base = GVIZ.format(id=sheet_id)
     return (

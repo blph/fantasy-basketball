@@ -265,6 +265,16 @@ class TestAnchoring:
         with pytest.raises(PS.PullError, match="anchor column is missing"):
             PS.assemble(raw, [r], "live", "t")
 
+    def test_the_select_clause_backtick_quotes_every_column(self):
+        # Live evidence: gviz's query language is case-insensitive and a bare `BY` parses as
+        # the `by` keyword (as in `group by`), refusing `invalid_query` -- and BY is a real
+        # Draft Board column letter (rank:BMP-ALT:zsc, index 77). Quoting every letter, not
+        # only the ones that collide today, is what makes this safe against the next one.
+        assert PS.col_letter(77) == "BY"
+        r = PS._range("Draft Board", 76, 4, 77, 5, "number", 0, anchor=4)
+        fn = PS.build_eval(FAKE_ID, [r])
+        assert json.dumps("`BX`,`BY`,`D`") in fn
+
 
 class TestBooleanBlanks:
     def test_a_blank_cell_in_a_boolean_range_assembles_as_false_and_is_not_refused(self):
