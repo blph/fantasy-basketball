@@ -564,3 +564,56 @@ def test_a_pull_whose_range_is_missing_its_own_range_key_is_not_comparable():
     code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
     assert code == 3
     assert lines[0].startswith("NOT COMPARABLE:")
+
+
+# --- an error cell in a Punts sparse field never compares equal to a blank (fix round 2) -
+
+
+def no_adp_punt_row(snapshot: dict, build_key: str = "pFt") -> int:
+    """The sheet row, in `build_key`'s Punts block, holding the first no-ADP player."""
+    entries = ENGINE.punts(snapshot, top=len(snapshot["players"]))[build_key]
+    j = next(j for j, e in enumerate(entries) if e["adp"] is None)
+    return LAYOUT["tabs"]["Punts"]["first_row"] + j
+
+
+def test_the_clean_fake_pull_with_a_no_adp_player_still_passes():
+    snapshot, _, pulls = setup()
+    no_adp_punt_row(snapshot)  # raises StopIteration if this fixture ever stops having one
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 0, lines
+
+
+def test_an_error_cell_in_a_no_adp_punt_row_adp_fails():
+    snapshot, _, pulls = setup()
+    p = LAYOUT["tabs"]["Punts"]
+    b = p["blocks"][0]
+    row = no_adp_punt_row(snapshot, b["key"])
+    set_error(pulls, "Punts", b["first_col"] + p["columns"]["adp"]["offset"], row, "#REF!")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1
+    assert any(line.startswith("FAIL: Punts") and "(adp)" in line and f"row {row}" in line
+              for line in fails(lines))
+
+
+def test_an_error_cell_in_a_no_adp_punt_row_gap_fails():
+    snapshot, _, pulls = setup()
+    p = LAYOUT["tabs"]["Punts"]
+    b = p["blocks"][0]
+    row = no_adp_punt_row(snapshot, b["key"])
+    set_error(pulls, "Punts", b["first_col"] + p["columns"]["gap"]["offset"], row, "#DIV/0!")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1
+    assert any(line.startswith("FAIL: Punts") and "(gap)" in line and f"row {row}" in line
+              for line in fails(lines))
+
+
+def test_an_error_cell_in_a_punt_score_fails():
+    snapshot, _, pulls = setup()
+    p = LAYOUT["tabs"]["Punts"]
+    b = p["blocks"][0]
+    row = p["first_row"]
+    set_error(pulls, "Punts", b["first_col"] + p["columns"]["score"]["offset"], row, "#REF!")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1
+    assert any(line.startswith("FAIL: Punts") and "(score)" in line and f"row {row}" in line
+              for line in fails(lines))

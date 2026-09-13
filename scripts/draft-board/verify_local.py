@@ -510,6 +510,14 @@ def _compare_punts(snapshot, sheet, layout, rep) -> None:
         for j in range(p["rows"]):
             r = p["first_row"] + j
             if _text(at("name", r)):
+                # adp and gap are legitimately None for a player with no ADP, and an error
+                # cell reads through _num() as that same None -- so unlike rank/name/score,
+                # which the engine never leaves blank, an error there cannot be told apart
+                # from a correct blank by value alone. Check every field for an error
+                # directly, rather than relying on the tuple/Counter comparison below.
+                for field in ("rank", "name", "score", "adp", "gap"):
+                    if _is_error(at(field, r)) is not None:
+                        rep.miss(f"{where} ({field})", f"row {r}")
                 got.append((_r9(_num(at("rank", r))), _text(at("name", r)),
                             _r9(_num(at("score", r))), _r9(_num(at("adp", r))),
                             _r9(_num(at("gap", r)))))
