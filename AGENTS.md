@@ -37,10 +37,13 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Check the local board against `Data.gs`: `python3 scripts/draft-board/verify.py` (finds the snapshot this `Data.gs` was built with; `--snapshot PATH` names another) — every number equal, one digest in both
 - Diff the board against Basketball Monster's own published columns: `python3 scripts/draft-board/verify.py --published "data/player_data/BBM Published - BMP - YYYY-MM-DD.tsv"` — the only check that compares us to anything outside the repo
 - Regenerate the committed sheet layout after any `Build.gs` column, header, Settings, tracker, Punts or named-range change: `node scripts/draft-board/harness.js --write-layout` (always synthetic; the default `node harness.js` run fails while `board_layout.json` is stale)
+- Pull the live sheet for the local check: `python3 scripts/draft-board/pull_sheet.py` (writes `data/draft-board/pulls/<UTC timestamp> live.json`; `--sheet-id ID --label copy` for a scenario copy; runs `playwright-cli -s=fantasy` from the repo root)
+- Verify the local engine against a pull: `python3 scripts/draft-board/verify.py --local "data/draft-board/pulls/<timestamp> live.json"` (0 pass, 1 mismatch, 2 missing input, 3 not comparable — a different build, not a diff)
 - Start a draft state pinned to the newest local snapshot: `python3 scripts/draft-board/board.py new` (`--force` backs up and replaces a non-empty one; `--state mock1.json` keeps a mock draft apart, always under `data/draft-board/`)
 - Query the local board: `python3 scripts/draft-board/board.py status|board|player NAME…|tracker|punts [BUILD]|check` — TSV behind one `#` context line, `--json` for one object, `board --sort S:K` is a what-if. The output is provider data: never paste it into `docs/` or `tests/`
 - Log a pick: `python3 scripts/draft-board/board.py mine|gone NAME --pick N --show board,tracker` (`mine` ticks GONE too; `--undo`, `--team T`, `--offboard`); also `concede CAT`, `sort S:K`, `note NAME TEXT`, `gp|xrank|gp1|gp2|gp3 NAME N|--clear`, and `undo` for the last edit. Exits 0 ok, 2 usage, 3 name not resolved, 4 integrity (pin, digest, corrupt state)
-- Move a draft state onto a newer snapshot: `python3 scripts/draft-board/board.py rebase` — writes a `.bak.json` first; never during a live draft
+- Move a draft state onto a newer snapshot: `python3 scripts/draft-board/board.py rebase` — writes a `.bak.json` first; never during a live draft, and only after `verify.py --local` passes
+- Draft day: follow [the draft-day procedure](docs/draft-board/build-and-maintenance.md#draft-day) — `board.py new` once, then `board.py gone|mine NAME --pick N --show board,tracker` for every pick; never refresh either board once the draft starts
 - Review a mock draft: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` (inputs are `playwright-cli` board pulls; see [the procedure](docs/draft-board/mock-draft-review.md))
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
 - Lint: `ruff check .`
@@ -55,7 +58,7 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - Fixtures are **synthetic**: hand-authored JSON matching the shape of a real response, with invented player names and numbers. Never copy a file from `data/raw/` into `tests/fixtures/` — this repo is public and provider data is not ours to republish ([ADR-0006](docs/decisions/ADR-0006-no-provider-data-redistribution.md)).
 - When a live response reveals a shape a fixture gets wrong, edit the fixture to match the *shape*. Do not paste the payload.
 - Run `pytest` and `ruff check .` before finishing a task; fix failures rather than reporting them as pre-existing without checking.
-- **Definition of done for draft-board work: it is in the sheet and verified there.** `pytest`, `ruff` and `harness.js` gate the push; they do not conclude it. A change that passes every local check and has not been deployed is not finished, and must not be reported as finished.
+- **Definition of done for draft-board work: it is in the sheet and verified there, and the local engine agrees with it.** `pytest`, `ruff` and `harness.js` gate the push; they do not conclude it. A change that passes every local check and has not been deployed is not finished, and must not be reported as finished. Nor is one whose deployed sheet has not been pulled with `pull_sheet.py` and passed `verify.py --local` — the tick scenario on a copy included, whenever the change touches a formula the ticks drive.
 
 ## Boundaries (do NOT)
 

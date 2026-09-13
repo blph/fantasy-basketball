@@ -14,6 +14,7 @@ to it.
     python3 verify.py --sheet pull.csv       # diff against a gviz pull of the board
     python3 verify.py --published bmp.tsv    # diff against Basketball Monster's own columns
     python3 verify.py --snapshot board.json  # a named local board instead of this build's own
+    python3 verify.py --local pull.json      # the local engine against a pull_sheet.py pull
 
 A narrow pull (rank,name,value -- range A4:G203) checks the sorted value. A WIDE pull
 (range A4:AA203) also checks all nine rank tags on all 200 rows, which is the only check
@@ -49,6 +50,7 @@ import board_snapshot as BS  # noqa: E402
 import board_values as BV  # noqa: E402
 import sources as SRC  # noqa: E402
 from bbm_reference import H2H_WEIGHTS  # noqa: E402
+from verify_local import diff_local, run_local  # noqa: E402, F401
 
 DEFAULT_DATA = Path(__file__).resolve().parent / "Data.gs"
 
@@ -525,8 +527,19 @@ def main(argv: list[str] | None = None) -> int:
                          "repeatable, and the source is read from the filename")
     ap.add_argument("--snapshot", type=Path,
                     help="the local board to check against --data; defaults to the one this "
-                         "Data.gs's build wrote under data/draft-board/, when present")
+                         "Data.gs's build wrote under data/draft-board/, when present. With "
+                         "--local, the snapshot the pull is compared with; defaults to the "
+                         "newest under data/draft-board/")
+    ap.add_argument("--local", type=Path, metavar="PULLS.json",
+                    help="a pull_sheet.py pull: check the local engine against the live sheet. "
+                         "Exit 0 pass, 1 mismatch, 2 missing input, 3 not comparable")
     args = ap.parse_args(argv)
+
+    # The local check compares a snapshot with a pull and never reads Data.gs, so it runs on
+    # its own rather than after the Data.gs invariants. --snapshot, when given, is the
+    # snapshot it compares; otherwise run_local takes the newest.
+    if args.local:
+        return run_local(args.local, args.snapshot)
 
     if not args.data.exists():
         print(f"{args.data} not found. Generate it first:\n"
