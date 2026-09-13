@@ -4,17 +4,21 @@ Fixtures are synthetic (ADR-0006). These tests cover the wiring between the adap
 the sheet, not the valuation -- that is tests/test_board_values.py.
 """
 
+import hashlib
 import json
 import re
 
 import bbm_constants as BC
 import bbm_reference as B
+import board_settings
+import board_snapshot as BS
 import board_values as BV
 import build_data as BD
 import pytest
 import sources as S
+import verify as V
 
-from test_sources import hbp_200, made_up_name, vendor_file, vendor_row
+from test_sources import hbp_200, hbp_file, hbp_row, made_up_name, vendor_file, vendor_row
 
 
 def write_constants(directory, label, date, rates, q=20, shift=0.0, stretch=1.0):
@@ -254,6 +258,33 @@ class TestEmit:
         inj = self._block(text, "META")["injuries"]
         assert inj["graded"] + inj["missing"] == len(self._block(text, "PLAYERS"))
 
+    # --- the digest (ADR-0022) --------------------------------------------------
+
+    def _emit_with(self, projection_set, digest):
+        date, paths = BD.find_set(None)
+        board, vendors, constants, report = BD.load(paths)
+        scored = BD.score(board, vendors, constants)
+        return BD.emit(board, scored, report, date, paths, False, self._injuries(board),
+                       digest=digest)
+
+    def test_the_digest_is_the_only_thing_it_changes_in_data_gs(self, projection_set):
+        # The sheet reads Data.gs positionally, so the local board may add one META field
+        # and nothing else. Two digests, one line of difference, and that line is META.
+        a = self._emit_with(projection_set, "")
+        b = self._emit_with(projection_set, "f" * 64)
+        la, lb = a.split("\n"), b.split("\n")
+        assert len(la) == len(lb)
+        differing = [i for i, (x, y) in enumerate(zip(la, lb, strict=True)) if x != y]
+        assert len(differing) == 1 and la[differing[0]].startswith("var META = ")
+        assert a.replace(',"digest":""}', "}") == b.replace(f',"digest":"{"f" * 64}"}}', "}")
+
+    def test_meta_gains_the_digest_last_and_nothing_else(self, projection_set):
+        meta = self._block(self._emit_with(projection_set, "abc"), "META")
+        assert list(meta) == ["generated", "mixedDates", "boardRows", "sources", "injuries",
+                              "digest"]
+        assert meta["digest"] == "abc"
+        assert self._block(self._emit(projection_set)[0], "META")["digest"] == ""
+
 
 class TestLoadInjuries:
     """Board rows tiered from Basketball Monster's table. No tier is computed here."""
@@ -299,3 +330,236 @@ class TestLoadInjuries:
         board = S.load_board(paths["HBP"])
         with pytest.raises(SystemExit, match="severe"):
             BD.load_injuries(board, paths["inj"])
+
+
+# --- the local board (ADR-0022) ------------------------------------------------------------
+
+
+@pytest.fixture
+def built(projection_set, monkeypatch):
+    """`build_data.py` pointed at tmp_path: Data.gs and the local board both land there."""
+    tmp_path, names = projection_set
+    out = tmp_path / "Data.gs"
+    root = tmp_path / "draft-board"
+    monkeypatch.setattr(BD, "DEFAULT_OUT", out)
+    monkeypatch.setattr(BD, "SNAPSHOT_ROOT", root)
+    return tmp_path, out, root, names
+
+
+def run(*argv):
+    assert BD.main(list(argv)) == 0
+
+
+def pair(out, root):
+    return BS.load(BS.path_for(root, "2026-01-01")), V.load(out)
+
+
+class TestLocalBoard:
+    def test_the_default_build_writes_it_beside_data_gs(self, built):
+        _tmp, out, root, _names = built
+        run()
+        assert out.exists()
+        assert BS.list_dates(root) == ["2026-01-01"]
+        assert BS.load(BS.path_for(root, "2026-01-01"))["schema"] == BS.SCHEMA
+
+    def test_a_non_default_out_writes_no_local_board(self, built):
+        # A scratch Data.gs gets no snapshot: one would sit under the real date describing
+        # a board nobody deployed.
+        tmp_path, out, root, _names = built
+        other = tmp_path / "scratch" / "Data.gs"
+        run("--out", str(other))
+        assert other.exists() and not out.exists()
+        assert not root.exists()
+
+    def test_dry_run_writes_neither_file(self, built):
+        _tmp, out, root, _names = built
+        run("--dry-run")
+        assert not out.exists() and not root.exists()
+
+    def test_every_number_equals_data_gs(self, built):
+        _tmp, out, root, _names = built
+        run()
+        snapshot, data = pair(out, root)
+        assert V.check_snapshot(snapshot, data) == []
+
+    def test_both_files_carry_one_digest_and_the_board_hashes_data_gs(self, built):
+        _tmp, out, root, _names = built
+        run()
+        snapshot, data = pair(out, root)
+        assert re.fullmatch(r"[0-9a-f]{64}", data["META"]["digest"])
+        assert data["META"]["digest"] == snapshot["meta"]["digest"] == BS.digest(snapshot)
+        assert snapshot["meta"]["data_gs_sha256"] == hashlib.sha256(out.read_bytes()).hexdigest()
+
+    def test_players_are_keyed_on_the_join_key_in_board_order(self, built):
+        _tmp, out, root, names = built
+        run()
+        snapshot, _data = pair(out, root)
+        players = snapshot["players"]
+        assert [p["row"] for p in players] == list(range(len(names)))
+        assert [p["name"] for p in players] == names
+        assert [p["key"] for p in players] == [S.normalise(p["name"]) for p in players]
+
+    def test_settings_are_board_settings(self, built):
+        _tmp, out, root, _names = built
+        run()
+        snapshot, data = pair(out, root)
+        assert snapshot["settings"] == board_settings.as_dict()
+        assert snapshot["deriv"] == data["DERIV"]
+        # In pool: the engine compares BMP DURH rank with settings q, the sheet with DERIV.q.
+        # One number, or the two boards draw the pool line in different places.
+        assert snapshot["settings"]["q"] == snapshot["deriv"]["q"]
+
+    def test_a_blank_adp_is_null_here_and_blank_in_data_gs(self, built):
+        tmp_path, out, root, names = built
+        hbp_file(tmp_path, [hbp_row(i + 1, n, adp="" if i == 0 else "5.0")
+                            for i, n in enumerate(names)])
+        run()
+        snapshot, data = pair(out, root)
+        assert data["PLAYERS"][0][4] == "" and snapshot["players"][0]["adp"] is None
+        assert snapshot["players"][1]["adp"] == data["PLAYERS"][1][4]
+        assert V.check_snapshot(snapshot, data) == []
+
+    def test_a_same_date_rebuild_replaces_both_and_leaves_no_temp_files(self, built):
+        tmp_path, out, root, _names = built
+        run()
+        path = BS.path_for(root, "2026-01-01")
+        out.write_text("stale", encoding="utf-8")
+        path.write_text("stale", encoding="utf-8")
+        run()
+        snapshot, data = pair(out, root)
+        assert V.check_snapshot(snapshot, data) == []
+        assert [p.name for p in root.iterdir()] == [path.name]
+        assert not [p for p in tmp_path.iterdir() if p.name.endswith(".tmp")]
+
+
+class TestWriteAtomic:
+    def test_it_replaces_every_file_and_leaves_no_temp_files(self, tmp_path):
+        a, b = tmp_path / "Data.gs", tmp_path / "board" / "board - 2026-01-01.json"
+        a.write_text("old", encoding="utf-8")
+        BD.write_atomic([(a, "new a\n"), (b, "new b\n")])
+        assert a.read_text(encoding="utf-8") == "new a\n"
+        assert b.read_text(encoding="utf-8") == "new b\n"
+        assert sorted(p.name for p in tmp_path.rglob("*") if p.is_file()) == [
+            "Data.gs", "board - 2026-01-01.json"]
+
+    def test_a_failure_before_the_renames_changes_nothing(self, tmp_path, monkeypatch):
+        # Every temp is written before anything is renamed, so a failure writing the second
+        # file leaves the first target untouched and cleans up after itself.
+        a, b = tmp_path / "Data.gs", tmp_path / "board - 2026-01-01.json"
+        a.write_text("old", encoding="utf-8")
+        real = BD.tempfile.mkstemp
+        calls = []
+
+        def failing(*args, **kwargs):
+            calls.append(1)
+            if len(calls) == 2:
+                raise OSError("disk full")
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(BD.tempfile, "mkstemp", failing)
+        with pytest.raises(OSError, match="disk full"):
+            BD.write_atomic([(a, "new"), (b, "new")])
+        assert a.read_text(encoding="utf-8") == "old"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["Data.gs"]
+
+
+class TestCheckSnapshot:
+    """What verify.py reports when the two files disagree. Rows and fields, never names."""
+
+    @pytest.fixture
+    def both(self, built):
+        _tmp, out, root, _names = built
+        run()
+        return pair(out, root)
+
+    def test_a_changed_value_is_named_by_row_and_field(self, both):
+        snapshot, data = both
+        name = snapshot["players"][7]["name"]
+        snapshot["players"][7]["values"]["HBP"]["zsh"]["v"] += 0.0001
+        snapshot["meta"]["digest"] = BS.digest(snapshot)     # resealed: a second build
+        fails = V.check_snapshot(snapshot, data)
+        assert "HBP.zsh.v: 1 of 200 rows differ from Data.gs" in fails
+        assert "row 7 HBP.zsh.v: snapshot and Data.gs differ" in fails
+        assert any("not from the same build" in f for f in fails)
+        assert not any(name in f for f in fails)
+
+    def test_an_edited_snapshot_fails_its_own_digest(self, both):
+        snapshot, data = both
+        snapshot["players"][0]["punts"]["pFt"]["rank"] += 1
+        fails = V.check_snapshot(snapshot, data)
+        assert any("does not recompute" in f for f in fails)
+        assert "punts.pFt: 1 of 200 rows differ from Data.gs" in fails
+
+    def test_an_edited_data_gs_fails_the_text_hash(self, both):
+        snapshot, data = both
+        data["SHA256"] = "0" * 64
+        assert any("data_gs_sha256" in f for f in V.check_snapshot(snapshot, data))
+
+    def test_a_data_gs_from_before_the_local_board_is_reported(self, both):
+        snapshot, data = both
+        del data["META"]["digest"]
+        assert any("predates the local board" in f for f in V.check_snapshot(snapshot, data))
+
+    def test_null_adp_pairs_with_blank_and_nothing_else(self, both):
+        snapshot, data = both
+        snapshot["players"][3]["adp"] = None
+        assert "adp: 1 of 200 rows differ from Data.gs" in V.check_snapshot(snapshot, data)
+        data["PLAYERS"][3][4] = ""
+        assert not any(f.startswith("adp") for f in V.check_snapshot(snapshot, data))
+
+    def test_a_short_or_malformed_board_is_reported_not_raised(self, both):
+        snapshot, data = both
+        del snapshot["players"][5]["hbp_raw"]
+        assert "row 5: the snapshot row is malformed (missing 'hbp_raw')" in (
+            V.check_snapshot(snapshot, data))
+        snapshot["players"].pop()
+        assert any("199 players against 200" in f for f in V.check_snapshot(snapshot, data))
+
+
+class TestVerifyMain:
+    def test_a_named_snapshot_is_checked(self, built, capsys):
+        _tmp, out, root, _names = built
+        run()
+        capsys.readouterr()
+        path = BS.path_for(root, "2026-01-01")
+        assert V.main(["--data", str(out), "--snapshot", str(path)]) == 0
+        assert "local board agrees" in capsys.readouterr().out
+
+    def test_a_snapshot_from_another_build_fails(self, built):
+        _tmp, out, root, _names = built
+        run()
+        path = BS.path_for(root, "2026-01-01")
+        snapshot = BS.load(path)
+        snapshot["players"][0]["values"]["BMP"]["durh"]["v"] += 0.0001
+        snapshot["meta"]["digest"] = BS.digest(snapshot)
+        path.write_text(BS.dumps(snapshot), encoding="utf-8")
+        assert V.main(["--data", str(out), "--snapshot", str(path)]) == 1
+
+    def test_the_default_is_the_snapshot_this_data_gs_was_built_with(self, built, monkeypatch,
+                                                                     capsys):
+        _tmp, out, root, _names = built
+        run()
+        # A newer board from some other build must not be the one compared.
+        (root / "board - 2026-02-01.json").write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(V, "DEFAULT_DATA", out)
+        monkeypatch.setattr(BS, "ROOT", root)
+        capsys.readouterr()
+        assert V.main([]) == 0
+        printed = capsys.readouterr().out
+        assert "LOCAL BOARD   board - 2026-01-01.json" in printed
+        assert "a newer local board exists" in printed
+
+    def test_no_local_board_is_skipped_with_a_note(self, built, monkeypatch, capsys):
+        tmp_path, out, _root, _names = built
+        run()
+        monkeypatch.setattr(V, "DEFAULT_DATA", out)
+        monkeypatch.setattr(BS, "ROOT", tmp_path / "empty")
+        capsys.readouterr()
+        assert V.main([]) == 0
+        printed = capsys.readouterr().out
+        assert "-- skipped" in printed and "local board agrees" not in printed
+
+    def test_a_named_snapshot_that_does_not_exist_is_exit_2(self, built):
+        tmp_path, out, _root, _names = built
+        run()
+        assert V.main(["--data", str(out), "--snapshot", str(tmp_path / "nope.json")]) == 2

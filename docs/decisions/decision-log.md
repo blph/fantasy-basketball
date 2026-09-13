@@ -29,6 +29,7 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0019](ADR-0019-punt-builds-restandardise.md) *(amended by 0021)* | Punt builds discount before standardising and re-derive the pool | Accepted | 2026-09-01 | Bryan | ADR-0009 (in part) |
 | [ADR-0020](ADR-0020-identity-anchored-references.md) | Every derived cell names the player, and the board checks that it did | Accepted | 2026-09-01 | Bryan | |
 | [ADR-0021](ADR-0021-borrowed-bbm-pool-constants.md) | The Basketball Monster sources borrow their standardisation constants | Accepted | 2026-09-01 | Bryan | ADR-0015 (in part), ADR-0019 (in part) |
+| [ADR-0022](ADR-0022-local-draft-board.md) | A local copy of the draft board for agents, kept in step by construction | Accepted | 2026-09-12 | Bryan | |
 | [ADR-0023](ADR-0023-win-rate-cutoffs-40-60.md) | Win-rate cutoffs of 40% and 60%, on both boards | Accepted | 2026-09-12 | Bryan | ADR-0018 (in part) |
 
 ## Decisions expected next
@@ -37,4 +38,4 @@ Known open questions that will each need a record once resolved. Listed here so 
 
 - **ESPN↔Yahoo player-ID join strategy.** No shared identifier exists between them. Crosswalk table or normalized name-and-team matching. Highest-risk piece of the design; decide in Phase 2.
 - **AI digest generation approach.** Model, prompt structure, and how digests are delivered.
-- **Draft Assistant interaction model.** Live draft-day input: manual entry, import, or Yahoo sync.
+- **Draft Assistant interaction model.** Live draft-day input: manual entry, import, or Yahoo sync. ADR-0022 settles how an *agent* tracks a draft against the interim board (explicit per-pick entry through `board.py`); the Phase 3 app's model is still open.

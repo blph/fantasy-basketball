@@ -216,6 +216,11 @@ if (!SYNTHETIC) {
       ['LOW', 'MED', 'HIGH', 'EXTREME', '?'][i % 5]  // the tier, all five tokens present
     ];
   });
+  // What build_data.py stamps at the top of Data.gs. `digest` is the local board's
+  // (ADR-0022); stampData copies it onto Settings, and a clean clone has to exercise that
+  // copy or the one cell tying the sheet to the local board goes untested in CI.
+  global.META = { generated: '2026-01-01', mixedDates: false, boardRows: 200, sources: {},
+                  injuries: { graded: 160, missing: 40, unused: 0 }, digest: 'synthetic' };
 }
 eval(fs.readFileSync('Build.gs','utf8'));
 
@@ -821,6 +826,49 @@ check('the injury tier is the 21st PLAYERS field',
   const introduced = problems.slice(before);
   check('a rebuild clears merges left by the previous layout',
     introduced.length === 0, introduced.slice(0, 3).join('\n     '));
+}
+
+// --- the Data.gs stamp -------------------------------------------------------
+// The digest on Settings is what a parity check matches against the local board before it
+// compares anything (ADR-0022). A stamp only a Full rebuild writes is stale after the first
+// Refresh data, and a stale stamp is a false "same build". So wipe it and prove each path
+// that changes the sheet's data writes it back: the build, Refresh data, Rebuild & re-sort.
+{
+  const settings = seen.sheets['Settings'];
+  const genRow = S_SANITY + 6, digestRow = S_SANITY + 8;
+  const wantGen = META.generated + (META.mixedDates ? '  *** MIXED DATES ***' : '');
+  const wantDigest = META.digest ? String(META.digest) : STAMP_NO_DIGEST;
+  const wipe = () => { delete settings.cells[`${genRow},2`]; delete settings.cells[`${digestRow},2`]; };
+
+  if (SYNTHETIC) expect('synthetic META carries a digest', META.digest, 'synthetic');
+  check('the digest row sits above the build log', digestRow < NOTE_ROW,
+    `digest row ${digestRow}, NOTE_ROW ${NOTE_ROW}`);
+  expect('the digest row is labelled', cell('Settings', digestRow, 1), 'Data digest');
+  expect('a build stamps the generated date', cell('Settings', genRow, 2), wantGen);
+  expect('a build stamps the digest', cell('Settings', digestRow, 2), wantDigest);
+
+  [['Refresh data', refreshData], ['Rebuild & re-sort', rebuildAndResort]].forEach(([label, fn]) => {
+    wipe();
+    const before = problems.length;
+    try { fn(); } catch (e) { fails.push(`${label} THREW: ${e.message}`); }
+    check(`${label} raises no mock problems`, problems.length === before,
+      problems.slice(before, before + 3).join('\n     '));
+    expect(`${label} stamps the generated date`, cell('Settings', genRow, 2), wantGen);
+    expect(`${label} stamps the digest`, cell('Settings', digestRow, 2), wantDigest);
+  });
+
+  // No Data.gs: the stamp says so rather than going blank. Only on synthetic data, where
+  // META is a global the harness owns and can take away.
+  if (SYNTHETIC) {
+    const saved = global.META;
+    wipe();
+    delete global.META;
+    try { stampData(ss); } catch (e) { fails.push('stampData without META THREW: ' + e.message); }
+    global.META = saved;
+    expect('with no Data.gs the date stamp says so', cell('Settings', genRow, 2), STAMP_NO_DATA);
+    expect('with no Data.gs the digest stamp says so', cell('Settings', digestRow, 2), STAMP_NO_DATA);
+    stampData(ss);
+  }
 }
 
 console.log('\n=== ' + (fails.length ? fails.length + ' ASSERTION FAILURE(S)' : 'all assertions passed') + ' ===');

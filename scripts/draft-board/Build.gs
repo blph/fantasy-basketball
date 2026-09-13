@@ -771,6 +771,7 @@ function refreshData() {
       if (sh) writeCalcSheet(sh, s);
     }
     report += '  Calculation tabs rewritten (' + SOURCES.length + ').';
+    stampData(ss);
 
     SpreadsheetApp.flush();
     ss.toast(report, 'Refresh', 12);
@@ -928,8 +929,14 @@ var S_ROSENOF = 3;       // col G/H: the retired multipliers, reference only
 var S_TRACKER = 14;      // header, then 8 category rows: k, w, K, slope
 var S_WINRATE = 25;      // header, then 3 rows
 var S_POOLS = 31;        // header, then per-source reported constants
-var S_SANITY = 50;
+var S_SANITY = 50;       // header, then 8 rows; the last is the Data digest
 var NOTE_ROW = 60;
+
+// What stampData writes when there is nothing to stamp. A blank stamp would read as a
+// stamp that never ran, and a digest cell that is merely empty cannot be told from one
+// that was cleared.
+var STAMP_NO_DATA = '(no Data.gs)';
+var STAMP_NO_DIGEST = '(no digest — re-run build_data.py)';
 
 function writeSettingsSkeleton(sh) {
   sh.getRange('A1').setValue('Settings — constants the board is built from')
@@ -1056,9 +1063,10 @@ function writePoolBlock(sh) {
 function writeSanityBlock(sh) {
   sh.getRange(S_SANITY, 1, 1, 2).setValues([['SANITY CHECKS', '']]);
   var mine = 'COUNTIF(' + colIndirect('Draft Board', D.mine) + ',TRUE)';
-  sh.getRange(S_SANITY + 1, 1, 7, 1).setValues([
+  sh.getRange(S_SANITY + 1, 1, 8, 1).setValues([
     ['Names line up across tabs'], ['Draft Board rows line up'], ['Board rows'],
-    ['Players ticked Mine'], ['ADP coverage'], ['Data generated'], ['Injury tiers']
+    ['Players ticked Mine'], ['ADP coverage'], ['Data generated'], ['Injury tiers'],
+    ['Data digest']
   ]);
   // The one live guard against the calculation tabs drifting out of row-order with the
   // Board. Every Draft Board reference assumes row i is the same player on all four tabs,
@@ -1088,9 +1096,7 @@ function writeSanityBlock(sh) {
   sh.getRange(S_SANITY + 5, 2).setFormula(
     '=COUNT(' + colIndirect('Board', B.adp) + ')&" of "&COUNTA('
     + colIndirect('Board', B.player) + ')');
-  var gen = '';
-  try { gen = META.generated + (META.mixedDates ? '  *** MIXED DATES ***' : ''); } catch (e) {}
-  sh.getRange(S_SANITY + 6, 2).setValue(gen);
+  stampData(SpreadsheetApp.getActiveSpreadsheet());
   // Injury coverage, counted live off the Board rather than trusted from META, so this
   // reports what is actually in the sheet. `~?` escapes the wildcard -- a bare "?" in
   // COUNTIF matches any single character, which would silently count nothing useful.
@@ -1100,6 +1106,31 @@ function writeSanityBlock(sh) {
     + '&COUNTIF(' + inj + ',"MED")&" MED / "&COUNTIF(' + inj + ',"LOW")&" LOW"'
     + '&IF(COUNTIF(' + inj + ',"~?")=0,"",'
     + '" — "&COUNTIF(' + inj + ',"~?")&" UNGRADED")');
+}
+
+/**
+ * Stamp which Data.gs this sheet is running: its date, and the local board's digest.
+ *
+ * The digest is what ties the sheet to the local board (ADR-0022): build_data.py writes
+ * the same one into Data.gs and into data/draft-board/, and a parity check compares the
+ * two boards only when the sheet's stamp equals the snapshot's. So every action that
+ * changes what the sheet holds has to write it -- writeSanityBlock, the end of
+ * buildDraftTab, the end of refreshData. "Data generated" used to be written by the first
+ * alone, which left it stale after every Refresh data.
+ *
+ * META is read only inside the typeof guard. A sheet with no Data.gs still gets a stamp,
+ * one that says so, rather than a blank that reads as a pass.
+ */
+function stampData(ss) {
+  var sh = ss.getSheetByName('Settings');
+  if (!sh) return;
+  var gen = STAMP_NO_DATA, digest = STAMP_NO_DATA;
+  if (typeof META !== 'undefined') {
+    gen = META.generated + (META.mixedDates ? '  *** MIXED DATES ***' : '');
+    digest = META.digest ? String(META.digest) : STAMP_NO_DIGEST;
+  }
+  sh.getRange(S_SANITY + 6, 2).setValue(gen);
+  sh.getRange(S_SANITY + 8, 1, 1, 2).setValues([['Data digest', digest]]);
 }
 
 // ----------------------------------------------------------- named ranges
@@ -1326,6 +1357,9 @@ function buildDraftTab(ss, sh, board, prior) {
   restoreCheckState(sh, names, prior);
   formatDraftTab(sh, si, ki);
   drawTierBreaks(sh);
+  // Rebuild & re-sort comes through here without touching Settings. Stamp anyway: it is
+  // the action run right after pasting a new Data.gs.
+  stampData(ss);
 }
 
 /** Rows 1-3: the control strip, the block banners, the column headers. */

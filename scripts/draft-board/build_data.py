@@ -16,9 +16,13 @@ This repository is public and the exports are not ours to republish.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -26,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 
 import bbm_constants as BC  # noqa: E402
 import board_settings as BSET  # noqa: E402
+import board_snapshot as BS  # noqa: E402
 import board_values as BV  # noqa: E402
 import sources as S  # noqa: E402
 from bbm_reference import H2H_WEIGHTS, LAMBDAS_BBM_2026_27_JOSH, per_game  # noqa: E402
@@ -33,6 +38,8 @@ from bbm_reference import H2H_WEIGHTS, LAMBDAS_BBM_2026_27_JOSH, per_game  # noq
 REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "data" / "player_data"
 DEFAULT_OUT = REPO / "scripts" / "draft-board" / "Data.gs"
+#: Where the local board goes. A module attribute so tests can point it at tmp_path.
+SNAPSHOT_ROOT = BS.ROOT
 
 TEAMS, ROSTER, Q = BSET.TEAMS, BSET.ROSTER, BSET.Q
 
@@ -311,78 +318,99 @@ def _read_previous(path: Path):
     return names, ranks
 
 
-def emit(board, scored, report, date, paths, mixed, injuries) -> str:
-    """Render Data.gs. Row i means the same player in PLAYERS and in every VALUES block."""
-    def j(o):
-        return json.dumps(o, separators=(",", ":"))
+def _label(cat: str) -> str:
+    return BV.CAT_LABELS[BV.CAT_ORDER.index(cat)]
 
-    players = []
-    for i, r in enumerate(board):
-        rt = r["rates"]
-        fgp = rt["fg_made"] / rt["fg_att"] if rt["fg_att"] else 0.0
-        ftp = rt["ft_made"] / rt["ft_att"] if rt["ft_att"] else 0.0
-        players.append([
-            r["seed"], r["name"], r["team"], r["pos"], r["adp"] if r["adp"] is not None else "",
-            round(rt["games"]), round(rt["minutes"], 1),
-            round(rt["fg_made"], 1), round(rt["fg_att"], 1), round(fgp, 3),
-            round(rt["ft_made"], 1), round(rt["ft_att"], 1), round(ftp, 3),
-            round(rt["threes"], 1), round(rt["points"], 1), round(rt["rebounds"], 1),
-            round(rt["assists"], 1), round(rt["steals"], 1), round(rt["blocks"], 1),
-            round(rt["turnovers"], 1),
-            injuries["tiers"][i],
-        ])
 
-    def label(cat):
-        return BV.CAT_LABELS[BV.CAT_ORDER.index(cat)]
+def _player_row(r: dict, tier: str) -> list:
+    """One PLAYERS row, laid out as BS.PLAYER_FIELDS.
 
-    values = {}
-    for lab in ("BMP", "HBP", "BMP-ALT"):
-        rows = []
-        for p in scored[lab]["by_row"]:
-            rows.append(
-                [round(p["durh"], VALUE_PLACES), p["durh_rank"], label(p["durh_drop"]),
-                 round(p["zsh"], VALUE_PLACES), p["zsh_rank"], label(p["zsh_drop"]),
-                 round(p["zsc"], VALUE_PLACES), p["zsc_rank"]]
-                + [round(p["dh"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
-                + [round(p["d"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
-                + [round(p["z"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
-            )
-        values[lab] = rows
+    Shared by Data.gs and the local board, so a number is rounded once and both files
+    carry the same float -- the equality verify.py asserts is then true by construction,
+    not by two copies of a rounding rule staying in step.
+    """
+    rt = r["rates"]
+    fgp = rt["fg_made"] / rt["fg_att"] if rt["fg_att"] else 0.0
+    ftp = rt["ft_made"] / rt["ft_att"] if rt["ft_att"] else 0.0
+    return [
+        r["seed"], r["name"], r["team"], r["pos"], r["adp"] if r["adp"] is not None else "",
+        round(rt["games"]), round(rt["minutes"], 1),
+        round(rt["fg_made"], 1), round(rt["fg_att"], 1), round(fgp, 3),
+        round(rt["ft_made"], 1), round(rt["ft_att"], 1), round(ftp, 3),
+        round(rt["threes"], 1), round(rt["points"], 1), round(rt["rebounds"], 1),
+        round(rt["assists"], 1), round(rt["steals"], 1), round(rt["blocks"], 1),
+        round(rt["turnovers"], 1),
+        tier,
+    ]
 
+
+def _value_row(p: dict) -> list:
+    """One VALUES row: durh, rank, drop, zsh, rank, drop, zsc, rank, then dh, d, z x8."""
+    return (
+        [round(p["durh"], VALUE_PLACES), p["durh_rank"], _label(p["durh_drop"]),
+         round(p["zsh"], VALUE_PLACES), p["zsh_rank"], _label(p["zsh_drop"]),
+         round(p["zsc"], VALUE_PLACES), p["zsc_rank"]]
+        + [round(p["dh"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
+        + [round(p["d"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
+        + [round(p["z"][c], VALUE_PLACES) for c in BV.CAT_ORDER]
+    )
+
+
+def _deriv(scored: dict, report: dict) -> dict:
+    """DERIV: the constants the board was built from, reported on Settings."""
+    labs = tuple(SOURCE_FILES)
     ranked = sorted(scored["BMP"]["players"],
                     key=lambda k: scored["BMP"]["players"][k]["durh_rank"])[:Q]
-    deriv = {
+    return {
         "q": Q, "teams": TEAMS, "roster": ROSTER,
-        "weights": {label(c): H2H_WEIGHTS[c] for c in BV.CAT_ORDER},
+        "weights": {_label(c): H2H_WEIGHTS[c] for c in BV.CAT_ORDER},
         # Per source. The vendors' lambdas are refitted against Basketball Monster's own
         # published columns on every refresh, so there is no single board-wide lambda any
         # more; Hashtag has nothing to refit against and keeps the module's seed.
-        "lambdas": {lab: {label(c): round(scored[lab]["lambdas"][c], 6)
-                          for c in BV.CAT_ORDER} for lab in values},
-        "basis": {lab: scored[lab]["basis"] for lab in values},
+        "lambdas": {lab: {_label(c): round(scored[lab]["lambdas"][c], 6)
+                          for c in BV.CAT_ORDER} for lab in labs},
+        "basis": {lab: scored[lab]["basis"] for lab in labs},
         "calibration": {lab: scored[lab]["calibration"]
-                        for lab in values if "calibration" in scored[lab]},
-        "k_rosenof": {label(c): BV.K_ROSENOF[c] for c in BV.CAT_ORDER},
-        "k_tracker": {label(c): round(v, 4) for c, v in BV.tracker_k().items()},
-        "slopes": {label(c): v for c, v in
+                        for lab in labs if "calibration" in scored[lab]},
+        "k_rosenof": {_label(c): BV.K_ROSENOF[c] for c in BV.CAT_ORDER},
+        "k_tracker": {_label(c): round(v, 4) for c, v in BV.tracker_k().items()},
+        "slopes": {_label(c): v for c, v in
                    BV.durant_vs_z_slopes(scored["BMP"]["players"], ranked).items()},
         "band_calibration": BV.profile_calibration(scored["BMP"]["players"], ranked),
-        "pools": {lab: scored[lab]["pools"] for lab in values},
-        "universe": {lab: scored[lab]["universe"] for lab in values},
-        "pool_overlap": {lab: scored[lab]["pool_overlap"] for lab in values},
+        "pools": {lab: scored[lab]["pools"] for lab in labs},
+        "universe": {lab: scored[lab]["universe"] for lab in labs},
+        "pool_overlap": {lab: scored[lab]["pool_overlap"] for lab in labs},
         "punt_weight": PUNT_WEIGHT,
         "join": report,
     }
 
+
+def _injury_counts(board: list[dict], injuries: dict) -> dict:
+    return {"graded": len(board) - len(injuries["missing"]),
+            "missing": len(injuries["missing"]),
+            "unused": len(injuries["unused"])}
+
+
+def emit(board, scored, report, date, paths, mixed, injuries, digest: str = "") -> str:
+    """Render Data.gs. Row i means the same player in PLAYERS and in every VALUES block.
+
+    `digest` is the local board's (ADR-0022). It is the last META field, so a Data.gs
+    rendered without one differs from before only by that field.
+    """
+    def j(o):
+        return json.dumps(o, separators=(",", ":"))
+
+    players = [_player_row(r, injuries["tiers"][i]) for i, r in enumerate(board)]
+    values = {lab: [_value_row(p) for p in scored[lab]["by_row"]] for lab in SOURCE_FILES}
+    deriv = _deriv(scored, report)
     punts = dict(scored["BMP"]["punts"])
 
     meta = {"generated": date, "mixedDates": mixed, "boardRows": len(board),
             "sources": {k: v.name for k, v in paths.items()},
             # No separate date: the risk table is part of the dated set, so it carries
             # the same date as everything else here.
-            "injuries": {"graded": len(board) - len(injuries["missing"]),
-                         "missing": len(injuries["missing"]),
-                         "unused": len(injuries["unused"])}}
+            "injuries": _injury_counts(board, injuries),
+            "digest": digest}
 
     head = (
         "// GENERATED by scripts/draft-board/build_data.py -- do not edit by hand.\n"
@@ -408,7 +436,104 @@ def emit(board, scored, report, date, paths, mixed, injuries) -> str:
     )
 
 
-def main() -> int:
+def build_snapshot(board, scored, report, date, paths, mixed, injuries) -> dict:
+    """The local board (ADR-0022): Data.gs's content, named rather than positional.
+
+    Built from the same rows `emit` renders -- `_player_row`, `_value_row`, `_deriv` -- so
+    every number is the float Data.gs carries. `meta.digest` and `meta.data_gs_sha256` are
+    left empty: the first is computed over this dict, the second over the Data.gs text that
+    embeds the first, so `main` fills both in after rendering.
+
+    `mixed` is accepted for symmetry with `emit` and not recorded: `find_set` only resolves
+    a same-dated set, so a snapshot never describes a mixed one.
+
+    Returned through a JSON round-trip, so the dict in memory is exactly the dict `load`
+    reads back -- float keys (DERIV's band calibration is keyed by band) become strings,
+    tuples become lists -- and the digest computed here recomputes on the file.
+    """
+    n = len(BV.CAT_ORDER)
+    labels = list(BV.CAT_LABELS)
+    players = []
+    for i, r in enumerate(board):
+        row = dict(zip(BS.PLAYER_FIELDS, _player_row(r, injuries["tiers"][i]), strict=True))
+        values = {}
+        for lab in BS.SOURCES:
+            v = _value_row(scored[lab]["by_row"][i])
+            values[lab] = {
+                "durh": {"v": v[0], "rank": v[1], "drop": v[2]},
+                "zsh": {"v": v[3], "rank": v[4], "drop": v[5]},
+                "zsc": {"v": v[6], "rank": v[7]},
+                "dh": dict(zip(labels, v[8:8 + n], strict=True)),
+                "d": dict(zip(labels, v[8 + n:8 + 2 * n], strict=True)),
+                "z": dict(zip(labels, v[8 + 2 * n:8 + 3 * n], strict=True)),
+            }
+        punts = {}
+        for key, _label_text in BS.PUNT_BUILDS:
+            score, rank = scored["BMP"]["punts"][key][i]
+            punts[key] = {"score": score, "rank": rank}
+        players.append({
+            "row": i, "key": r["key"], "name": row["name"], "team": row["team"],
+            "pos": row["pos"], "seed": row["seed"],
+            "adp": None if row["adp"] == "" else row["adp"], "inj": row["inj"],
+            "hbp_raw": {k: row[k] for k in BS.HBP_RAW_FIELDS},
+            "values": values,
+            "punts": punts,
+        })
+
+    snapshot = {
+        "schema": BS.SCHEMA,
+        "meta": {"generated": date, "digest": "", "data_gs_sha256": "",
+                 "sources": {k: v.name for k, v in paths.items()},
+                 "board_rows": len(board),
+                 "injuries": _injury_counts(board, injuries)},
+        "settings": BSET.as_dict(),
+        "deriv": _deriv(scored, report),
+        "cat_labels": labels,
+        "punt_builds": [{"key": k, "label": text} for k, text in BS.PUNT_BUILDS],
+        "players": players,
+    }
+    return json.loads(json.dumps(snapshot))
+
+
+def write_atomic(files: list[tuple[Path, str]]) -> None:
+    """Write every file, or leave every target as it was.
+
+    Data.gs and the local board are one build. Two plain writes with a crash between them
+    leave a Data.gs whose digest no snapshot carries -- the drift verify.py exists to catch,
+    and cheaper never to create. So every temp is written and fsynced first, each in its
+    target's own directory (os.replace is only atomic within one filesystem), and only then
+    is anything moved into place. The window left is between two renames, not two writes.
+    """
+    staged: list[tuple[str, Path]] = []
+    try:
+        for path, text in files:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+            staged.append((tmp, path))
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(text.encode("utf-8"))
+                fh.flush()
+                # mkstemp creates 0600; the file it replaces was an ordinary 0644 write.
+                os.fchmod(fh.fileno(), 0o644)
+                os.fsync(fh.fileno())
+        for k, (tmp, path) in enumerate(staged):
+            os.replace(tmp, path)
+            staged[k] = ("", path)
+    except BaseException:
+        for tmp, _path in staged:
+            if tmp:
+                with contextlib.suppress(FileNotFoundError):
+                    os.unlink(tmp)
+        raise
+    for directory in sorted({path.parent for _tmp, path in staged}):
+        dfd = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--date", help="YYYY-MM-DD; defaults to the newest complete set")
@@ -418,7 +543,7 @@ def main() -> int:
                     help="refuse to build while any board player is ungraded")
     ap.add_argument("--allow-mixed-dates", action="store_true",
                     help="score sources carrying different dates (stamped into META)")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     date, paths = find_set(args.date)
     dates = {DATE.search(p.name).group(1) for p in paths.values()}
@@ -465,12 +590,32 @@ def main() -> int:
     for line in change_report(board, scored, args.out):
         print(f"  {line}")
 
-    text = emit(board, scored, report, date, paths, mixed, injuries)
+    # One set of objects, two renderings (ADR-0022). The digest is taken over the local
+    # board, stamped into Data.gs, and the hash of that Data.gs text goes back into the
+    # board -- so each file can be checked against the other and neither holds its own hash.
+    snapshot = build_snapshot(board, scored, report, date, paths, mixed, injuries)
+    digest = BS.digest(snapshot)
+    text = emit(board, scored, report, date, paths, mixed, injuries, digest=digest)
+    snapshot["meta"]["digest"] = digest
+    snapshot["meta"]["data_gs_sha256"] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    # Only the Data.gs the sheet runs gets a local board. A Data.gs written elsewhere is a
+    # scratch build, and a snapshot for it would sit beside the real one under the same
+    # date, describing a board nobody deployed.
+    local = args.out.resolve() == DEFAULT_OUT.resolve()
+    snap_path = BS.path_for(SNAPSHOT_ROOT, date)
+    files = [(args.out, text)] + ([(snap_path, BS.dumps(snapshot))] if local else [])
+
     if args.dry_run:
-        print(f"\n--dry-run: nothing written ({len(text):,} bytes would go to {args.out}).")
+        print(f"\n--dry-run: nothing written ({len(text):,} bytes would go to {args.out}"
+              + (f", and the local board to {snap_path}" if local else "") + ").")
         return 0
-    args.out.write_text(text, encoding="utf-8")
+    write_atomic(files)
     print(f"\nWrote {args.out} ({len(text):,} bytes).")
+    if local:
+        print(f"Wrote {snap_path} (digest {digest[:12]}).")
+    else:
+        print("No local board written: --out is not the default Data.gs.")
     return 0
 
 

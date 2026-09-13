@@ -13,6 +13,7 @@ to it.
     python3 verify.py                        # recompute and print constants
     python3 verify.py --sheet pull.csv       # diff against a gviz pull of the board
     python3 verify.py --published bmp.tsv    # diff against Basketball Monster's own columns
+    python3 verify.py --snapshot board.json  # a named local board instead of this build's own
 
 A narrow pull (rank,name,value -- range A4:G203) checks the sorted value. A WIDE pull
 (range A4:AA203) also checks all nine rank tags on all 200 rows, which is the only check
@@ -35,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import re
 import sys
@@ -43,6 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 
+import board_snapshot as BS  # noqa: E402
 import board_values as BV  # noqa: E402
 import sources as SRC  # noqa: E402
 from bbm_reference import H2H_WEIGHTS  # noqa: E402
@@ -109,9 +112,13 @@ def _pull_col(src_i: int, kind_i: int) -> int:
 
 
 def load(path: Path) -> dict:
-    """Parse the generated Data.gs. Trailing commas are legal in JS and not in JSON."""
+    """Parse the generated Data.gs. Trailing commas are legal in JS and not in JSON.
+
+    `SHA256` is the hash of the text as read, for `check_snapshot`: the local board records
+    the hash of the Data.gs written beside it, and only the text can answer that.
+    """
     text = path.read_text(encoding="utf-8")
-    out = {}
+    out = {"SHA256": hashlib.sha256(text.encode("utf-8")).hexdigest()}
     for name in ("META", "PLAYERS", "VALUES", "PUNT_VALUES", "DERIV"):
         m = re.search(rf"var {name}\s*=\s*(.*?);\n", text, re.S)
         if not m:
@@ -200,6 +207,104 @@ def check(data: dict) -> list[str]:
     for build, rows in data["PUNT_VALUES"].items():
         if len(rows) != n:
             fails.append(f"punt {build}: {len(rows)} rows against {n} players")
+    return fails
+
+
+def check_snapshot(snapshot: dict, data: dict) -> list[str]:
+    """The local board against the Data.gs written in the same run (ADR-0022).
+
+    Exact equality, not a tolerance: both files are rendered from one set of rounded
+    objects, so any difference at all means they are not from one build -- or one of them
+    was edited afterwards. The digest checks say which: a META.digest that differs is two
+    builds; a snapshot digest that does not recompute is an edited snapshot; a Data.gs hash
+    that differs is an edited, or re-rendered, Data.gs.
+
+    Failures name a board row and a field, never a player or a number. The repository is
+    public and the exports are not ours to republish.
+    """
+    fails: list[str] = []
+    meta, smeta = data["META"], snapshot.get("meta") or {}
+    players, values, punts = data["PLAYERS"], data["VALUES"], data["PUNT_VALUES"]
+
+    if snapshot.get("schema") != BS.SCHEMA:
+        fails.append(f"snapshot schema is {snapshot.get('schema')!r}, expected {BS.SCHEMA}")
+    if not meta.get("digest"):
+        fails.append("Data.gs META carries no digest -- it predates the local board; "
+                     "re-run build_data.py")
+    elif meta["digest"] != smeta.get("digest"):
+        fails.append("META.digest differs between Data.gs and the snapshot -- they are "
+                     "not from the same build")
+    if smeta.get("digest") != BS.digest(snapshot):
+        fails.append("the snapshot's digest does not recompute -- it was changed after "
+                     "build_data.py wrote it")
+    if "SHA256" in data and data["SHA256"] != smeta.get("data_gs_sha256"):
+        fails.append("Data.gs is not the text written beside this snapshot "
+                     "(data_gs_sha256 differs)")
+
+    for field, want in (("generated", meta.get("generated")), ("sources", meta.get("sources")),
+                        ("board_rows", meta.get("boardRows")),
+                        ("injuries", meta.get("injuries"))):
+        if smeta.get(field) != want:
+            fails.append(f"meta.{field} differs from Data.gs META")
+    if snapshot.get("deriv") != data["DERIV"]:
+        fails.append("deriv differs from Data.gs DERIV")
+    settings = snapshot.get("settings") or {}
+    for key in ("q", "teams", "roster"):
+        if settings.get(key) != data["DERIV"].get(key):
+            fails.append(f"settings.{key} differs from Data.gs DERIV.{key}")
+    if snapshot.get("cat_labels") != list(BV.CAT_LABELS):
+        fails.append("cat_labels are not the board's categories in CAT_LABELS order")
+    if [b.get("key") for b in snapshot.get("punt_builds") or []] != list(punts):
+        fails.append("punt_builds do not name Data.gs's PUNT_VALUES builds, in order")
+
+    rows = snapshot.get("players") or []
+    if len(rows) != len(players):
+        fails.append(f"snapshot has {len(rows)} players against {len(players)} in Data.gs")
+        return fails
+
+    wrong: dict[str, int] = {}
+    examples: list[str] = []
+
+    def differ(i: int, field: str, got, want) -> None:
+        if got != want:
+            wrong[field] = wrong.get(field, 0) + 1
+            if len(examples) < 5:
+                examples.append(f"row {i} {field}: snapshot and Data.gs differ")
+
+    width = len(BV.CAT_LABELS)
+    for i, (p, raw) in enumerate(zip(rows, players, strict=True)):
+        want = dict(zip(BS.PLAYER_FIELDS, raw, strict=False))
+        try:
+            differ(i, "row", p["row"], i)
+            differ(i, "key", p["key"], SRC.normalise(want["name"]))
+            for field in ("seed", "name", "team", "pos", "inj"):
+                differ(i, field, p[field], want[field])
+            # Blank in Data.gs, null here: a player the market has not priced.
+            differ(i, "adp", p["adp"], None if want["adp"] == "" else want["adp"])
+            for field in BS.HBP_RAW_FIELDS:
+                differ(i, f"hbp_raw.{field}", p["hbp_raw"][field], want[field])
+            for src in SOURCES:
+                v, got = values[src][i], p["values"][src]
+                for kind, (vcol, rcol, dcol) in (("durh", (V_DURH, V_DURH_RANK, V_DURH_DROP)),
+                                                 ("zsh", (V_ZSH, V_ZSH_RANK, V_ZSH_DROP)),
+                                                 ("zsc", (V_ZSC, V_ZSC_RANK, None))):
+                    differ(i, f"{src}.{kind}.v", got[kind]["v"], v[vcol])
+                    differ(i, f"{src}.{kind}.rank", got[kind]["rank"], v[rcol])
+                    if dcol is not None:
+                        differ(i, f"{src}.{kind}.drop", got[kind]["drop"], v[dcol])
+                for block, start in (("dh", V_DH0), ("d", V_D0), ("z", V_Z0)):
+                    differ(i, f"{src}.{block}", [got[block][c] for c in BV.CAT_LABELS],
+                           v[start:start + width])
+            for build, brows in punts.items():
+                differ(i, f"punts.{build}",
+                       [p["punts"][build]["score"], p["punts"][build]["rank"]], brows[i])
+        except (KeyError, TypeError, IndexError) as exc:
+            fails.append(f"row {i}: the snapshot row is malformed (missing {exc})")
+            break
+
+    for field in sorted(wrong):
+        fails.append(f"{field}: {wrong[field]} of {len(rows)} rows differ from Data.gs")
+    fails.extend(examples)
     return fails
 
 
@@ -408,7 +513,7 @@ def diff_published(data: dict, tsv: Path, source: str) -> list[str]:
     return fails
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", type=Path, default=DEFAULT_DATA)
@@ -418,7 +523,10 @@ def main() -> int:
     ap.add_argument("--published", type=Path, action="append", default=[],
                     help="a 'BBM Published - SOURCE - DATE.tsv' saved by calibrate_bbm.py; "
                          "repeatable, and the source is read from the filename")
-    args = ap.parse_args()
+    ap.add_argument("--snapshot", type=Path,
+                    help="the local board to check against --data; defaults to the one this "
+                         "Data.gs's build wrote under data/draft-board/, when present")
+    args = ap.parse_args(argv)
 
     if not args.data.exists():
         print(f"{args.data} not found. Generate it first:\n"
@@ -470,12 +578,43 @@ def main() -> int:
         print("\nDIFF vs SHEET")
         fails += diff_sheet(data, args.sheet)
 
+    # The local board this Data.gs's build wrote: the snapshot dated META.generated, not
+    # simply the newest. Rebuilding an older date after a newer one is legitimate, and the
+    # newest file would then be a different build, failing on a digest that was never
+    # meant to match. Only for the default Data.gs, the one build_data.py pairs a board with.
+    snap = args.snapshot
+    if snap is None and args.data.resolve() == DEFAULT_DATA.resolve():
+        own = BS.path_for(BS.ROOT, meta["generated"])
+        if own.exists():
+            snap = own
+        else:
+            print(f"\nLOCAL BOARD   none for {meta['generated']} under {BS.ROOT} -- skipped")
+        latest = BS.newest(BS.ROOT)
+        if latest is not None and latest != own:
+            print(f"  note: a newer local board exists, {latest.name}")
+    if snap is not None:
+        print(f"\nLOCAL BOARD   {snap.name}")
+        if not snap.exists():
+            print(f"{snap} not found.", file=sys.stderr)
+            return 2
+        try:
+            snapshot = json.loads(snap.read_text(encoding="utf-8"))
+        except ValueError as exc:
+            fails.append(f"{snap.name}: not JSON ({exc})")
+        else:
+            local_fails = check_snapshot(snapshot, data)
+            if not local_fails:
+                print(f"  every value, rank, tag and constant equals Data.gs; "
+                      f"digest {meta['digest'][:12]}")
+            fails += local_fails
+
     if fails:
         print(f"\n{len(fails)} FAILURE(S):")
         for f in fails:
             print(f"  - {f}")
         return 1
-    print("  all invariants hold" + ("; sheet agrees" if args.sheet else ""))
+    print("  all invariants hold" + ("; sheet agrees" if args.sheet else "")
+          + ("; local board agrees" if snap is not None else ""))
     if set(H2H_WEIGHTS) - {"toV"} and deriv["punt_weight"]:
         print(f"\npunt weight {deriv['punt_weight']}, "
               f"{len(data['PUNT_VALUES'])} builds, BMP only")
