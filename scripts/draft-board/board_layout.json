@@ -1,0 +1,1917 @@
+{
+  "version": 1,
+  "generated_by": "node scripts/draft-board/harness.js --write-layout",
+  "header_row": 3,
+  "first_row": 4,
+  "last_row": 203,
+  "tabs": {
+    "Draft Board": {
+      "header_row": 3,
+      "columns": {
+        "rank": {
+          "index": 1,
+          "letter": "A",
+          "label": "#"
+        },
+        "tier": {
+          "index": 2,
+          "letter": "B",
+          "label": "TIER"
+        },
+        "round": {
+          "index": 3,
+          "letter": "C",
+          "label": "RND"
+        },
+        "player": {
+          "index": 4,
+          "letter": "D",
+          "label": "Player"
+        },
+        "team": {
+          "index": 5,
+          "letter": "E",
+          "label": "Tm"
+        },
+        "pos": {
+          "index": 6,
+          "letter": "F",
+          "label": "Pos"
+        },
+        "inj": {
+          "index": 7,
+          "letter": "G",
+          "label": "INJ"
+        },
+        "drafted": {
+          "index": 8,
+          "letter": "H",
+          "label": "GONE"
+        },
+        "mine": {
+          "index": 9,
+          "letter": "I",
+          "label": "MINE"
+        },
+        "bmpDurh": {
+          "index": 10,
+          "letter": "J",
+          "label": "DURH"
+        },
+        "bmpDurhTag": {
+          "index": 11,
+          "letter": "K",
+          "label": ""
+        },
+        "bmpZsh": {
+          "index": 12,
+          "letter": "L",
+          "label": "ZSH"
+        },
+        "bmpZshTag": {
+          "index": 13,
+          "letter": "M",
+          "label": ""
+        },
+        "bmpZsc": {
+          "index": 14,
+          "letter": "N",
+          "label": "ZSC"
+        },
+        "bmpZscTag": {
+          "index": 15,
+          "letter": "O",
+          "label": ""
+        },
+        "hbpDurh": {
+          "index": 16,
+          "letter": "P",
+          "label": "DURH"
+        },
+        "hbpDurhTag": {
+          "index": 17,
+          "letter": "Q",
+          "label": ""
+        },
+        "hbpZsh": {
+          "index": 18,
+          "letter": "R",
+          "label": "ZSH"
+        },
+        "hbpZshTag": {
+          "index": 19,
+          "letter": "S",
+          "label": ""
+        },
+        "hbpZsc": {
+          "index": 20,
+          "letter": "T",
+          "label": "ZSC"
+        },
+        "hbpZscTag": {
+          "index": 21,
+          "letter": "U",
+          "label": ""
+        },
+        "altDurh": {
+          "index": 22,
+          "letter": "V",
+          "label": "DURH"
+        },
+        "altDurhTag": {
+          "index": 23,
+          "letter": "W",
+          "label": ""
+        },
+        "altZsh": {
+          "index": 24,
+          "letter": "X",
+          "label": "ZSH"
+        },
+        "altZshTag": {
+          "index": 25,
+          "letter": "Y",
+          "label": ""
+        },
+        "altZsc": {
+          "index": 26,
+          "letter": "Z",
+          "label": "ZSC"
+        },
+        "altZscTag": {
+          "index": 27,
+          "letter": "AA",
+          "label": ""
+        },
+        "sel": {
+          "index": 28,
+          "letter": "AB",
+          "label": "sorted by"
+        },
+        "drop": {
+          "index": 29,
+          "letter": "AC",
+          "label": "Drop"
+        },
+        "med": {
+          "index": 30,
+          "letter": "AD",
+          "label": "Local\nmed"
+        },
+        "brk": {
+          "index": 31,
+          "letter": "AE",
+          "label": "Break"
+        },
+        "projGp": {
+          "index": 32,
+          "letter": "AF",
+          "label": "Proj\nGP"
+        },
+        "myGp": {
+          "index": 33,
+          "letter": "AG",
+          "label": "My\nGP"
+        },
+        "gpFlag": {
+          "index": 34,
+          "letter": "AH",
+          "label": "Flag"
+        },
+        "adp": {
+          "index": 35,
+          "letter": "AI",
+          "label": "ADP"
+        },
+        "xrank": {
+          "index": 36,
+          "letter": "AJ",
+          "label": "XRank"
+        },
+        "gap": {
+          "index": 37,
+          "letter": "AK",
+          "label": "GAP"
+        },
+        "best": {
+          "index": 38,
+          "letter": "AL",
+          "label": "Best build"
+        },
+        "strengths": {
+          "index": 39,
+          "letter": "AM",
+          "label": "▲ Strengths"
+        },
+        "weaknesses": {
+          "index": 40,
+          "letter": "AN",
+          "label": "▼ Weaknesses"
+        },
+        "posLeft": {
+          "index": 41,
+          "letter": "AO",
+          "label": "Left\n@pos"
+        },
+        "notes": {
+          "index": 42,
+          "letter": "AP",
+          "label": "Notes"
+        },
+        "hFgm": {
+          "index": 43,
+          "letter": "AQ",
+          "label": "FGM"
+        },
+        "hFga": {
+          "index": 44,
+          "letter": "AR",
+          "label": "FGA"
+        },
+        "hFtm": {
+          "index": 45,
+          "letter": "AS",
+          "label": "FTM"
+        },
+        "hFta": {
+          "index": 46,
+          "letter": "AT",
+          "label": "FTA"
+        },
+        "h3": {
+          "index": 47,
+          "letter": "AU",
+          "label": "3PM"
+        },
+        "hPts": {
+          "index": 48,
+          "letter": "AV",
+          "label": "PTS"
+        },
+        "hReb": {
+          "index": 49,
+          "letter": "AW",
+          "label": "REB"
+        },
+        "hAst": {
+          "index": 50,
+          "letter": "AX",
+          "label": "AST"
+        },
+        "hStl": {
+          "index": 51,
+          "letter": "AY",
+          "label": "STL"
+        },
+        "hBlk": {
+          "index": 52,
+          "letter": "AZ",
+          "label": "BLK"
+        },
+        "dh:FG%": {
+          "index": 53,
+          "letter": "BA",
+          "label": "dh FG%"
+        },
+        "dh:FT%": {
+          "index": 54,
+          "letter": "BB",
+          "label": "dh FT%"
+        },
+        "dh:3PM": {
+          "index": 55,
+          "letter": "BC",
+          "label": "dh 3PM"
+        },
+        "dh:PTS": {
+          "index": 56,
+          "letter": "BD",
+          "label": "dh PTS"
+        },
+        "dh:REB": {
+          "index": 57,
+          "letter": "BE",
+          "label": "dh REB"
+        },
+        "dh:AST": {
+          "index": 58,
+          "letter": "BF",
+          "label": "dh AST"
+        },
+        "dh:STL": {
+          "index": 59,
+          "letter": "BG",
+          "label": "dh STL"
+        },
+        "dh:BLK": {
+          "index": 60,
+          "letter": "BH",
+          "label": "dh BLK"
+        },
+        "d:FG%": {
+          "index": 61,
+          "letter": "BI",
+          "label": "d FG%"
+        },
+        "d:FT%": {
+          "index": 62,
+          "letter": "BJ",
+          "label": "d FT%"
+        },
+        "d:3PM": {
+          "index": 63,
+          "letter": "BK",
+          "label": "d 3PM"
+        },
+        "d:PTS": {
+          "index": 64,
+          "letter": "BL",
+          "label": "d PTS"
+        },
+        "d:REB": {
+          "index": 65,
+          "letter": "BM",
+          "label": "d REB"
+        },
+        "d:AST": {
+          "index": 66,
+          "letter": "BN",
+          "label": "d AST"
+        },
+        "d:STL": {
+          "index": 67,
+          "letter": "BO",
+          "label": "d STL"
+        },
+        "d:BLK": {
+          "index": 68,
+          "letter": "BP",
+          "label": "d BLK"
+        },
+        "rank:BMP:durh": {
+          "index": 69,
+          "letter": "BQ",
+          "label": "BMP DURH #"
+        },
+        "rank:BMP:zsh": {
+          "index": 70,
+          "letter": "BR",
+          "label": "BMP ZSH #"
+        },
+        "rank:BMP:zsc": {
+          "index": 71,
+          "letter": "BS",
+          "label": "BMP ZSC #"
+        },
+        "rank:HBP:durh": {
+          "index": 72,
+          "letter": "BT",
+          "label": "HBP DURH #"
+        },
+        "rank:HBP:zsh": {
+          "index": 73,
+          "letter": "BU",
+          "label": "HBP ZSH #"
+        },
+        "rank:HBP:zsc": {
+          "index": 74,
+          "letter": "BV",
+          "label": "HBP ZSC #"
+        },
+        "rank:BMP-ALT:durh": {
+          "index": 75,
+          "letter": "BW",
+          "label": "BMP-ALT DURH #"
+        },
+        "rank:BMP-ALT:zsh": {
+          "index": 76,
+          "letter": "BX",
+          "label": "BMP-ALT ZSH #"
+        },
+        "rank:BMP-ALT:zsc": {
+          "index": 77,
+          "letter": "BY",
+          "label": "BMP-ALT ZSC #"
+        },
+        "rowCheck": {
+          "index": 78,
+          "letter": "BZ",
+          "label": "row check"
+        }
+      }
+    },
+    "Board": {
+      "header_row": 3,
+      "columns": {
+        "seed": {
+          "index": 1,
+          "letter": "A",
+          "label": "HBP\n#"
+        },
+        "player": {
+          "index": 2,
+          "letter": "B",
+          "label": "Player"
+        },
+        "team": {
+          "index": 3,
+          "letter": "C",
+          "label": "Tm"
+        },
+        "pos": {
+          "index": 4,
+          "letter": "D",
+          "label": "Pos"
+        },
+        "gp": {
+          "index": 5,
+          "letter": "E",
+          "label": "GP"
+        },
+        "mpg": {
+          "index": 6,
+          "letter": "F",
+          "label": "MPG"
+        },
+        "fgm": {
+          "index": 7,
+          "letter": "G",
+          "label": "FGM"
+        },
+        "fga": {
+          "index": 8,
+          "letter": "H",
+          "label": "FGA"
+        },
+        "fgp": {
+          "index": 9,
+          "letter": "I",
+          "label": "FG%"
+        },
+        "ftm": {
+          "index": 10,
+          "letter": "J",
+          "label": "FTM"
+        },
+        "fta": {
+          "index": 11,
+          "letter": "K",
+          "label": "FTA"
+        },
+        "ftp": {
+          "index": 12,
+          "letter": "L",
+          "label": "FT%"
+        },
+        "tpm": {
+          "index": 13,
+          "letter": "M",
+          "label": "3PM"
+        },
+        "pts": {
+          "index": 14,
+          "letter": "N",
+          "label": "PTS"
+        },
+        "reb": {
+          "index": 15,
+          "letter": "O",
+          "label": "REB"
+        },
+        "ast": {
+          "index": 16,
+          "letter": "P",
+          "label": "AST"
+        },
+        "stl": {
+          "index": 17,
+          "letter": "Q",
+          "label": "STL"
+        },
+        "blk": {
+          "index": 18,
+          "letter": "R",
+          "label": "BLK"
+        },
+        "to": {
+          "index": 19,
+          "letter": "S",
+          "label": "TO"
+        },
+        "gp1": {
+          "index": 20,
+          "letter": "T",
+          "label": "GP\nY-1"
+        },
+        "gp2": {
+          "index": 21,
+          "letter": "U",
+          "label": "GP\nY-2"
+        },
+        "gp3": {
+          "index": 22,
+          "letter": "V",
+          "label": "GP\nY-3"
+        },
+        "myGp": {
+          "index": 23,
+          "letter": "W",
+          "label": "My GP\nEst"
+        },
+        "gpCheck": {
+          "index": 24,
+          "letter": "X",
+          "label": "GP\nflag"
+        },
+        "adp": {
+          "index": 25,
+          "letter": "Y",
+          "label": "ADP"
+        },
+        "xrank": {
+          "index": 26,
+          "letter": "Z",
+          "label": "XRank"
+        },
+        "injuries": {
+          "index": 27,
+          "letter": "AA",
+          "label": "INJ\nrisk"
+        },
+        "notes": {
+          "index": 28,
+          "letter": "AB",
+          "label": "Notes"
+        }
+      }
+    },
+    "BMP": {
+      "header_row": 2,
+      "columns": {
+        "player": {
+          "index": 1,
+          "letter": "A",
+          "label": "Player"
+        },
+        "poolD": {
+          "index": 2,
+          "letter": "B",
+          "label": "In\npool"
+        },
+        "gp": {
+          "index": 3,
+          "letter": "C",
+          "label": "GP"
+        },
+        "mpg": {
+          "index": 4,
+          "letter": "D",
+          "label": "MPG"
+        },
+        "fgm": {
+          "index": 5,
+          "letter": "E",
+          "label": "FGM"
+        },
+        "fga": {
+          "index": 6,
+          "letter": "F",
+          "label": "FGA"
+        },
+        "ftm": {
+          "index": 7,
+          "letter": "G",
+          "label": "FTM"
+        },
+        "fta": {
+          "index": 8,
+          "letter": "H",
+          "label": "FTA"
+        },
+        "tpm": {
+          "index": 9,
+          "letter": "I",
+          "label": "3PM"
+        },
+        "pts": {
+          "index": 10,
+          "letter": "J",
+          "label": "PTS"
+        },
+        "reb": {
+          "index": 11,
+          "letter": "K",
+          "label": "REB"
+        },
+        "ast": {
+          "index": 12,
+          "letter": "L",
+          "label": "AST"
+        },
+        "stl": {
+          "index": 13,
+          "letter": "M",
+          "label": "STL"
+        },
+        "blk": {
+          "index": 14,
+          "letter": "N",
+          "label": "BLK"
+        },
+        "to": {
+          "index": 15,
+          "letter": "O",
+          "label": "TO"
+        },
+        "adp": {
+          "index": 16,
+          "letter": "P",
+          "label": "ADP"
+        },
+        "durh": {
+          "index": 17,
+          "letter": "Q",
+          "label": "DURH"
+        },
+        "durhRank": {
+          "index": 18,
+          "letter": "R",
+          "label": "#"
+        },
+        "durhDrop": {
+          "index": 19,
+          "letter": "S",
+          "label": "drops"
+        },
+        "zsh": {
+          "index": 20,
+          "letter": "T",
+          "label": "ZSH"
+        },
+        "zshRank": {
+          "index": 21,
+          "letter": "U",
+          "label": "#"
+        },
+        "zshDrop": {
+          "index": 22,
+          "letter": "V",
+          "label": "drops"
+        },
+        "zsc": {
+          "index": 23,
+          "letter": "W",
+          "label": "ZSC"
+        },
+        "zscRank": {
+          "index": 24,
+          "letter": "X",
+          "label": "#"
+        },
+        "dh:FG%": {
+          "index": 25,
+          "letter": "Y",
+          "label": "FG%"
+        },
+        "dh:FT%": {
+          "index": 26,
+          "letter": "Z",
+          "label": "FT%"
+        },
+        "dh:3PM": {
+          "index": 27,
+          "letter": "AA",
+          "label": "3PM"
+        },
+        "dh:PTS": {
+          "index": 28,
+          "letter": "AB",
+          "label": "PTS"
+        },
+        "dh:REB": {
+          "index": 29,
+          "letter": "AC",
+          "label": "REB"
+        },
+        "dh:AST": {
+          "index": 30,
+          "letter": "AD",
+          "label": "AST"
+        },
+        "dh:STL": {
+          "index": 31,
+          "letter": "AE",
+          "label": "STL"
+        },
+        "dh:BLK": {
+          "index": 32,
+          "letter": "AF",
+          "label": "BLK"
+        },
+        "d:FG%": {
+          "index": 33,
+          "letter": "AG",
+          "label": "FG%"
+        },
+        "d:FT%": {
+          "index": 34,
+          "letter": "AH",
+          "label": "FT%"
+        },
+        "d:3PM": {
+          "index": 35,
+          "letter": "AI",
+          "label": "3PM"
+        },
+        "d:PTS": {
+          "index": 36,
+          "letter": "AJ",
+          "label": "PTS"
+        },
+        "d:REB": {
+          "index": 37,
+          "letter": "AK",
+          "label": "REB"
+        },
+        "d:AST": {
+          "index": 38,
+          "letter": "AL",
+          "label": "AST"
+        },
+        "d:STL": {
+          "index": 39,
+          "letter": "AM",
+          "label": "STL"
+        },
+        "d:BLK": {
+          "index": 40,
+          "letter": "AN",
+          "label": "BLK"
+        },
+        "z:FG%": {
+          "index": 41,
+          "letter": "AO",
+          "label": "FG%"
+        },
+        "z:FT%": {
+          "index": 42,
+          "letter": "AP",
+          "label": "FT%"
+        },
+        "z:3PM": {
+          "index": 43,
+          "letter": "AQ",
+          "label": "3PM"
+        },
+        "z:PTS": {
+          "index": 44,
+          "letter": "AR",
+          "label": "PTS"
+        },
+        "z:REB": {
+          "index": 45,
+          "letter": "AS",
+          "label": "REB"
+        },
+        "z:AST": {
+          "index": 46,
+          "letter": "AT",
+          "label": "AST"
+        },
+        "z:STL": {
+          "index": 47,
+          "letter": "AU",
+          "label": "STL"
+        },
+        "z:BLK": {
+          "index": 48,
+          "letter": "AV",
+          "label": "BLK"
+        },
+        "p:pFt": {
+          "index": 49,
+          "letter": "AW",
+          "label": "P:\nFT%"
+        },
+        "p:pFg": {
+          "index": 50,
+          "letter": "AX",
+          "label": "P:\nFG%"
+        },
+        "p:pAst": {
+          "index": 51,
+          "letter": "AY",
+          "label": "P:\nAST"
+        },
+        "p:p3": {
+          "index": 52,
+          "letter": "AZ",
+          "label": "P:\n3PM"
+        },
+        "p:pBlk": {
+          "index": 53,
+          "letter": "BA",
+          "label": "P:\nBLK"
+        },
+        "p:pFgReb": {
+          "index": 54,
+          "letter": "BB",
+          "label": "P:\nFG%+REB"
+        },
+        "p:pAstStl": {
+          "index": 55,
+          "letter": "BC",
+          "label": "P:\nAST+STL"
+        },
+        "p:pPtsFt": {
+          "index": 56,
+          "letter": "BD",
+          "label": "P:\nPTS+FT%"
+        },
+        "p:pTriple": {
+          "index": 57,
+          "letter": "BE",
+          "label": "P:\nFG/FT/TO"
+        },
+        "pr:pFt": {
+          "index": 58,
+          "letter": "BF",
+          "label": "#\nFT%"
+        },
+        "pr:pFg": {
+          "index": 59,
+          "letter": "BG",
+          "label": "#\nFG%"
+        },
+        "pr:pAst": {
+          "index": 60,
+          "letter": "BH",
+          "label": "#\nAST"
+        },
+        "pr:p3": {
+          "index": 61,
+          "letter": "BI",
+          "label": "#\n3PM"
+        },
+        "pr:pBlk": {
+          "index": 62,
+          "letter": "BJ",
+          "label": "#\nBLK"
+        },
+        "pr:pFgReb": {
+          "index": 63,
+          "letter": "BK",
+          "label": "#\nFG%+REB"
+        },
+        "pr:pAstStl": {
+          "index": 64,
+          "letter": "BL",
+          "label": "#\nAST+STL"
+        },
+        "pr:pPtsFt": {
+          "index": 65,
+          "letter": "BM",
+          "label": "#\nPTS+FT%"
+        },
+        "pr:pTriple": {
+          "index": 66,
+          "letter": "BN",
+          "label": "#\nFG/FT/TO"
+        }
+      }
+    },
+    "HBP": {
+      "header_row": 2,
+      "columns": {
+        "player": {
+          "index": 1,
+          "letter": "A",
+          "label": "Player"
+        },
+        "poolD": {
+          "index": 2,
+          "letter": "B",
+          "label": "In\npool"
+        },
+        "gp": {
+          "index": 3,
+          "letter": "C",
+          "label": "GP"
+        },
+        "mpg": {
+          "index": 4,
+          "letter": "D",
+          "label": "MPG"
+        },
+        "fgm": {
+          "index": 5,
+          "letter": "E",
+          "label": "FGM"
+        },
+        "fga": {
+          "index": 6,
+          "letter": "F",
+          "label": "FGA"
+        },
+        "ftm": {
+          "index": 7,
+          "letter": "G",
+          "label": "FTM"
+        },
+        "fta": {
+          "index": 8,
+          "letter": "H",
+          "label": "FTA"
+        },
+        "tpm": {
+          "index": 9,
+          "letter": "I",
+          "label": "3PM"
+        },
+        "pts": {
+          "index": 10,
+          "letter": "J",
+          "label": "PTS"
+        },
+        "reb": {
+          "index": 11,
+          "letter": "K",
+          "label": "REB"
+        },
+        "ast": {
+          "index": 12,
+          "letter": "L",
+          "label": "AST"
+        },
+        "stl": {
+          "index": 13,
+          "letter": "M",
+          "label": "STL"
+        },
+        "blk": {
+          "index": 14,
+          "letter": "N",
+          "label": "BLK"
+        },
+        "to": {
+          "index": 15,
+          "letter": "O",
+          "label": "TO"
+        },
+        "adp": {
+          "index": 16,
+          "letter": "P",
+          "label": "ADP"
+        },
+        "durh": {
+          "index": 17,
+          "letter": "Q",
+          "label": "DURH"
+        },
+        "durhRank": {
+          "index": 18,
+          "letter": "R",
+          "label": "#"
+        },
+        "durhDrop": {
+          "index": 19,
+          "letter": "S",
+          "label": "drops"
+        },
+        "zsh": {
+          "index": 20,
+          "letter": "T",
+          "label": "ZSH"
+        },
+        "zshRank": {
+          "index": 21,
+          "letter": "U",
+          "label": "#"
+        },
+        "zshDrop": {
+          "index": 22,
+          "letter": "V",
+          "label": "drops"
+        },
+        "zsc": {
+          "index": 23,
+          "letter": "W",
+          "label": "ZSC"
+        },
+        "zscRank": {
+          "index": 24,
+          "letter": "X",
+          "label": "#"
+        },
+        "dh:FG%": {
+          "index": 25,
+          "letter": "Y",
+          "label": "FG%"
+        },
+        "dh:FT%": {
+          "index": 26,
+          "letter": "Z",
+          "label": "FT%"
+        },
+        "dh:3PM": {
+          "index": 27,
+          "letter": "AA",
+          "label": "3PM"
+        },
+        "dh:PTS": {
+          "index": 28,
+          "letter": "AB",
+          "label": "PTS"
+        },
+        "dh:REB": {
+          "index": 29,
+          "letter": "AC",
+          "label": "REB"
+        },
+        "dh:AST": {
+          "index": 30,
+          "letter": "AD",
+          "label": "AST"
+        },
+        "dh:STL": {
+          "index": 31,
+          "letter": "AE",
+          "label": "STL"
+        },
+        "dh:BLK": {
+          "index": 32,
+          "letter": "AF",
+          "label": "BLK"
+        },
+        "d:FG%": {
+          "index": 33,
+          "letter": "AG",
+          "label": "FG%"
+        },
+        "d:FT%": {
+          "index": 34,
+          "letter": "AH",
+          "label": "FT%"
+        },
+        "d:3PM": {
+          "index": 35,
+          "letter": "AI",
+          "label": "3PM"
+        },
+        "d:PTS": {
+          "index": 36,
+          "letter": "AJ",
+          "label": "PTS"
+        },
+        "d:REB": {
+          "index": 37,
+          "letter": "AK",
+          "label": "REB"
+        },
+        "d:AST": {
+          "index": 38,
+          "letter": "AL",
+          "label": "AST"
+        },
+        "d:STL": {
+          "index": 39,
+          "letter": "AM",
+          "label": "STL"
+        },
+        "d:BLK": {
+          "index": 40,
+          "letter": "AN",
+          "label": "BLK"
+        },
+        "z:FG%": {
+          "index": 41,
+          "letter": "AO",
+          "label": "FG%"
+        },
+        "z:FT%": {
+          "index": 42,
+          "letter": "AP",
+          "label": "FT%"
+        },
+        "z:3PM": {
+          "index": 43,
+          "letter": "AQ",
+          "label": "3PM"
+        },
+        "z:PTS": {
+          "index": 44,
+          "letter": "AR",
+          "label": "PTS"
+        },
+        "z:REB": {
+          "index": 45,
+          "letter": "AS",
+          "label": "REB"
+        },
+        "z:AST": {
+          "index": 46,
+          "letter": "AT",
+          "label": "AST"
+        },
+        "z:STL": {
+          "index": 47,
+          "letter": "AU",
+          "label": "STL"
+        },
+        "z:BLK": {
+          "index": 48,
+          "letter": "AV",
+          "label": "BLK"
+        },
+        "p:pFt": {
+          "index": 49,
+          "letter": "AW",
+          "label": "P:\nFT%"
+        },
+        "p:pFg": {
+          "index": 50,
+          "letter": "AX",
+          "label": "P:\nFG%"
+        },
+        "p:pAst": {
+          "index": 51,
+          "letter": "AY",
+          "label": "P:\nAST"
+        },
+        "p:p3": {
+          "index": 52,
+          "letter": "AZ",
+          "label": "P:\n3PM"
+        },
+        "p:pBlk": {
+          "index": 53,
+          "letter": "BA",
+          "label": "P:\nBLK"
+        },
+        "p:pFgReb": {
+          "index": 54,
+          "letter": "BB",
+          "label": "P:\nFG%+REB"
+        },
+        "p:pAstStl": {
+          "index": 55,
+          "letter": "BC",
+          "label": "P:\nAST+STL"
+        },
+        "p:pPtsFt": {
+          "index": 56,
+          "letter": "BD",
+          "label": "P:\nPTS+FT%"
+        },
+        "p:pTriple": {
+          "index": 57,
+          "letter": "BE",
+          "label": "P:\nFG/FT/TO"
+        },
+        "pr:pFt": {
+          "index": 58,
+          "letter": "BF",
+          "label": "#\nFT%"
+        },
+        "pr:pFg": {
+          "index": 59,
+          "letter": "BG",
+          "label": "#\nFG%"
+        },
+        "pr:pAst": {
+          "index": 60,
+          "letter": "BH",
+          "label": "#\nAST"
+        },
+        "pr:p3": {
+          "index": 61,
+          "letter": "BI",
+          "label": "#\n3PM"
+        },
+        "pr:pBlk": {
+          "index": 62,
+          "letter": "BJ",
+          "label": "#\nBLK"
+        },
+        "pr:pFgReb": {
+          "index": 63,
+          "letter": "BK",
+          "label": "#\nFG%+REB"
+        },
+        "pr:pAstStl": {
+          "index": 64,
+          "letter": "BL",
+          "label": "#\nAST+STL"
+        },
+        "pr:pPtsFt": {
+          "index": 65,
+          "letter": "BM",
+          "label": "#\nPTS+FT%"
+        },
+        "pr:pTriple": {
+          "index": 66,
+          "letter": "BN",
+          "label": "#\nFG/FT/TO"
+        }
+      }
+    },
+    "BMP-ALT": {
+      "header_row": 2,
+      "columns": {
+        "player": {
+          "index": 1,
+          "letter": "A",
+          "label": "Player"
+        },
+        "poolD": {
+          "index": 2,
+          "letter": "B",
+          "label": "In\npool"
+        },
+        "gp": {
+          "index": 3,
+          "letter": "C",
+          "label": "GP"
+        },
+        "mpg": {
+          "index": 4,
+          "letter": "D",
+          "label": "MPG"
+        },
+        "fgm": {
+          "index": 5,
+          "letter": "E",
+          "label": "FGM"
+        },
+        "fga": {
+          "index": 6,
+          "letter": "F",
+          "label": "FGA"
+        },
+        "ftm": {
+          "index": 7,
+          "letter": "G",
+          "label": "FTM"
+        },
+        "fta": {
+          "index": 8,
+          "letter": "H",
+          "label": "FTA"
+        },
+        "tpm": {
+          "index": 9,
+          "letter": "I",
+          "label": "3PM"
+        },
+        "pts": {
+          "index": 10,
+          "letter": "J",
+          "label": "PTS"
+        },
+        "reb": {
+          "index": 11,
+          "letter": "K",
+          "label": "REB"
+        },
+        "ast": {
+          "index": 12,
+          "letter": "L",
+          "label": "AST"
+        },
+        "stl": {
+          "index": 13,
+          "letter": "M",
+          "label": "STL"
+        },
+        "blk": {
+          "index": 14,
+          "letter": "N",
+          "label": "BLK"
+        },
+        "to": {
+          "index": 15,
+          "letter": "O",
+          "label": "TO"
+        },
+        "adp": {
+          "index": 16,
+          "letter": "P",
+          "label": "ADP"
+        },
+        "durh": {
+          "index": 17,
+          "letter": "Q",
+          "label": "DURH"
+        },
+        "durhRank": {
+          "index": 18,
+          "letter": "R",
+          "label": "#"
+        },
+        "durhDrop": {
+          "index": 19,
+          "letter": "S",
+          "label": "drops"
+        },
+        "zsh": {
+          "index": 20,
+          "letter": "T",
+          "label": "ZSH"
+        },
+        "zshRank": {
+          "index": 21,
+          "letter": "U",
+          "label": "#"
+        },
+        "zshDrop": {
+          "index": 22,
+          "letter": "V",
+          "label": "drops"
+        },
+        "zsc": {
+          "index": 23,
+          "letter": "W",
+          "label": "ZSC"
+        },
+        "zscRank": {
+          "index": 24,
+          "letter": "X",
+          "label": "#"
+        },
+        "dh:FG%": {
+          "index": 25,
+          "letter": "Y",
+          "label": "FG%"
+        },
+        "dh:FT%": {
+          "index": 26,
+          "letter": "Z",
+          "label": "FT%"
+        },
+        "dh:3PM": {
+          "index": 27,
+          "letter": "AA",
+          "label": "3PM"
+        },
+        "dh:PTS": {
+          "index": 28,
+          "letter": "AB",
+          "label": "PTS"
+        },
+        "dh:REB": {
+          "index": 29,
+          "letter": "AC",
+          "label": "REB"
+        },
+        "dh:AST": {
+          "index": 30,
+          "letter": "AD",
+          "label": "AST"
+        },
+        "dh:STL": {
+          "index": 31,
+          "letter": "AE",
+          "label": "STL"
+        },
+        "dh:BLK": {
+          "index": 32,
+          "letter": "AF",
+          "label": "BLK"
+        },
+        "d:FG%": {
+          "index": 33,
+          "letter": "AG",
+          "label": "FG%"
+        },
+        "d:FT%": {
+          "index": 34,
+          "letter": "AH",
+          "label": "FT%"
+        },
+        "d:3PM": {
+          "index": 35,
+          "letter": "AI",
+          "label": "3PM"
+        },
+        "d:PTS": {
+          "index": 36,
+          "letter": "AJ",
+          "label": "PTS"
+        },
+        "d:REB": {
+          "index": 37,
+          "letter": "AK",
+          "label": "REB"
+        },
+        "d:AST": {
+          "index": 38,
+          "letter": "AL",
+          "label": "AST"
+        },
+        "d:STL": {
+          "index": 39,
+          "letter": "AM",
+          "label": "STL"
+        },
+        "d:BLK": {
+          "index": 40,
+          "letter": "AN",
+          "label": "BLK"
+        },
+        "z:FG%": {
+          "index": 41,
+          "letter": "AO",
+          "label": "FG%"
+        },
+        "z:FT%": {
+          "index": 42,
+          "letter": "AP",
+          "label": "FT%"
+        },
+        "z:3PM": {
+          "index": 43,
+          "letter": "AQ",
+          "label": "3PM"
+        },
+        "z:PTS": {
+          "index": 44,
+          "letter": "AR",
+          "label": "PTS"
+        },
+        "z:REB": {
+          "index": 45,
+          "letter": "AS",
+          "label": "REB"
+        },
+        "z:AST": {
+          "index": 46,
+          "letter": "AT",
+          "label": "AST"
+        },
+        "z:STL": {
+          "index": 47,
+          "letter": "AU",
+          "label": "STL"
+        },
+        "z:BLK": {
+          "index": 48,
+          "letter": "AV",
+          "label": "BLK"
+        },
+        "p:pFt": {
+          "index": 49,
+          "letter": "AW",
+          "label": "P:\nFT%"
+        },
+        "p:pFg": {
+          "index": 50,
+          "letter": "AX",
+          "label": "P:\nFG%"
+        },
+        "p:pAst": {
+          "index": 51,
+          "letter": "AY",
+          "label": "P:\nAST"
+        },
+        "p:p3": {
+          "index": 52,
+          "letter": "AZ",
+          "label": "P:\n3PM"
+        },
+        "p:pBlk": {
+          "index": 53,
+          "letter": "BA",
+          "label": "P:\nBLK"
+        },
+        "p:pFgReb": {
+          "index": 54,
+          "letter": "BB",
+          "label": "P:\nFG%+REB"
+        },
+        "p:pAstStl": {
+          "index": 55,
+          "letter": "BC",
+          "label": "P:\nAST+STL"
+        },
+        "p:pPtsFt": {
+          "index": 56,
+          "letter": "BD",
+          "label": "P:\nPTS+FT%"
+        },
+        "p:pTriple": {
+          "index": 57,
+          "letter": "BE",
+          "label": "P:\nFG/FT/TO"
+        },
+        "pr:pFt": {
+          "index": 58,
+          "letter": "BF",
+          "label": "#\nFT%"
+        },
+        "pr:pFg": {
+          "index": 59,
+          "letter": "BG",
+          "label": "#\nFG%"
+        },
+        "pr:pAst": {
+          "index": 60,
+          "letter": "BH",
+          "label": "#\nAST"
+        },
+        "pr:p3": {
+          "index": 61,
+          "letter": "BI",
+          "label": "#\n3PM"
+        },
+        "pr:pBlk": {
+          "index": 62,
+          "letter": "BJ",
+          "label": "#\nBLK"
+        },
+        "pr:pFgReb": {
+          "index": 63,
+          "letter": "BK",
+          "label": "#\nFG%+REB"
+        },
+        "pr:pAstStl": {
+          "index": 64,
+          "letter": "BL",
+          "label": "#\nAST+STL"
+        },
+        "pr:pPtsFt": {
+          "index": 65,
+          "letter": "BM",
+          "label": "#\nPTS+FT%"
+        },
+        "pr:pTriple": {
+          "index": 66,
+          "letter": "BN",
+          "label": "#\nFG/FT/TO"
+        }
+      }
+    },
+    "Settings": {
+      "cells": {
+        "teams": "B4",
+        "roster": "B5",
+        "q": "B6",
+        "sort_by": "B7",
+        "scoring": "B8",
+        "tier_mult": "B9",
+        "cat_band": "B10",
+        "disagree_gap": "B11",
+        "weak_win": "B26",
+        "strong_win": "B27",
+        "bank_win": "B28",
+        "names_aligned": "B51",
+        "rows_aligned": "B52",
+        "board_rows": "B53",
+        "mine": "B54",
+        "adp_coverage": "B55",
+        "generated": "B56",
+        "injuries": "B57",
+        "digest": "B58"
+      },
+      "cell_labels": {
+        "teams": {
+          "cell": "A4",
+          "text": "Teams"
+        },
+        "roster": {
+          "cell": "A5",
+          "text": "Roster spots"
+        },
+        "q": {
+          "cell": "A6",
+          "text": "Pool size (Q)"
+        },
+        "sort_by": {
+          "cell": "A7",
+          "text": "Sort by"
+        },
+        "scoring": {
+          "cell": "A8",
+          "text": "Scoring format"
+        },
+        "tier_mult": {
+          "cell": "A9",
+          "text": "Tier multiplier"
+        },
+        "cat_band": {
+          "cell": "A10",
+          "text": "Category band"
+        },
+        "disagree_gap": {
+          "cell": "A11",
+          "text": "Disagreement gap"
+        },
+        "weak_win": {
+          "cell": "A26",
+          "text": "Weak at or below"
+        },
+        "strong_win": {
+          "cell": "A27",
+          "text": "Strong at or above"
+        },
+        "bank_win": {
+          "cell": "A28",
+          "text": "Banked at or above"
+        },
+        "names_aligned": {
+          "cell": "A51",
+          "text": "Names line up across tabs"
+        },
+        "rows_aligned": {
+          "cell": "A52",
+          "text": "Draft Board rows line up"
+        },
+        "board_rows": {
+          "cell": "A53",
+          "text": "Board rows"
+        },
+        "mine": {
+          "cell": "A54",
+          "text": "Players ticked Mine"
+        },
+        "adp_coverage": {
+          "cell": "A55",
+          "text": "ADP coverage"
+        },
+        "generated": {
+          "cell": "A56",
+          "text": "Data generated"
+        },
+        "injuries": {
+          "cell": "A57",
+          "text": "Injury tiers"
+        },
+        "digest": {
+          "cell": "A58",
+          "text": "Data digest"
+        }
+      },
+      "weights": {
+        "FG%": "E4",
+        "FT%": "E5",
+        "3PM": "E6",
+        "PTS": "E7",
+        "REB": "E8",
+        "AST": "E9",
+        "STL": "E10",
+        "BLK": "E11"
+      },
+      "weight_labels": {
+        "FG%": "D4",
+        "FT%": "D5",
+        "3PM": "D6",
+        "PTS": "D7",
+        "REB": "D8",
+        "AST": "D9",
+        "STL": "D10",
+        "BLK": "D11"
+      },
+      "tracker_constants": {
+        "FG%": {
+          "k": "B16",
+          "w": "C16",
+          "K": "D16",
+          "slope": "E16"
+        },
+        "FT%": {
+          "k": "B17",
+          "w": "C17",
+          "K": "D17",
+          "slope": "E17"
+        },
+        "3PM": {
+          "k": "B18",
+          "w": "C18",
+          "K": "D18",
+          "slope": "E18"
+        },
+        "PTS": {
+          "k": "B19",
+          "w": "C19",
+          "K": "D19",
+          "slope": "E19"
+        },
+        "REB": {
+          "k": "B20",
+          "w": "C20",
+          "K": "D20",
+          "slope": "E20"
+        },
+        "AST": {
+          "k": "B21",
+          "w": "C21",
+          "K": "D21",
+          "slope": "E21"
+        },
+        "STL": {
+          "k": "B22",
+          "w": "C22",
+          "K": "D22",
+          "slope": "E22"
+        },
+        "BLK": {
+          "k": "B23",
+          "w": "C23",
+          "K": "D23",
+          "slope": "E23"
+        }
+      },
+      "tracker_labels": {
+        "FG%": "A16",
+        "FT%": "A17",
+        "3PM": "A18",
+        "PTS": "A19",
+        "REB": "A20",
+        "AST": "A21",
+        "STL": "A22",
+        "BLK": "A23"
+      }
+    },
+    "Category Tracker": {
+      "players_ticked": "B4",
+      "header_row": 6,
+      "first_cat_row": 7,
+      "columns": {
+        "cat": 1,
+        "my_team": 2,
+        "avg_team": 3,
+        "z": 4,
+        "win": 5,
+        "read": 6,
+        "punted": 7
+      },
+      "column_labels": {
+        "cat": "Category",
+        "my_team": "My team",
+        "avg_team": "Average team",
+        "z": "Z",
+        "win": "Win %",
+        "read": "Read",
+        "punted": "Punted"
+      },
+      "roster_header_row": 21,
+      "roster_first_row": 22,
+      "roster_rows": 200,
+      "roster_columns": {
+        "rank": 1,
+        "name": 2,
+        "pos": 3
+      },
+      "roster_labels": {
+        "rank": "#",
+        "name": "Player",
+        "pos": "Pos"
+      }
+    },
+    "Punts": {
+      "header_row": 5,
+      "first_row": 6,
+      "rows": 40,
+      "block_width": 6,
+      "columns": {
+        "rank": {
+          "offset": 0,
+          "label": "#"
+        },
+        "name": {
+          "offset": 1,
+          "label": "Player"
+        },
+        "score": {
+          "offset": 2,
+          "label": "Score"
+        },
+        "adp": {
+          "offset": 3,
+          "label": "ADP"
+        },
+        "gap": {
+          "offset": 4,
+          "label": "GAP"
+        }
+      },
+      "blocks": [
+        {
+          "key": "pFt",
+          "first_col": 1
+        },
+        {
+          "key": "pFg",
+          "first_col": 7
+        },
+        {
+          "key": "pAst",
+          "first_col": 13
+        },
+        {
+          "key": "p3",
+          "first_col": 19
+        },
+        {
+          "key": "pBlk",
+          "first_col": 25
+        },
+        {
+          "key": "pFgReb",
+          "first_col": 31
+        },
+        {
+          "key": "pAstStl",
+          "first_col": 37
+        },
+        {
+          "key": "pPtsFt",
+          "first_col": 43
+        },
+        {
+          "key": "pTriple",
+          "first_col": 49
+        }
+      ]
+    }
+  },
+  "named_ranges": {
+    "ALT_ADP": "'BMP-ALT'!P4:P203",
+    "ALT_DURH": "'BMP-ALT'!Q4:Q203",
+    "ALT_DURH_RANK": "'BMP-ALT'!R4:R203",
+    "ALT_PLAYER": "'BMP-ALT'!A4:A203",
+    "ALT_ZSC": "'BMP-ALT'!W4:W203",
+    "ALT_ZSC_RANK": "'BMP-ALT'!X4:X203",
+    "ALT_ZSH": "'BMP-ALT'!T4:T203",
+    "ALT_ZSH_RANK": "'BMP-ALT'!U4:U203",
+    "BANK_WIN": "Settings!B28",
+    "BMP_ADP": "BMP!P4:P203",
+    "BMP_DURH": "BMP!Q4:Q203",
+    "BMP_DURH_RANK": "BMP!R4:R203",
+    "BMP_PLAYER": "BMP!A4:A203",
+    "BMP_ZSC": "BMP!W4:W203",
+    "BMP_ZSC_RANK": "BMP!X4:X203",
+    "BMP_ZSH": "BMP!T4:T203",
+    "BMP_ZSH_RANK": "BMP!U4:U203",
+    "B_ADP": "Board!Y4:Y203",
+    "B_GP": "Board!E4:E203",
+    "B_MYGP": "Board!W4:W203",
+    "B_PLAYER": "Board!B4:B203",
+    "CAT_BAND": "Settings!B10",
+    "DB_AST": "'Draft Board'!AX4:AX203",
+    "DB_BLK": "'Draft Board'!AZ4:AZ203",
+    "DB_DH_AST": "'Draft Board'!BF4:BF203",
+    "DB_DH_BLK": "'Draft Board'!BH4:BH203",
+    "DB_DH_FGPCT": "'Draft Board'!BA4:BA203",
+    "DB_DH_FTPCT": "'Draft Board'!BB4:BB203",
+    "DB_DH_PTS": "'Draft Board'!BD4:BD203",
+    "DB_DH_REB": "'Draft Board'!BE4:BE203",
+    "DB_DH_STL": "'Draft Board'!BG4:BG203",
+    "DB_DH_TPM": "'Draft Board'!BC4:BC203",
+    "DB_D_AST": "'Draft Board'!BN4:BN203",
+    "DB_D_BLK": "'Draft Board'!BP4:BP203",
+    "DB_D_FGPCT": "'Draft Board'!BI4:BI203",
+    "DB_D_FTPCT": "'Draft Board'!BJ4:BJ203",
+    "DB_D_PTS": "'Draft Board'!BL4:BL203",
+    "DB_D_REB": "'Draft Board'!BM4:BM203",
+    "DB_D_STL": "'Draft Board'!BO4:BO203",
+    "DB_D_TPM": "'Draft Board'!BK4:BK203",
+    "DB_FGA": "'Draft Board'!AR4:AR203",
+    "DB_FGM": "'Draft Board'!AQ4:AQ203",
+    "DB_FTA": "'Draft Board'!AT4:AT203",
+    "DB_FTM": "'Draft Board'!AS4:AS203",
+    "DB_GONE": "'Draft Board'!H4:H203",
+    "DB_MINE": "'Draft Board'!I4:I203",
+    "DB_PLAYER": "'Draft Board'!D4:D203",
+    "DB_POS": "'Draft Board'!F4:F203",
+    "DB_PTS": "'Draft Board'!AV4:AV203",
+    "DB_RANK": "'Draft Board'!A4:A203",
+    "DB_REB": "'Draft Board'!AW4:AW203",
+    "DB_STL": "'Draft Board'!AY4:AY203",
+    "DB_TPM": "'Draft Board'!AU4:AU203",
+    "DISAGREE_GAP": "Settings!B11",
+    "HBP_ADP": "HBP!P4:P203",
+    "HBP_DURH": "HBP!Q4:Q203",
+    "HBP_DURH_RANK": "HBP!R4:R203",
+    "HBP_PLAYER": "HBP!A4:A203",
+    "HBP_ZSC": "HBP!W4:W203",
+    "HBP_ZSC_RANK": "HBP!X4:X203",
+    "HBP_ZSH": "HBP!T4:T203",
+    "HBP_ZSH_RANK": "HBP!U4:U203",
+    "K_AST": "Settings!D21",
+    "K_BLK": "Settings!D23",
+    "K_FGPCT": "Settings!D16",
+    "K_FTPCT": "Settings!D17",
+    "K_PTS": "Settings!D19",
+    "K_REB": "Settings!D20",
+    "K_STL": "Settings!D22",
+    "K_TPM": "Settings!D18",
+    "Q": "Settings!B6",
+    "ROSTER": "Settings!B5",
+    "SCORING": "Settings!B8",
+    "SORT_BY": "Settings!B7",
+    "STRONG_WIN": "Settings!B27",
+    "TEAMS": "Settings!B4",
+    "TIER_MULT": "Settings!B9",
+    "WEAK_WIN": "Settings!B26"
+  }
+}

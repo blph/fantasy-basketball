@@ -2,6 +2,16 @@
 // assert the things that actually break: range/array dimension mismatches,
 // writes outside the grid, and calls to methods that do not exist.
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// `node harness.js --write-layout [PATH]` writes board_layout.json (or PATH) and exits. That
+// mode always builds from the synthetic players below and never reads a local Data.gs: the
+// file is committed, so it must come out byte-identical on every machine, and a layout built
+// from real data would put provider data one mistake away from a public commit.
+const WRITE_LAYOUT = process.argv[2] === '--write-layout';
+const LAYOUT_PATH = path.join(__dirname, 'board_layout.json');
+const LAYOUT_OUT = WRITE_LAYOUT && process.argv[3] ? path.resolve(process.argv[3]) : LAYOUT_PATH;
 const problems = [];
 const seen = { namedRanges: {}, sheets: {} };
 
@@ -197,9 +207,9 @@ global.SpreadsheetApp = {
 
 // Real data if it happens to be here, otherwise synthetic. The test must run on
 // a clean clone: this repo is public and holds no provider data.
-const SYNTHETIC = !fs.existsSync('Data.gs');
+const SYNTHETIC = WRITE_LAYOUT || !fs.existsSync(path.join(__dirname, 'Data.gs'));
 if (!SYNTHETIC) {
-  eval(fs.readFileSync('Data.gs', 'utf8'));
+  eval(fs.readFileSync(path.join(__dirname, 'Data.gs'), 'utf8'));
 } else {
   global.PLAYERS = Array.from({ length: 200 }, (_, i) => {
     const t = 1 - i / 220;                       // deterministic, no randomness
@@ -222,7 +232,7 @@ if (!SYNTHETIC) {
   global.META = { generated: '2026-01-01', mixedDates: false, boardRows: 200, sources: {},
                   injuries: { graded: 160, missing: 40, unused: 0 }, digest: 'synthetic' };
 }
-eval(fs.readFileSync('Build.gs','utf8'));
+eval(fs.readFileSync(path.join(__dirname, 'Build.gs'), 'utf8'));
 
 if (SYNTHETIC) {
   // PLAYERS alone is not enough: `requireData` refuses to build without VALUES for every
@@ -269,6 +279,191 @@ if (SYNTHETIC) {
 
 try { buildDraftBoard(); }
 catch (e) { problems.push('THREW: ' + e.message + '\n' + (e.stack||'').split('\n').slice(1,4).join('\n')); }
+
+// ---- board_layout.json ---------------------------------------------------------------------
+//
+// The sheet's layout as Python reads it: every column position and header label, the Settings
+// addresses, the tracker and Punts geometry, and every named range. Derived from the column
+// maps and from the cells the mock sheets captured -- never typed out -- because a hand-kept
+// map is exactly what drifts (mock-draft-review.md's column map is the standing evidence).
+// Anything that cannot be found by its label throws, so a renamed header fails loudly here
+// instead of producing a layout that points at the wrong cell.
+function boardLayout() {
+  const text = (sheet, r, c) => {
+    const v = seen.sheets[sheet].cells[`${r},${c}`];
+    return v === undefined || v === null ? '' : String(v);
+  };
+  const addr = (c, r) => a1col(c) + r;
+  const need = (ok, msg) => { if (!ok) throw new Error('layout: ' + msg); };
+
+  // Index order, so the JSON reads left to right like the sheet, and every column exactly once.
+  function columns(sheet, headerRow, entries, width) {
+    const out = {}, used = new Set();
+    entries.slice().sort((a, b) => a[1] - b[1]).forEach(([key, index]) => {
+      need(!used.has(index), `${sheet} column ${a1col(index)} is mapped twice (${key})`);
+      used.add(index);
+      out[key] = { index: index, letter: a1col(index), label: text(sheet, headerRow, index) };
+    });
+    need(used.size === width, `${sheet} layout covers ${used.size} of ${width} columns`);
+    return out;
+  }
+  const BLOCKS = ['dh0', 'd0', 'z0', 'p0', 'pr0', 'rank0', 'last'];
+  const plain = m => Object.keys(m).filter(k => BLOCKS.indexOf(k) < 0).map(k => [k, m[k]]);
+
+  const draft = plain(D);
+  CAT_LABELS.forEach((c, i) => { draft.push(['dh:' + c, D.dh0 + i], ['d:' + c, D.d0 + i]); });
+  SOURCES.forEach((s, si) => VALUE_KINDS.forEach((k, ki) => {
+    draft.push([`rank:${s.key}:${k.v}`, dRank(si, ki)]);
+  }));
+
+  const calc = plain(V);
+  CAT_LABELS.forEach((c, i) => {
+    calc.push(['dh:' + c, V.dh0 + i], ['d:' + c, V.d0 + i], ['z:' + c, V.z0 + i]);
+  });
+  PUNTS.forEach((p, i) => { calc.push(['p:' + p.key, V.p0 + i], ['pr:' + p.key, V.pr0 + i]); });
+
+  const tabs = {};
+  tabs['Draft Board'] = { header_row: HDR, columns: columns('Draft Board', HDR, draft, D_LAST) };
+  tabs['Board'] = { header_row: HDR, columns: columns('Board', HDR, plain(B), B_LAST) };
+  SOURCES.forEach(s => {
+    // Row HDR on a calculation tab carries each column's constant (a lambda, a weight), which
+    // comes from DERIV and so differs by build. The names sit one row up.
+    tabs[s.key] = { header_row: HDR - 1, columns: columns(s.key, HDR - 1, calc, V_LAST) };
+  });
+
+  // Settings. Inputs come from the named ranges, because those are what every formula reads;
+  // the sanity rows have no names and come from S_SANITY, checked against their labels.
+  const S = 'Settings';
+  const named = {
+    teams: 'TEAMS', roster: 'ROSTER', q: 'Q', sort_by: 'SORT_BY', scoring: 'SCORING',
+    tier_mult: 'TIER_MULT', cat_band: 'CAT_BAND', disagree_gap: 'DISAGREE_GAP',
+    weak_win: 'WEAK_WIN', strong_win: 'STRONG_WIN', bank_win: 'BANK_WIN'
+  };
+  const sanity = ['names_aligned', 'rows_aligned', 'board_rows', 'mine', 'adp_coverage',
+                  'generated', 'injuries', 'digest'];
+  const cells = {}, cellLabels = {};
+  const place = (key, col, row) => {
+    const label = text(S, row, col - 1);
+    need(label !== '', `Settings ${addr(col, row)} (${key}) has no label beside it`);
+    cells[key] = addr(col, row);
+    cellLabels[key] = { cell: addr(col - 1, row), text: label };
+  };
+  Object.keys(named).forEach(key => {
+    const rng = seen.namedRanges[named[key]];
+    need(rng && rng.sheet.name === S, `named range ${named[key]} is not on Settings`);
+    place(key, rng.col, rng.row);
+  });
+  sanity.forEach((key, i) => place(key, 2, S_SANITY + 1 + i));
+
+  const weights = {}, weightLabels = {}, trackerConstants = {}, trackerLabels = {};
+  CAT_LABELS.forEach((c, i) => {
+    const row = S_WEIGHTS + 1 + i;
+    need(text(S, row, 4) === c, `Settings D${row} is "${text(S, row, 4)}", expected ${c}`);
+    weights[c] = addr(5, row);
+    weightLabels[c] = addr(4, row);
+    const k = seen.namedRanges['K_' + catKey(c)];
+    need(k && text(S, k.row, 1) === c, `K_${catKey(c)} does not sit on the ${c} row`);
+    trackerConstants[c] = { k: addr(k.col - 2, k.row), w: addr(k.col - 1, k.row),
+                            K: addr(k.col, k.row), slope: addr(k.col + 1, k.row) };
+    trackerLabels[c] = addr(1, k.row);
+  });
+  tabs[S] = { cells: cells, cell_labels: cellLabels, weights: weights,
+              weight_labels: weightLabels, tracker_constants: trackerConstants,
+              tracker_labels: trackerLabels };
+
+  // Category Tracker, found by its own labels.
+  const T = TRACKER_TAB;
+  const headerRow = TRACKER_R0 - 1;
+  const want = { cat: 'Category', my_team: 'My team', avg_team: 'Average team', z: 'Z',
+                 win: 'Win %', read: 'Read', punted: 'Punted' };
+  const tcols = {}, tlabels = {};
+  Object.keys(want).forEach(key => {
+    let col = 0;
+    for (let c = 1; c <= 8 && !col; c++) if (text(T, headerRow, c) === want[key]) col = c;
+    need(col > 0, `no "${want[key]}" header on the tracker's row ${headerRow}`);
+    tcols[key] = col;
+    tlabels[key] = want[key];
+  });
+  need(tcols.punted === TRACK_PUNT_COL, 'the Punted header is not TRACK_PUNT_COL');
+  let ticked = 0;
+  for (let r = 1; r < headerRow && !ticked; r++) if (text(T, r, 1) === 'Players ticked') ticked = r;
+  need(ticked > 0, 'no "Players ticked" row on the tracker');
+  let banner = 0;
+  for (let r = TRACKER_R0 + CAT_LABELS.length; r < 60 && !banner; r++) {
+    if (text(T, r, 1) === 'MY ROSTER') banner = r;
+  }
+  need(banner > 0, 'no MY ROSTER block on the tracker');
+  const rosterWant = { rank: '#', name: 'Player', pos: 'Pos' };
+  const rcols = {}, rlabels = {};
+  Object.keys(rosterWant).forEach((key, i) => {
+    need(text(T, banner + 1, i + 1) === rosterWant[key],
+      `roster header ${addr(i + 1, banner + 1)} is not "${rosterWant[key]}"`);
+    rcols[key] = i + 1;
+    rlabels[key] = rosterWant[key];
+  });
+  need(text(T, banner + 2, 1).indexOf('DB_MINE') >= 0, 'the roster formula is not under its header');
+  tabs[T] = { players_ticked: addr(2, ticked), header_row: headerRow, first_cat_row: TRACKER_R0,
+              columns: tcols, column_labels: tlabels, roster_header_row: banner + 1,
+              roster_first_row: banner + 2, roster_rows: POOL_ROWS,
+              roster_columns: rcols, roster_labels: rlabels };
+
+  // Punts: one ARRAY_CONSTRAIN per build. Its arguments are the row count and the width.
+  const P = 'Punts';
+  const anchors = Object.keys(seen.sheets[P].cells)
+    .map(k => k.split(',').map(Number))
+    .filter(([r, c]) => String(seen.sheets[P].cells[`${r},${c}`]).indexOf('=ARRAY_CONSTRAIN(') === 0)
+    .sort((a, b) => a[1] - b[1]);
+  need(anchors.length === PUNTS.length, `${anchors.length} punt blocks, expected ${PUNTS.length}`);
+  const firstRow = anchors[0][0];
+  const shape = String(seen.sheets[P].cells[`${firstRow},${anchors[0][1]}`]).match(/,(\d+),(\d+)\)$/);
+  need(shape !== null, 'cannot read the punt block size from its ARRAY_CONSTRAIN');
+  const prow = Number(shape[1]), pwidth = Number(shape[2]);
+  const pwant = { rank: '#', name: 'Player', score: 'Score', adp: 'ADP', gap: 'GAP' };
+  const pcols = {};
+  Object.keys(pwant).forEach(key => {
+    let off = -1;
+    for (let o = 0; o < pwidth && off < 0; o++) {
+      if (text(P, firstRow - 1, anchors[0][1] + o) === pwant[key]) off = o;
+    }
+    need(off >= 0, `no "${pwant[key]}" header on the first punt block`);
+    pcols[key] = { offset: off, label: pwant[key] };
+  });
+  const blocks = PUNTS.map((p, i) => {
+    const [r, c] = anchors[i];
+    need(r === firstRow, `punt block ${p.key} starts on row ${r}, not ${firstRow}`);
+    need(text(P, firstRow - 2, c) === p.label.toUpperCase(), `punt block ${i} is not ${p.label}`);
+    Object.keys(pcols).forEach(key => {
+      need(text(P, firstRow - 1, c + pcols[key].offset) === pcols[key].label,
+        `punt block ${p.key} header differs from the first block's`);
+    });
+    return { key: p.key, first_col: c };
+  });
+  tabs[P] = { header_row: firstRow - 1, first_row: firstRow, rows: prow,
+              block_width: blocks[1].first_col - blocks[0].first_col, columns: pcols,
+              blocks: blocks };
+
+  const namedRanges = {};
+  Object.keys(seen.namedRanges).sort().forEach(name => {
+    const g = seen.namedRanges[name];
+    const tail = (g.nr > 1 || g.nc > 1) ? ':' + addr(g.col + g.nc - 1, g.row + g.nr - 1) : '';
+    namedRanges[name] = sheetRef(g.sheet.name) + '!' + addr(g.col, g.row) + tail;
+  });
+
+  return { version: 1, generated_by: 'node scripts/draft-board/harness.js --write-layout',
+           header_row: HDR, first_row: R0, last_row: RN, tabs: tabs,
+           named_ranges: namedRanges };
+}
+
+if (WRITE_LAYOUT) {
+  if (problems.length) {
+    console.error('not writing the layout: the synthetic build reported problems');
+    problems.slice(0, 25).forEach(p => console.error(' - ' + p));
+    process.exit(1);
+  }
+  fs.writeFileSync(LAYOUT_OUT, JSON.stringify(boardLayout(), null, 2) + '\n');
+  console.log('wrote ' + LAYOUT_OUT);
+  process.exit(0);
+}
 
 console.log('sheets built:', Object.keys(seen.sheets).join(', '));
 console.log('named ranges:', Object.keys(seen.namedRanges).length);
@@ -868,6 +1063,32 @@ check('the injury tier is the 21st PLAYERS field',
     expect('with no Data.gs the date stamp says so', cell('Settings', genRow, 2), STAMP_NO_DATA);
     expect('with no Data.gs the digest stamp says so', cell('Settings', digestRow, 2), STAMP_NO_DATA);
     stampData(ss);
+  }
+}
+
+// --- board_layout.json is current --------------------------------------------
+// Python reads the layout from the committed file instead of keeping its own column map, so a
+// stale file is a failure. The comparison is regenerated in a CHILD process run with
+// --write-layout, which forces the synthetic players: this process may have loaded a local
+// Data.gs, and nothing it loaded can reach the child. The answer is the same on every machine.
+{
+  const tmp = path.join(os.tmpdir(), `board_layout.${process.pid}.json`);
+  let fresh = null;
+  try {
+    require('child_process').execFileSync(process.execPath, [__filename, '--write-layout', tmp],
+      { stdio: ['ignore', 'ignore', 'pipe'] });
+    fresh = fs.readFileSync(tmp, 'utf8');
+  } catch (e) {
+    fails.push('could not regenerate the layout to compare against\n     '
+      + String(e.stderr || e.message).split('\n').slice(0, 6).join('\n     '));
+  } finally {
+    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+  }
+  if (fresh !== null) {
+    const committed = fs.existsSync(LAYOUT_PATH) ? fs.readFileSync(LAYOUT_PATH, 'utf8') : null;
+    check('board_layout.json matches what --write-layout writes', committed === fresh,
+      (committed === null ? 'it is missing' : 'it is stale')
+      + ' -- run `node scripts/draft-board/harness.js --write-layout` and commit the result');
   }
 }
 

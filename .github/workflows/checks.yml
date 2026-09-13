@@ -35,7 +35,10 @@ jobs:
       # Data.gs is gitignored, so the harness synthesises its own 200 players.
       # It asserts every generated formula against the column map, which is the
       # check that catches a column insertion repointing a formula at the wrong
-      # data -- silently, because the sheet would still compute.
-      - name: Dry-run the board build
+      # data -- silently, because the sheet would still compute. The same run
+      # fails when the committed board_layout.json is stale: it regenerates the
+      # layout in a child process forced onto the synthetic players, so the
+      # verdict here and on a machine holding a real Data.gs is the same.
+      - name: Dry-run the board build and check board_layout.json
         run: node harness.js
         working-directory: scripts/draft-board
