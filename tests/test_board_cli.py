@@ -219,6 +219,21 @@ def test_state_outside_root_is_usage(drafting, capsys, tmp_path_factory):
     assert not outside.exists()
 
 
+def test_state_cannot_name_the_snapshot_file(root, capsys):
+    code, _, err = run(root, capsys, "new", "--force", "--state", "board - 2026-01-01.json")
+    assert code == 2
+    assert "must not name" in err or "snapshot" in err
+    assert BS.load(BS.path_for(root, "2026-01-01"))["meta"]["generated"] == "2026-01-01"
+
+
+def test_state_cannot_name_a_backup_file(drafting, capsys):
+    assert run(drafting, capsys, "status", "--state", "x.bak.json")[0] == 2
+
+
+def test_state_cannot_name_a_lock_file(drafting, capsys):
+    assert run(drafting, capsys, "status", "--state", "draft-state.json.lock")[0] == 2
+
+
 def test_digest_mismatch_is_integrity_on_reads(drafting, capsys):
     snap = make_snapshot()
     snap["players"][0]["values"]["BMP"]["durh"]["v"] += 1.0
@@ -239,6 +254,17 @@ def test_missing_snapshot_is_integrity(drafting, capsys):
 def test_corrupt_state_is_integrity(drafting, capsys):
     (drafting / "draft-state.json").write_text("{half a file")
     assert run(drafting, capsys, "status")[0] == 4
+
+
+@pytest.mark.parametrize(("field", "value"), [("snapshot", None), ("players", []),
+                                              ("events", {})])
+def test_wrong_shaped_state_is_integrity_not_a_traceback(drafting, capsys, field, value):
+    current = state(drafting)
+    current[field] = value
+    (drafting / "draft-state.json").write_text(json.dumps(current))
+    code, out, err = run(drafting, capsys, "status")
+    assert (code, out) == (4, "")
+    assert "Traceback" not in err
 
 
 def test_state_key_not_on_the_board_is_integrity(drafting, capsys):
@@ -268,14 +294,16 @@ def test_mine_undo_clears_mine_only(drafting, capsys):
 
 
 def test_gone_undo_on_mine_needs_force(drafting, capsys):
-    run(drafting, capsys, "mine", name(4))
+    run(drafting, capsys, "mine", name(4), "--pick", "5")
     saved = state(drafting)
     code, _, err = run(drafting, capsys, "gone", name(4), "--undo")
     assert code == 2 and "--force" in err
     assert state(drafting) == saved
     assert run(drafting, capsys, "gone", name(4), "--undo", "--force")[0] == 0
+    assert N.key_of(name(4)) not in state(drafting)["players"]
+    assert run(drafting, capsys, "undo")[0] == 0
     entry = state(drafting)["players"][N.key_of(name(4))]
-    assert (entry["gone"], entry["mine"]) == (False, True)
+    assert (entry["gone"], entry["mine"], entry["pick"]) == (True, True, 5)
 
 
 def test_gone_undo_clears_the_pick(drafting, capsys):
@@ -337,6 +365,29 @@ def test_offboard_with_a_near_match_needs_the_flag(drafting, capsys):
     assert state(drafting)["offboard"] == []
     assert run(drafting, capsys, "gone", typo, "--offboard")[0] == 0
     assert state(drafting)["offboard"] == [{"name": typo, "pick": None, "mine": False}]
+
+
+def test_letterless_name_is_never_offboard(drafting, capsys):
+    saved = state(drafting)
+    code, out, err = run(drafting, capsys, "mine", "123", "--pick", "3")
+    assert (code, out) == (3, "")
+    assert "no letters" in err
+    assert state(drafting)["offboard"] == []
+    assert state(drafting) == saved
+
+
+def test_letterless_name_refused_even_with_offboard_flag(drafting, capsys):
+    code, _, err = run(drafting, capsys, "gone", "!!!", "--offboard")
+    assert code == 3
+    assert "no letters" in err
+    assert state(drafting)["offboard"] == []
+
+
+def test_letterless_name_blocks_the_whole_multi_name_write(drafting, capsys):
+    code, out, err = run(drafting, capsys, "mine", name(1), "123")
+    assert (code, out) == (3, "")
+    assert "no letters" in err
+    assert state(drafting)["players"] == {}
 
 
 def test_offboard_undo(drafting, capsys):

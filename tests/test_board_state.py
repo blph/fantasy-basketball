@@ -42,6 +42,17 @@ def test_load_refuses_a_corrupt_state(tmp_path, text):
         ST.load(path)
 
 
+@pytest.mark.parametrize(("field", "value"), [("snapshot", None), ("players", []),
+                                              ("events", {})])
+def test_load_refuses_a_wrong_shaped_state(tmp_path, snap, field, value):
+    path = tmp_path / "draft-state.json"
+    state = ST.new_state(snap)
+    state[field] = value
+    path.write_text(json.dumps(state))
+    with pytest.raises(ST.StateError):
+        ST.load(path)
+
+
 def test_check_pin_passes_on_its_own_snapshot(snap):
     ST.check_pin(ST.new_state(snap), snap)
 

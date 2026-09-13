@@ -195,6 +195,10 @@ def state_path(args, root: Path) -> Path:
     path = (path if path.is_absolute() else base / path).resolve()
     if path == base or not path.is_relative_to(base):
         raise Fail(EXIT_USAGE, f"--state must be a file under {root}, not {raw}")
+    if (BS.FILENAME.match(path.name) or path.name.endswith(".bak.json")
+            or path.name.endswith(".lock")):
+        raise Fail(EXIT_USAGE, f"--state must not name a snapshot, backup or lock file, "
+                                f"not {raw}")
     return path
 
 
@@ -468,6 +472,11 @@ def apply_pick(args, snap, state):
                 warn(f"--offboard ignored for '{name}': it is on the board")
             target = ("board", player, player["key"])
         except N.ResolveError as exc:
+            if not N.key_of(name):
+                # No letters to match on at all: never a real off-board pick, on any
+                # combination of --undo/--offboard, so it cannot fall through below.
+                errors.append(exc)
+                continue
             if args.undo:
                 if _offboard_index(state["offboard"], name) is None:
                     errors.append(exc)
@@ -505,9 +514,12 @@ def apply_pick(args, snap, state):
             elif mine and not args.force:
                 refused.append(target["name"])
             else:
+                # A forced `gone --undo` on a MINE player clears mine, gone and pick
+                # together: MINE-without-GONE is never a state this CLI produces.
                 changes[base + "gone"] = False
-                if not mine:
-                    changes[base + "pick"] = None
+                changes[base + "pick"] = None
+                if mine:
+                    changes[base + "mine"] = False
             continue
         i = _offboard_index(offboard, target)
         if not args.undo:

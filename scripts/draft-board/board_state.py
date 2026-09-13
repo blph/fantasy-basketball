@@ -58,6 +58,30 @@ def new_state(snapshot: dict) -> dict:
     }
 
 
+def _bad_shape(state: dict) -> str | None:
+    """The name of the first top-level field whose shape is wrong, or None if all agree.
+
+    A field present but mis-shaped (`"snapshot": null`, `"players": []`) reads past the
+    `missing` check below and then crashes deep inside the engine or the CLI with a raw
+    Python traceback instead of a clean `StateError`; this is what stops that.
+    """
+    snapshot = state.get("snapshot")
+    if (not isinstance(snapshot, dict) or not isinstance(snapshot.get("date"), str)
+            or not isinstance(snapshot.get("digest"), str)):
+        return "snapshot"
+    sort = state.get("applied_sort")
+    if (not isinstance(sort, dict) or not isinstance(sort.get("source"), str)
+            or not isinstance(sort.get("kind"), str)):
+        return "applied_sort"
+    players = state.get("players")
+    if not isinstance(players, dict) or not all(isinstance(v, dict) for v in players.values()):
+        return "players"
+    for key in ("conceded", "offboard", "events"):
+        if not isinstance(state.get(key), list):
+            return key
+    return None
+
+
 def load(path: Path) -> dict:
     """Read a state file, refusing anything that is not a whole version-1 state."""
     try:
@@ -69,6 +93,9 @@ def load(path: Path) -> dict:
     missing = [k for k in KEYS if k not in state]
     if missing:
         raise StateError(f"{path.name}: draft state is missing {', '.join(missing)}")
+    bad = _bad_shape(state)
+    if bad:
+        raise StateError(f"{path.name}: draft state field {bad!r} has the wrong shape")
     return state
 
 
