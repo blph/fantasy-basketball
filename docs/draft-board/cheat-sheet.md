@@ -19,8 +19,8 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 
 | | |
 |---|---|
-| **GONE** | Nobody else is ticking it for you. Left @pos and the tracker benchmark are both wrong if it is not kept up. |
-| **Sort by** | Changing the dropdown does NOT re-sort the board on its own. Run Rebuild & re-sort. Until you do, the block header says SORT STALE. |
+| **GONE** | Nobody else is ticking it for you. Left @pos is wrong if it is not kept up. The tracker's Average team does not read it: that benchmark is the top Teams × MINE players by rank, capped at Q, whether or not they are ticked. |
+| **Sort by** | Changing the dropdown does NOT re-sort the board on its own. Run Rebuild & re-sort. Until you do, nothing on the board follows the new choice — the rows, #, tiers and the tracker all still reflect the previous sort. |
 
 ## COLOURS
 
@@ -69,7 +69,7 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 
 | | Formula | What it means |
 |---|---|---|
-| **#** | `=RANK(sorted value)` | Rank by whatever you are sorted by. Correct the moment you change the dropdown, even before the rows move. |
+| **#** | `=RANK(sorted value)` | Rank by the value the board was last sorted on. It follows a new choice in the dropdown only once Rebuild & re-sort has run. |
 | **RND** | `=CEILING(#/Teams)` | Which round that rank falls in. Reads league size, nothing more. |
 | **Drop** | `` | The value above this row, minus this one. |
 | **Local med** | `` | The median of the fifteen drops centred here. |
@@ -111,7 +111,7 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 |---|---|---|
 | **Win %** | `= NORMSDIST(Z × K)` | The chance of winning that category against an average opponent drawn from the players drafted so far. |
 | **Z** | `` | Your roster's edge in that category, in standard deviations, scaled by √n. |
-| **The five reads** | `` | WEAK ≤35%. CONTESTED — spend the next pick here. STRONG ≥65%. BANKED ≥75%, stop looking. PUNTED, conceded on purpose. |
+| **The five reads** | `` | WEAK ≤40%. CONTESTED — spend the next pick here. STRONG ≥60%. BANKED ≥75%, stop looking. PUNTED, conceded on purpose. |
 | **No turnovers row** | `` | DURANT H2H weights turnovers zero, so the board cannot measure them. They are still on the Board tab as a raw number. |
 
 ## THINGS WORTH KNOWING

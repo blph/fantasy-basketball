@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 
 import bbm_constants as BC  # noqa: E402
+import board_settings as BSET  # noqa: E402
 import sources as S  # noqa: E402
 from bbm_reference import (  # noqa: E402
     CATEGORIES,
@@ -82,7 +83,7 @@ DURANT_COL = {c: "D" + c for c in CATEGORIES}
 
 #: Pool size for the diagnostic comparison only -- teams x roster spots. It has no bearing
 #: on the recovered constants, which is the whole point of recovering them.
-Q = 156
+Q = BSET.Q
 
 #: Refuse to write a fit worse than this. These are TOLERANCES, not measurements: they sit
 #: well above the two-decimal display floor a clean fit lands on (~0.004) and well below

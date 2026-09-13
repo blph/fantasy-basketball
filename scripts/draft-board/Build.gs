@@ -25,6 +25,17 @@
  * docs/draft-board/build-and-maintenance.md.
  */
 
+// The league and draft-day constants Settings is seeded with. scripts/draft-board/
+// board_settings.py is the Python copy the local board reads, and
+// tests/test_board_settings.py parses this line and fails when the two disagree -- so it
+// stays strict JSON on one line: double-quoted keys, no trailing comma, no expressions.
+// These are DEFAULTS. The yellow cells on Settings are still yours to edit; a Full rebuild
+// writes these back over them.
+var SETTINGS_DEFAULTS = {"teams": 12, "roster": 13, "scoring": "Head-to-Head Categories", "tier_mult": 2, "cat_band": 1, "disagree_gap": 15, "weak_win": 0.4, "strong_win": 0.6, "bank_win": 0.75};
+
+/** 0.4 -> '40%'. For prose that quotes a cutoff, so the text cannot drift from the cell. */
+function winPct(p) { return Math.round(p * 100) + '%'; }
+
 var TRACKER_TAB = 'Category Tracker';
 var TRACKER_R0 = 7;    // first category row on the tracker, in CAT_LABELS order
 
@@ -704,8 +715,9 @@ function derivSource(block, source, label) {
   } catch (e) { return ''; }
 }
 function qValue() {
-  try { return (typeof DERIV !== 'undefined' && DERIV.q) ? DERIV.q : 156; }
-  catch (e) { return 156; }
+  var fallback = SETTINGS_DEFAULTS.teams * SETTINGS_DEFAULTS.roster;
+  try { return (typeof DERIV !== 'undefined' && DERIV.q) ? DERIV.q : fallback; }
+  catch (e) { return fallback; }
 }
 function fmtNum(v) {
   if (v === '' || v === null || v === undefined) return '';
@@ -924,14 +936,14 @@ function writeSettingsSkeleton(sh) {
 
   sh.getRange(S_LEAGUE, 1, 1, 2).setValues([['LEAGUE', '']]);
   sh.getRange(S_LEAGUE + 1, 1, 8, 2).setValues([
-    ['Teams', 12],
-    ['Roster spots', 13],
+    ['Teams', SETTINGS_DEFAULTS.teams],
+    ['Roster spots', SETTINGS_DEFAULTS.roster],
     ['Pool size (Q)', '=B' + (S_LEAGUE + 1) + '*B' + (S_LEAGUE + 2)],
     ['Sort by', sortLabel(0, 0)],
-    ['Scoring format', 'Head-to-Head Categories'],
-    ['Tier multiplier', 2],
-    ['Category band', 1.00],
-    ['Disagreement gap', 15]
+    ['Scoring format', SETTINGS_DEFAULTS.scoring],
+    ['Tier multiplier', SETTINGS_DEFAULTS.tier_mult],
+    ['Category band', SETTINGS_DEFAULTS.cat_band],
+    ['Disagreement gap', SETTINGS_DEFAULTS.disagree_gap]
   ]);
 
   sh.getRange(S_WEIGHTS, 4, 1, 2).setValues([['H2H WEIGHTS — applied upstream', '']]);
@@ -969,9 +981,9 @@ function writeSettingsSkeleton(sh) {
 
   sh.getRange(S_WINRATE, 1, 1, 2).setValues([['WIN-RATE CUTOFFS', '']]);
   sh.getRange(S_WINRATE + 1, 1, 3, 2).setValues([
-    ['Weak at or below', 0.35],
-    ['Strong at or above', 0.65],
-    ['Banked at or above', 0.75]
+    ['Weak at or below', SETTINGS_DEFAULTS.weak_win],
+    ['Strong at or above', SETTINGS_DEFAULTS.strong_win],
+    ['Banked at or above', SETTINGS_DEFAULTS.bank_win]
   ]);
   sh.getRange(S_LEAGUE + 10, 1).setValue(
     'Disagreement gap is applied when the Draft Board is built, not live: a conditional '
@@ -1869,7 +1881,7 @@ function disagreeGap() {
     var v = Number(SpreadsheetApp.getActiveSpreadsheet().getRangeByName('DISAGREE_GAP').getValue());
     if (v > 0) return v;
   } catch (e) { /* first build: the named range does not exist yet */ }
-  return 15;
+  return SETTINGS_DEFAULTS.disagree_gap;
 }
 
 /** Conditional formats, in the order they must resolve. Banding is added last. */
@@ -2324,11 +2336,13 @@ var README_ROWS = [
 
   ['THE TWO THINGS THAT ARE NOT AUTOMATIC', '', ''],
   ['GONE', '',
-   'Nobody else is ticking it for you. Left @pos and the tracker benchmark are both wrong '
-   + 'if it is not kept up.'],
+   'Nobody else is ticking it for you. Left @pos is wrong if it is not kept up. The '
+   + 'tracker\'s Average team does not read it: that benchmark is the top Teams × MINE '
+   + 'players by rank, capped at Q, whether or not they are ticked.'],
   ['Sort by', '',
    'Changing the dropdown does NOT re-sort the board on its own. Run Rebuild & re-sort. '
-   + 'Until you do, the block header says SORT STALE.'],
+   + 'Until you do, nothing on the board follows the new choice — the rows, #, tiers and '
+   + 'the tracker all still reflect the previous sort.'],
   ['', '', ''],
 
   ['COLOURS', '', ''],
@@ -2398,8 +2412,8 @@ var README_ROWS = [
 
   ['RANKS, ROUNDS AND TIERS', '', ''],
   ['#', ' =RANK(sorted value)',
-   'Rank by whatever you are sorted by. Correct the moment you change the dropdown, even '
-   + 'before the rows move.'],
+   'Rank by the value the board was last sorted on. It follows a new choice in the dropdown '
+   + 'only once Rebuild & re-sort has run.'],
   ['RND', ' =CEILING(#/Teams)', 'Which round that rank falls in. Reads league size, nothing more.'],
   ['Drop', '', 'The value above this row, minus this one.'],
   ['Local med', '', 'The median of the fifteen drops centred here.'],
@@ -2457,8 +2471,9 @@ var README_ROWS = [
    + 'drafted so far.'],
   ['Z', '', 'Your roster\'s edge in that category, in standard deviations, scaled by √n.'],
   ['The five reads', '',
-   'WEAK ≤35%. CONTESTED — spend the next pick here. STRONG ≥65%. BANKED ≥75%, stop '
-   + 'looking. PUNTED, conceded on purpose.'],
+   'WEAK ≤' + winPct(SETTINGS_DEFAULTS.weak_win) + '. CONTESTED — spend the next pick '
+   + 'here. STRONG ≥' + winPct(SETTINGS_DEFAULTS.strong_win) + '. BANKED ≥'
+   + winPct(SETTINGS_DEFAULTS.bank_win) + ', stop looking. PUNTED, conceded on purpose.'],
   ['No turnovers row', '',
    'DURANT H2H weights turnovers zero, so the board cannot measure them. They are still on '
    + 'the Board tab as a raw number.'],

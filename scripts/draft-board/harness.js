@@ -563,6 +563,45 @@ CAT_LABELS.forEach(lab => {
   if (got !== lab) fails.push(`K_${catKey(lab)} points at a row labelled "${got}", expected "${lab}"`);
 });
 
+// --- Settings defaults -------------------------------------------------------
+// SETTINGS_DEFAULTS is the only place Build.gs holds a league or cutoff number, and
+// tests/test_board_settings.py holds it equal to board_settings.py. That is worth nothing
+// unless the skeleton actually reads it. So: the cells it wrote must equal the object, and
+// then -- the half that catches a literal left behind -- a skeleton written with every
+// default changed must follow every change.
+{
+  const cellsByKey = { teams: 'TEAMS', roster: 'ROSTER', scoring: 'SCORING',
+    tier_mult: 'TIER_MULT', cat_band: 'CAT_BAND', disagree_gap: 'DISAGREE_GAP',
+    weak_win: 'WEAK_WIN', strong_win: 'STRONG_WIN', bank_win: 'BANK_WIN' };
+  expect('every SETTINGS_DEFAULTS key has a Settings cell',
+    Object.keys(SETTINGS_DEFAULTS).sort().join(','), Object.keys(cellsByKey).sort().join(','));
+  const settingsCells = (sheetName) => {
+    const out = {};
+    Object.keys(cellsByKey).forEach(k => {
+      const rng = seen.namedRanges[cellsByKey[k]];
+      out[k] = rng ? seen.sheets[sheetName].cells[`${rng.row},${rng.col}`] : undefined;
+    });
+    return out;
+  };
+  const same = (got, want) => (typeof want === 'number' ? Number(got) === want : String(got) === want);
+  const compare = (label, got, want) => Object.keys(cellsByKey).forEach(k => {
+    check(`${label}: ${cellsByKey[k]} equals SETTINGS_DEFAULTS.${k}`, same(got[k], want[k]),
+      `got ${got[k]}, want ${want[k]}`);
+  });
+  compare('Settings', settingsCells('Settings'), SETTINGS_DEFAULTS);
+  expect('disagreeGap falls back to SETTINGS_DEFAULTS', disagreeGap(), SETTINGS_DEFAULTS.disagree_gap);
+
+  const saved = SETTINGS_DEFAULTS;
+  const altered = { teams: 11, roster: 14, scoring: 'probe', tier_mult: 3, cat_band: 1.5,
+                    disagree_gap: 9, weak_win: 0.3, strong_win: 0.7, bank_win: 0.8 };
+  const probe = new Sheet('Settings probe');
+  probe.maxCols = 10; probe.maxRows = 90;
+  SETTINGS_DEFAULTS = altered;
+  try { writeSettingsSkeleton(probe); } finally { SETTINGS_DEFAULTS = saved; }
+  compare('skeleton written from altered defaults', settingsCells('Settings probe'), altered);
+  delete seen.sheets['Settings probe'];
+}
+
 ['TRACK_FG_BAND', 'TRACK_FT_BAND', 'TRACK_COUNT_BAND', 'GP_DIVISOR', 'MIN_GP',
  'REPLACEMENT', 'PUNT_WEIGHT', 'MULT_STL'].forEach(n => {
   check(`retired named range ${n} is gone`, !seen.namedRanges[n]);

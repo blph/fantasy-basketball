@@ -29,6 +29,7 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0019](ADR-0019-punt-builds-restandardise.md) *(amended by 0021)* | Punt builds discount before standardising and re-derive the pool | Accepted | 2026-09-01 | Bryan | ADR-0009 (in part) |
 | [ADR-0020](ADR-0020-identity-anchored-references.md) | Every derived cell names the player, and the board checks that it did | Accepted | 2026-09-01 | Bryan | |
 | [ADR-0021](ADR-0021-borrowed-bbm-pool-constants.md) | The Basketball Monster sources borrow their standardisation constants | Accepted | 2026-09-01 | Bryan | ADR-0015 (in part), ADR-0019 (in part) |
+| [ADR-0023](ADR-0023-win-rate-cutoffs-40-60.md) | Win-rate cutoffs of 40% and 60%, on both boards | Accepted | 2026-09-12 | Bryan | ADR-0018 (in part) |
 
 ## Decisions expected next
 

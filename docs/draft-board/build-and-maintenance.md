@@ -277,7 +277,8 @@ tracker is not what you are waiting on.
 
 The `Sort by` dropdown in row 1 offers nine choices — three projections × three values.
 **Changing it does not re-sort the board on its own**; run `Rebuild & re-sort`. Until you
-do, the block header reads `SORT STALE`.
+do, nothing on the board follows the new choice — rows, `#`, tiers and the tracker all still
+reflect the previous sort. No header marks it stale.
 
 The three checkboxes beside it hide and show each projection's six value columns. That runs
 on a simple `onEdit`, so there is nothing to install. If a checkbox ever stops responding,

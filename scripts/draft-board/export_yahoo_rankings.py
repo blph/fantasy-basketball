@@ -30,20 +30,23 @@ import datetime
 import sys
 from pathlib import Path
 
-# Transcribed from config/league.yaml (`league.season`). Kept as a constant
-# rather than parsed: pyyaml is not a declared dependency and a runtime dep needs
-# an ADR. Build.gs transcribes the league settings the same way.
-SEASON = "2026-27"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import board_settings as BSET  # noqa: E402
+
+# `league.season` from config/league.yaml, by way of board_settings.py, which transcribes
+# it (pyyaml is not a declared dependency) and is tested against the file.
+SEASON = BSET.SEASON
 
 # The repo root, from this file's location rather than the cwd, so the default
 # output path is the same wherever the script is run from.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXPORT_DIR = REPO_ROOT / "data" / "exports"
 
-# 12 teams x 13 roster spots -- everyone who actually gets drafted. Nothing below
+# Q, teams x roster spots -- everyone who actually gets drafted. Nothing below
 # this is worth importing: the values there are all sub-replacement and separated
 # by less than the disagreement between the three projections.
-DRAFTED_POOL = 156
+DRAFTED_POOL = BSET.Q
 
 # Hashtag Basketball abbreviations that Yahoo spells differently. Everything else
 # passes through untouched.

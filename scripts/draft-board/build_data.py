@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 
 import bbm_constants as BC  # noqa: E402
+import board_settings as BSET  # noqa: E402
 import board_values as BV  # noqa: E402
 import sources as S  # noqa: E402
 from bbm_reference import H2H_WEIGHTS, LAMBDAS_BBM_2026_27_JOSH, per_game  # noqa: E402
@@ -33,8 +34,7 @@ REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "data" / "player_data"
 DEFAULT_OUT = REPO / "scripts" / "draft-board" / "Data.gs"
 
-TEAMS, ROSTER = 12, 13
-Q = TEAMS * ROSTER
+TEAMS, ROSTER, Q = BSET.TEAMS, BSET.ROSTER, BSET.Q
 
 #: Decimal places every value is written to. `rerank` ranks the rounded value for the same
 #: reason: the sheet ranks what it can see, so what it can see is what we rank.
