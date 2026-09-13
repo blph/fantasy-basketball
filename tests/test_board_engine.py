@@ -234,11 +234,19 @@ class TestRowFields:
         assert rows_for(snap)[2]["best_build"] == "—"
 
     def test_best_build_reads_bmp_whatever_the_sort(self):
-        snap = make_snapshot(n=12)
-        p = snap["players"][9]
+        n, target = 12, 9
+        snap = make_snapshot(n=n)
+        p = snap["players"][target]
         p["punts"]["pTriple"]["rank"] = 1
+        # Re-rank HBP ZSC against BMP DURH (the fixture default ties them, which would let
+        # an engine that read the *applied sort's* rank pass this test vacuously), and sort
+        # by the reversed column so the two ranks disagree for the tested player.
+        set_values(snap, "HBP", "zsc", list(range(1, n + 1)))
+        assert (p["values"]["HBP"]["zsc"]["rank"]
+                != p["values"]["BMP"]["durh"]["rank"] == 10)
         rows = rows_for(snap, sort={"source": "HBP", "kind": "zsc"})
-        assert rows[9]["best_build"] == "FG/FT/TO  +9"
+        by_row = {r["row"]: r for r in rows}
+        assert by_row[target]["best_build"] == "FG/FT/TO  +9"
 
     def test_strengths_and_weaknesses_band_the_applied_sources_d(self):
         snap = make_snapshot(n=3)
@@ -287,9 +295,24 @@ class TestRowFields:
         assert [r["gp_warn"] for r in rows] == [True, True, True, False, True, False]
 
     def test_in_pool_is_bmp_durh_rank_within_q(self):
-        snap = make_snapshot(n=8, settings={"q": 5})
+        n, q = 8, 5
+        snap = make_snapshot(n=n, settings={"q": q})
+        # Reverse HBP DURH against BMP DURH (the fixture default ties them, which would let
+        # an engine that read the *displayed* rank pass this test vacuously), and sort by
+        # the reversed column so the two ranks disagree for the rows this test checks.
+        set_values(snap, "HBP", "durh", list(range(1, n + 1)))
+        bmp_rank = lambda i: snap["players"][i]["values"]["BMP"]["durh"]["rank"]  # noqa: E731
+        hbp_rank = lambda i: snap["players"][i]["values"]["HBP"]["durh"]["rank"]  # noqa: E731
+        inside_bmp_outside_hbp, outside_bmp_inside_hbp = 0, 5
+        assert bmp_rank(inside_bmp_outside_hbp) <= q < hbp_rank(inside_bmp_outside_hbp)
+        assert hbp_rank(outside_bmp_inside_hbp) <= q < bmp_rank(outside_bmp_inside_hbp)
         rows = rows_for(snap, sort={"source": "HBP", "kind": "durh"})
-        assert [r["in_pool"] for r in rows] == [True] * 5 + [False] * 3
+        by_row = {r["row"]: r for r in rows}
+        # Displayed order is now HBP DURH ascending (rows 7..0); in_pool follows BMP DURH
+        # rank (row 7 is BMP rank 8, row 0 is BMP rank 1), not the displayed position.
+        assert [r["in_pool"] for r in rows] == [False] * 3 + [True] * 5
+        assert by_row[inside_bmp_outside_hbp]["in_pool"] is True
+        assert by_row[outside_bmp_inside_hbp]["in_pool"] is False
 
     def test_left_at_pos_matches_eligibility_both_ways(self):
         snap = make_snapshot(n=10)
