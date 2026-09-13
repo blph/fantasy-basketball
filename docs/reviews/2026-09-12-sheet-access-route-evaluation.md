@@ -428,9 +428,10 @@ compares the pull with the local engine.
 Its tick scenario runs on a **copy** of the spreadsheet, made through Playwright with
 File ▸ Make a copy, which carries the bound script, named ranges and rules. The copy is a
 new Apps Script project and asks for its own consent, the screen the 2026-09-01 deploy
-declined. The scenario grants it for the copy alone and deletes the copy afterwards,
-because the copy is provider data in Drive. No credential or sharing change is added, so
-the verdict stands.
+declined. The scenario stops before clicking Allow on the consent screen, asks for permission,
+and only proceeds once the owner has agreed — the copy alone gets consent, which is then
+revoked by deleting it afterwards, because the copy is provider data in Drive. No credential
+or sharing change is added, so the verdict stands.
 
 The refresh procedure tabulated above has since grown from twelve steps to fourteen: step 12
 runs `pull_sheet.py` and `verify.py --local` after the re-sort, and step 14 rebases a local

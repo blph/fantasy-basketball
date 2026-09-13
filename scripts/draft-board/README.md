@@ -57,12 +57,12 @@ profile labels split at the band, keep turnovers flipped exactly once, drop a
 punted category from both lists, and stay measured against the pool rather than
 the league.
 `tests/test_export_yahoo_rankings.py` covers the Yahoo CSV converter, from a pull
-and from the local snapshot. The local board's own tests all run on synthetic boards
-from `tests/board_fixtures.py`:
+and from the local snapshot. The engine, CLI, verification and export tests build on
+synthetic boards from `tests/board_fixtures.py`:
 
 | File | What it holds the local board to |
 |---|---|
-| `tests/board_fixtures.py` | The one synthetic snapshot builder every local-board test uses |
+| `tests/board_fixtures.py` | Synthetic snapshot builder for engine, CLI, state, name resolution, verification and export tests |
 | `tests/test_board_settings.py` | `board_settings.py` against `Build.gs`, `config/league.yaml` and the scripts that used to carry a league number |
 | `tests/test_board_snapshot.py` | The snapshot file: naming, digest, what `load` refuses |
 | `tests/test_build_data.py` | Also: every number in the snapshot equals `Data.gs`, one digest in both, atomic writes |
@@ -74,6 +74,9 @@ from `tests/board_fixtures.py`:
 | `tests/test_pull_sheet.py` | The pull plan and gviz parsing, with no browser |
 | `tests/test_verify_local.py` | `verify.py --local` against a sheet rendered from the engine |
 | `tests/test_check_no_data.py` | The commit guard, run against a throwaway git repository |
+
+The settings, snapshot, build-data, layout and pull tests exercise config files,
+committed data, canned gviz output and the files themselves without fixtures.
 
 CI runs all of them, plus `ruff` and the harness with its layout staleness check, on
 every push.
