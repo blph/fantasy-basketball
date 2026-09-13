@@ -329,7 +329,7 @@ class TestSequentialFetch:
     """Defect #2: firing all ~94 fetches with Promise.all made exactly one come back non-JSON
     on 5+ consecutive live attempts, at a different index each run, and the resulting
     SyntaxError killed the whole eval without saying which range failed. Sequential, the
-    identical plan succeeded 94 of 94.
+    same plan succeeded live.
     """
 
     def test_the_eval_has_no_promise_all_and_awaits_each_fetch_in_turn(self):
