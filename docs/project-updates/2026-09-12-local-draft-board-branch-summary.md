@@ -2,8 +2,8 @@
 
 - Date: 2026-09-12 to 2026-09-13
 - Branch: `local-draft-board` (27 commits, including this summary)
-- Status: **built, deployed to the live sheet, and verified there.** The tick scenario on a
-  copy did not complete (see below), so the C1 fix is not yet verified in the sheet.
+- Status: **built, deployed to the live sheet, and verified there**, including the tick scenario
+  on a copy (see "Update, 2026-09-13" below). C1 is verified in the sheet.
 - Constraint honoured: no player row, projection or ADP value appears below
   ([ADR-0006](../decisions/ADR-0006-no-provider-data-redistribution.md)).
 
@@ -54,8 +54,8 @@ Tests: 604 passed.
 
 ## Live-sheet defects found
 
-- **C1** — a reorder refresh blanked unoverridden My GP. Fixed in `Build.gs` and deployed;
-  not yet verified in the sheet.
+- **C1** — a reorder refresh blanked unoverridden My GP. Fixed in `Build.gs`, deployed, and
+  verified in the sheet by the tick scenario on 2026-09-13.
 - **I1** — after a reorder refresh, GONE/MINE ticks can land beside the wrong players. Written
   up in [the bug report](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md); fix deferred.
 - "Data generated" went stale after Refresh — fixed by the date and digest stamp.
@@ -113,14 +113,33 @@ its seed formula in a values pull.
 2. I1 — the reorder-refresh tick misattachment.
 
 ### Worth doing, not blocking
-3. Verify C1 in the sheet: a My GP override survives a reordering Refresh. Untick checkboxes
-   on the copy rather than clearing them.
 4. Re-export and recalibrate to clear the BMP ZSC outlier.
 5. Full rebuild should carry MINE ticks across.
 6. The Chrome draft assistant and pick recommendations, built on `board_engine.py`.
 7. Mock-draft replay, with the port.
 8. Tighten `verify_local.py`'s tie-group set comparison to a positional one — the live tie
    order matched.
+
+## Update, 2026-09-13: fast pull and a scripted tick scenario
+
+- **`pull_sheet.py` downloads the workbook as one xlsx** through the owner's browser instead
+  of ~94 gviz requests: about 3 seconds instead of 1.5 minutes. xlsx stores numbers to 10
+  significant digits, so a pull records `sig_digits: 10` and `verify.py --local` compares at
+  that precision; full-precision pulls still compare to 1e-9. The last gviz pull and an xlsx
+  pull of the live sheet agreed on every cell the ticks do not drive.
+- **`tick_scenario.py` runs the whole tick scenario as one command** on a throwaway copy:
+  inherited ticks cleared, MINE 8 then 14, GONE on 10, one then two punted categories, a new
+  sort with Rebuild & re-sort (the copy's authorisation, allowed with the owner's approval),
+  and a reordering Refresh with a hand value and two swapped names on clean rows. Every step
+  passed `verify.py --local` in full (exit 0), the hand value stayed on its player, and the copy
+  was deleted permanently and confirmed gone. That pass closes C1 in the sheet. One run takes
+  about 8.5 minutes of wall-clock and a single line per step of output.
+- Found on the live sheet: the Board's `My GP` (W) and `XRank` (Z) columns are hidden, so the
+  Name Box cannot reach them; the scenario's hand value goes in `GP Y-1`. The live sheet also
+  showed 0 MINE ticks where the 03:33 pull had 7; the owner chose to leave them unticked.
+- Six earlier attempts each left a test copy behind; every one was found by id, confirmed by
+  its contents, and permanently deleted. The older, unstamped copy in the owner's Drive was not
+  touched.
 
 ## Records
 

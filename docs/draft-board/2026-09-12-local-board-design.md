@@ -268,6 +268,9 @@ repo root (the persistent profile is keyed by working directory), and writes
 `data/draft-board/pulls/<timestamp>.json`.
 
 - Sheet id from `.env` `DRAFT_SHEET_ID`; `--sheet-id` overrides (the copy in the scenario).
+- **Superseded 2026-09-13:** the pull now downloads the workbook as one xlsx through the
+  browser, which avoids every gviz hazard listed below (ADR-0022, update). The gviz notes
+  remain as the record of why.
 - gviz `tqx=out:json` with header `X-DataSource-Auth: true` — without it the private sheet
   answers `access_denied`. Each cell carries raw `v` and formatted `f`.
 - **Single-type ranges only.** gviz type-sniffs each column and silently drops minority-type

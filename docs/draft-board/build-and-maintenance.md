@@ -640,23 +640,17 @@ python3 scripts/draft-board/verify.py --local "data/draft-board/pulls/<timestamp
 the Apps Script editor. After [pushing `Code.gs`](#pushing-buildgs-into-the-sheet), navigate
 back to the sheet before pulling, or the pull fails.
 
-`pull_sheet.py` builds one `playwright-cli -s=fantasy eval` from
-[`board_layout.json`](../../scripts/draft-board/board_layout.json) and runs it from the repo
-root, because the persistent profile is keyed by working directory. The sheet id comes from
-`DRAFT_SHEET_ID` in `.env`; `--sheet-id` overrides it. Every range is fetched in turn inside
-that one eval, never with `Promise.all` — firing all ~94 fetches at once failed live on 5+
-consecutive attempts, one coming back non-JSON each time at a different index. Every range
-goes through gviz's JSON endpoint with the `X-DataSource-Auth: true` header — without it the
-private sheet answers `access_denied` — and every range is **one type**: gviz sniffs a type
-per column and silently drops the cells that do not match, so Settings `B4:B11` fetched whole
-returns 6 cells of 8. gviz also omits every row whose fetched cells are all empty wherever
-that falls in the range, not only at the end — Break alone came back 45 of 200 rows live, ADP/
-XRank/GAP together 171 of 200 — so a range whose columns can all be blank on one player row
-also fetches an always-filled anchor column and strips it back out. The pull is refused, and
-nothing written, when a string or number range comes back with fewer filled cells than it must
-hold, or when an anchored range comes back short at all; a boolean range never refuses on a
-blank cell, because an un-ticked checkbox is a genuinely empty cell rather than an explicit
-`FALSE`.
+`pull_sheet.py` runs one `playwright-cli -s=fantasy run-code` from the repo root, because the
+persistent profile is keyed by working directory. It downloads the whole workbook as xlsx
+through the browser's own request context, which carries the owner's cookies: one request,
+about 3 seconds. The sheet id comes from `DRAFT_SHEET_ID` in `.env`; `--sheet-id` overrides it.
+The workbook is read with the standard library and cut to the ranges
+[`board_layout.json`](../../scripts/draft-board/board_layout.json) names. It replaced ~94
+sequential gviz range fetches, about 1.5 minutes a pull, which needed single-type ranges and
+anchor columns because gviz drops minority-type cells and all-empty rows. xlsx stores each
+cell's own value and type, so none of that applies. The pull is refused, and nothing written,
+when the download is not an xlsx (a signed-out profile), a tab is missing, or a range holds
+fewer filled cells than the layout says it must.
 
 `verify.py --local` never writes the draft state. It takes the sheet's own `GONE`, `MINE` and
 `Punted` ticks, the Board's hand columns, the Settings inputs and the displayed row order, runs
@@ -693,53 +687,39 @@ engine. Never widen a tolerance. Write it up in `docs/bugs/`.
 ### The tick scenario, on a copy
 
 Ticks drive most of what the engine re-implements, and the owner's sheet cannot be used to
-exercise them. Run the scenario on a **copy**, never on the live sheet:
+exercise them, so the scenario runs on a **copy**, as one command:
 
-1. Through Playwright, open the live sheet and use **File ▸ Make a copy**. The copy carries the
-   bound script, the named ranges and the rules. Note its id from the new tab's URL; it goes on
-   the command line only, never into a file in the repo.
-2. Open the copy's `Draft Board` menu once. Google will ask to authorise the script, and that
-   consent screen grants access to all of Bryan's Sheets — **stop and ask Bryan before clicking
-   Allow**, every time; the agent never clicks it unasked. Complete the rest of the flow through
-   Playwright only once he has agreed. **If he declines, or the flow cannot complete, stop** —
-   do not work around it, and do not run the scenario on the live sheet instead.
-3. For each step below, make the change in the copy, then:
-   ```bash
-   python3 scripts/draft-board/pull_sheet.py --sheet-id <copy id> --label copy
-   python3 scripts/draft-board/verify.py --local "data/draft-board/pulls/<timestamp> copy.json"
-   ```
-   0. Clear every `GONE`, `MINE` and `Punted` tick the copy inherited from the live sheet
-      (select the ranges through the Name Box, press Delete), then pull and verify with
-      nothing ticked. The scenario's counts only mean something from zero.
-   1. 0 `MINE`; then 8 `MINE`; then 13 or more, which reaches the tracker's `MIN(Q, TEAMS × n)`
-      cap.
-   2. `GONE` spread across positions and tiers, including rows both `MINE` and `GONE`.
-   3. One conceded category, then two.
-   4. A changed `Sort by`, then `Rebuild & re-sort` — ticks reattach by name.
-   5. A `My GP Est` override, then a `Refresh data` that reorders rows. `Data.gs` is
-      unchanged, so force the reordering path: type a number into one row's `My GP Est` on
-      the copy's Board tab, then swap the `Player` cells of two *other* Board rows (type each
-      name into the other's cell). All three rows must carry no `GONE` or `MINE` tick and no
-      note; only the first carries the override just typed. The Draft Board points at fixed
-      Board rows (I1), so a tick beside a swapped name would move onto another player during
-      the refresh, and `verify.py --local`, which reads ticks back as truth, would still pass.
-      `refreshData` compares the Board's names with `PLAYERS`,
-      finds them out of order and runs `refreshWithReorder`, which writes the Board back in
-      `Data.gs` order. The digest does not change, so the pull stays comparable, and every
-      row without the override must show `My GP Est` equal to projected GP again (the C1
-      fix); the override stays on its player.
-4. Delete the copy through Playwright when the last step passes. It is provider data in Drive.
-   Find it in Drive by its exact title, move that one file to the trash, then in Trash use
-   **Delete forever** on that single item. Never **Empty trash**. Search the exact title again
-   afterwards and confirm nothing is found.
+```bash
+python3 scripts/draft-board/tick_scenario.py --allow-consent
+```
 
-When a step fails: delete the failed copy as above; if the fix is in `Build.gs`, commit it,
-redeploy to the live sheet and pass the refresh verification there again; make a fresh copy,
-stop and ask Bryan again before clicking Allow on its script's authorisation (it is a new
-script project, so the previous consent does not carry over), and resume from step 0. When only
-`board_engine.py` changed and the sheet's build and digest did not, first re-run
-`verify.py --local` against the scenario pulls already under `data/draft-board/pulls/`, then
-continue on a fresh copy.
+It copies the live sheet (**File ▸ Make a copy**), unticks anything the copy inherited (Space,
+never Delete, which strips the checkbox), and then, pulling and running the full
+`verify.py --local` comparison after every step:
+
+1. `MINE` on 8 rows, then 14, which reaches the tracker's `MIN(Q, TEAMS × n)` cap.
+2. `GONE` on ten rows spread over the board, two of them `MINE`.
+3. One conceded category, then two.
+4. A changed `Sort by`, then `Rebuild & re-sort`. This is the copy's first script run, so Google
+   asks to authorise the copy's script, a screen that grants access to all of Bryan's Sheets.
+   `--allow-consent` is Bryan's approval, **asked for before the run**, to click Allow on it.
+   Without the flag the run stops here and exits 5.
+5. A hand value (`GP Y-1` = 50) and two swapped Board names, on rows carrying no tick, note or
+   hand value, then `Refresh data`. `refreshData` finds the names out of order and runs
+   `refreshWithReorder`, which writes the Board back in `Data.gs` order. Verify compares
+   `My GP` on every row, so its pass is the C1 check, and the hand value must still read 50 on
+   its player's row. It goes in `GP Y-1` because the Name Box cannot reach `My GP` on this
+   sheet: Board columns `W` and `Z` are hidden, and the Name Box lands on the next visible one. Clean rows matter because the
+   Draft Board points at fixed Board rows (I1): a tick beside a swapped name would move, and
+   verify, which reads ticks back as truth, would still pass.
+
+It prints one line per step and deletes the copy at the end, pass or fail, matched by its id,
+never by title alone, because an older copy can share the title. It skips itself unless
+`Build.gs` or `board_engine.py` changed since the last passing run (`--force` overrides).
+
+When a step fails, the pulls stay under `data/draft-board/pulls/`. If the fix is in `Build.gs`,
+commit it, redeploy to the live sheet and pass the refresh verification there, then rerun. If
+only `board_engine.py` changed, first re-run `verify.py --local` against the saved pulls.
 
 ### Changing the board: both boards, one commit
 

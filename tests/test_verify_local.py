@@ -186,7 +186,7 @@ def set_cell(pulls, sheet, col, row, value):
 
 
 def set_error(pulls, sheet, col, row, text):
-    """Plant a gviz error cell -- `{"v": null, "f": text}`, exactly what pull_sheet.py keeps."""
+    """Plant an error cell -- `{"v": null, "f": text}`, exactly what pull_sheet.py keeps."""
     rng, i, j = cell_at(pulls, sheet, col, row)
     rng["cells"][i][j] = {"v": None, "f": text}
 
@@ -652,3 +652,65 @@ def test_local_reports_stale_settings_through_verify_main(tmp_path, capsys):
     assert code == 1
     assert any(line.strip().startswith("FAIL: the snapshot was built with settings")
               for line in out.splitlines())
+
+
+# --- an xlsx download stores 10 significant digits (pull_sheet.py sig_digits) --------------
+
+
+def rounded_to(pulls: dict, sig: int) -> int:
+    """Round every numeric cell to `sig` significant digits, as Sheets' xlsx export does."""
+    changed = 0
+    for rng in pulls["ranges"].values():
+        for row in rng["cells"]:
+            for j, cell in enumerate(row):
+                v = None if cell is None else cell.get("v")
+                if isinstance(v, int | float) and not isinstance(v, bool):
+                    r = float(f"{v:.{sig}g}")
+                    changed += abs(r - v) > VL.TOL
+                    row[j] = {**cell, "v": r}
+    pulls["sig_digits"] = sig
+    return changed
+
+
+def test_close_is_equality_at_the_digits_the_pull_stores():
+    assert VL._close(155.5833333, 155.58333333333331, 10)
+    assert not VL._close(155.5833333, 155.58333333333331)            # full precision: strict
+    assert not VL._close(155.5833343, 155.58333333333331, 10)        # the 10th digit differs
+    assert VL._close(0.0, 0.0, 10) and not VL._close(1e-8, 0.0, 10)
+
+
+def largest_tracker_total(pulls: dict) -> tuple[dict, int, int]:
+    """The tracker's biggest My Team total: a value whose 10th digit sits well above 1e-9."""
+    t = LAYOUT["tabs"]["Category Tracker"]
+    cells = [cell_at(pulls, "Category Tracker", t["columns"]["my_team"], t["first_cat_row"] + k)
+             for k in range(len(LAYOUT["tabs"]["Settings"]["weights"]))]
+    rng, i, j = max(cells, key=lambda c: abs(c[0]["cells"][c[1]][c[2]]["v"]))
+    assert abs(rng["cells"][i][j]["v"]) > 25, "the fixture needs a total above 25"
+    return rng, i, j
+
+
+def test_a_value_rounded_at_the_tenth_digit_passes_on_a_marked_pull():
+    snapshot, _, pulls = setup()
+    rng, i, j = largest_tracker_total(pulls)
+    rng["cells"][i][j] = {**rng["cells"][i][j], "v": rng["cells"][i][j]["v"] * (1 + 4e-11)}
+    pulls["sig_digits"] = 10
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 0, lines
+
+
+def test_the_same_value_fails_on_a_full_precision_pull():
+    snapshot, _, pulls = setup()
+    rng, i, j = largest_tracker_total(pulls)
+    rng["cells"][i][j] = {**rng["cells"][i][j], "v": rng["cells"][i][j]["v"] * (1 + 4e-11)}
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1 and any("(my_team)" in line for line in fails(lines))
+
+
+def test_a_difference_inside_the_stored_digits_still_fails():
+    snapshot, _, pulls = setup()
+    rounded_to(pulls, 10)
+    t = LAYOUT["tabs"]["Category Tracker"]
+    rng, i, j = cell_at(pulls, "Category Tracker", t["columns"]["my_team"], t["first_cat_row"] + 3)
+    rng["cells"][i][j] = {**rng["cells"][i][j], "v": rng["cells"][i][j]["v"] * (1 + 1e-7)}
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1 and any("(my_team)" in line for line in fails(lines))

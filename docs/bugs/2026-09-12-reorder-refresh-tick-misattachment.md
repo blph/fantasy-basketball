@@ -158,7 +158,10 @@ still counts only real edits.
   `199 rows lost it; first: row 4 holds ""`. After the fix, every unoverridden row holds its
   seeding formula, the override lands on its player's new row, and the toast counts 2 edits
   (the override and a note).
-- **In the sheet: not yet.** The harness takes on trust that `setValues` stores a string
-  beginning with `=` as a formula, which only Sheets can confirm. It is step 5 of the tick
-  scenario (a My GP override followed by a reordering `Refresh data`, on a copy), and this
-  defect is not closed until that step passes.
+- **In the sheet: verified 2026-09-13** by `tick_scenario.py` step e on a copy. Two Board names
+  were swapped on clean rows and `Refresh data` took the reordering path. Afterwards
+  `verify.py --local` passed on every cell, including `My GP` on all 200 rows, so no
+  unoverridden row was blanked, and the stored seeding formulas evaluate. The hand value the
+  scenario typed stayed on its player's row. It went in `GP Y-1`, not `My GP`: on this sheet
+  the Board's `My GP` column is hidden and the Name Box cannot reach it. A `My GP` override
+  specifically surviving the refresh is covered offline by the harness above, not in the sheet.

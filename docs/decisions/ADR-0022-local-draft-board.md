@@ -99,6 +99,13 @@ interaction model" in the decision log asks how the Phase 3 app takes live draft
 record answers a narrower question: how an agent tracks a draft against the interim board,
 by explicit per-pick entry through the CLI. The app's model stays open.
 
+**Update, 2026-09-13: the pull downloads the workbook.** `pull_sheet.py` now fetches the sheet
+as one xlsx through the owner's browser instead of ~94 gviz range requests: about 3 seconds
+instead of 1.5 minutes. xlsx keeps each cell's own value and type, so the gviz hazards below
+(minority-type cells dropped, all-empty rows omitted) no longer apply to the pull. Before the
+switch, an xlsx pull of the live sheet matched the last gviz pull on every cell the ticks do
+not drive and passed `verify.py --local` in full.
+
 ## Alternatives rejected
 
 **A SQLite database with SQL views.** Tier medians over a sliding window and the tracker's

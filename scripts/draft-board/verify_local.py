@@ -12,8 +12,10 @@ and compares every derived cell.
     2. Engine input, in memory only. Nothing is written to draft-state.json.
     3. Values, tags, INJ and the # column, on raw values rather than display rounding.
     4. Every other derived column, the tracker, My roster and the Punts blocks. Numbers
-       compare on the raw `v` to 1e-9, text on its text. Tied values share their ranks as a
-       set; the columns computed from a tied row's rank are checked against the rank shown.
+       compare on the raw `v` to 1e-9 -- or, when the pull says it holds `sig_digits` (an xlsx
+       download stores 10), to within half a unit in the last digit it holds -- text on its
+       text. Tied values share their ranks as a set; the columns computed from a tied row's
+       rank are checked against the rank shown.
     5. Reported Settings cells equal DERIV. Settings inputs that differ from the defaults
        the snapshot was built with are their own failure: drift to fix on one side.
     6. SORT_BY differing from the order actually shown is reported, not failed -- onEdit
@@ -91,10 +93,13 @@ class _Pull:
 
     def __init__(self, pulls: dict):
         self.grid: dict[tuple[str, int, int], dict | None] = {}
+        self.sig: int | None = pulls.get("sig_digits")
         for rng in pulls["ranges"].values():
             c1, r1, _, _ = parse_a1(rng["range"])
             for i, row in enumerate(rng["cells"]):
                 for j, cell in enumerate(row):
+                    if self.sig and isinstance(cell, dict) and _num(cell) is not None:
+                        cell = {**cell, "sig": self.sig}
                     self.grid[(rng["sheet"], c1 + j, r1 + i)] = cell
 
     def cell(self, sheet: str, col: int, row: int) -> dict | None:
@@ -152,7 +157,17 @@ def _same_num(cell, want, *, allow_error: str | None = None) -> bool:
     got = _num(cell)
     if want is None:
         return _v(cell) is None
-    return got is not None and abs(got - want) <= TOL
+    return got is not None and _close(got, want, cell.get("sig"))
+
+
+def _close(got: float, want: float, sig: int | None = None) -> bool:
+    """Equal to TOL, or -- for a pull that stores `sig` significant digits -- to half a unit in
+    the last digit it stores. That is the precision the sheet's value arrived with, not a wider
+    tolerance: an engine value that differs in any digit the pull holds still fails."""
+    if not sig or want == 0:
+        return abs(got - want) <= TOL
+    unit = 10.0 ** (math.floor(math.log10(abs(want))) - sig + 1)
+    return abs(got - want) <= unit / 2 + TOL
 
 
 def _same(how: str, cell, want, *, allow_error: str | None = None) -> bool:
@@ -165,8 +180,11 @@ def _same(how: str, cell, want, *, allow_error: str | None = None) -> bool:
     return _text(cell) == ("" if want is None else str(want))
 
 
-def _r9(x):
-    return None if x is None else round(float(x), 9)
+def _r9(x, sig: int | None = None):
+    """Rounded for set comparison; first to the pull's stored digits, when it has a limit."""
+    if x is None:
+        return None
+    return round(float(f"{float(x):.{sig}g}") if sig else float(x), 9)
 
 
 def _sort_label(sort: dict) -> str:
@@ -312,7 +330,8 @@ def _applied_sort(snapshot: dict, sheet: _Pull, layout: dict, order: list[int],
     for src in BS.SOURCES:
         for kind in BS.KINDS:
             vals = [players[i]["values"][src][kind]["v"] for i in order]
-            if all(a is not None and abs(a - b) <= TOL for a, b in zip(sel, vals, strict=True)):
+            if all(a is not None and _close(a, b, sheet.sig)
+                   for a, b in zip(sel, vals, strict=True)):
                 sort = {"source": src, "kind": kind}
                 by_value.append(sort)
                 ranks = [players[i]["values"][src][kind]["rank"] for i in order]
@@ -421,8 +440,8 @@ def _compare_draft(snapshot, sheet, layout, inputs, applied, rows, rep) -> None:
     # as a set until it is proven to match the engine's row order live.
     for gid in [k for k, c in size.items() if c > 1]:
         members = [i for i in range(n) if group[i] == gid]
-        got = Counter(_r9(shown[i]) for i in members)
-        want = Counter(_r9(by_key[players[order[i]]["key"]]["rank"]) for i in members)
+        got = Counter(_r9(shown[i], sheet.sig) for i in members)
+        want = Counter(_r9(by_key[players[order[i]]["key"]]["rank"], sheet.sig) for i in members)
         if got != want:
             for i in members:
                 rep.miss(f"Draft Board {dcols['rank']['letter']} (rank, tied values)",
@@ -518,11 +537,13 @@ def _compare_punts(snapshot, sheet, layout, rep) -> None:
                 for field in ("rank", "name", "score", "adp", "gap"):
                     if _is_error(at(field, r)) is not None:
                         rep.miss(f"{where} ({field})", f"row {r}")
-                got.append((_r9(_num(at("rank", r))), _text(at("name", r)),
-                            _r9(_num(at("score", r))), _r9(_num(at("adp", r))),
-                            _r9(_num(at("gap", r)))))
+                sig = sheet.sig
+                got.append((_r9(_num(at("rank", r)), sig), _text(at("name", r)),
+                            _r9(_num(at("score", r)), sig), _r9(_num(at("adp", r)), sig),
+                            _r9(_num(at("gap", r)), sig)))
                 got_rows.append(r)
-        entries = [(_r9(e["rank"]), e["name"], _r9(e["score"]), _r9(e["adp"]), _r9(e["gap"]))
+        entries = [(_r9(e["rank"], sheet.sig), e["name"], _r9(e["score"], sheet.sig),
+                    _r9(e["adp"], sheet.sig), _r9(e["gap"], sheet.sig))
                    for e in full[b["key"]]]
         window = entries[: p["rows"]]
         if len(got) != len(window):

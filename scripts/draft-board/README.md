@@ -26,7 +26,8 @@ Builds the 9-cat draft board as a Google Sheet, implementing
 | `board_state.py` | The local draft state: locked atomic writes, backups, undo |
 | `board.py` | The CLI agents read and tick the local board through. Its output is provider data |
 | `board_layout.json` | Every tab's labels and addresses, written by `harness.js --write-layout`. Committed |
-| `pull_sheet.py` | Pulls the live sheet through `playwright-cli` for `verify.py --local` |
+| `pull_sheet.py` | Downloads the live sheet as xlsx through `playwright-cli` for `verify.py --local` |
+| `tick_scenario.py` | The tick scenario on a copy, as one command: ticks, punts, re-sort and refresh, verified after every step |
 | `verify_local.py` | The `verify.py --local` comparison: the engine run on the sheet's own ticks and order, cell by cell |
 | `harness.js` | Mocks the Sheets API and dry-runs the build in Node |
 | `export_readme.js` | Regenerates `docs/draft-board/cheat-sheet.md` |
@@ -71,12 +72,13 @@ export tests build on synthetic boards from `tests/board_fixtures.py`:
 | `tests/test_board_state.py` | The draft state: pin, atomic save, lock, backups, undo |
 | `tests/test_board_cli.py` | `board.py` end to end, twenty concurrent writers included |
 | `tests/test_board_layout.py` | `board_layout.json`: shape, letters against indices, labels and addresses only |
-| `tests/test_pull_sheet.py` | The pull plan and gviz parsing, with no browser |
+| `tests/test_pull_sheet.py` | The pull plan and xlsx reading, with no browser |
+| `tests/test_tick_scenario.py` | The tick scenario's run gate, tick counts and clean-row picker, with no browser |
 | `tests/test_verify_local.py` | `verify.py --local` against a sheet rendered from the engine |
 | `tests/test_check_no_data.py` | The commit guard, run against a throwaway git repository |
 
 The settings, snapshot, build-data, layout and pull tests exercise config files,
-committed data, canned gviz output and the files themselves without fixtures.
+committed data, a synthetic in-memory xlsx and the files themselves without fixtures.
 
 CI runs all of them, plus `ruff` and the harness with its layout staleness check, on
 every push.
