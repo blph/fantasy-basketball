@@ -217,6 +217,26 @@ class TestMain:
         assert PS.main(["--sheet-id", FAKE_ID], root=tmp_path) == 1
         assert not (tmp_path / "pulls").exists()
 
+    def test_an_unknown_layout_column_is_a_refused_pull_not_a_traceback(self, tmp_path,
+                                                                        monkeypatch):
+        self.fake_run(monkeypatch)
+        layout = json.loads(json.dumps(LAYOUT))
+        layout["tabs"]["Draft Board"]["columns"]["brandNew"] = {"index": 99, "letter": "CU",
+                                                                "label": "New"}
+        bad_layout = tmp_path / "layout.json"
+        bad_layout.write_text(json.dumps(layout), encoding="utf-8")
+        assert PS.main(["--sheet-id", FAKE_ID, "--layout", str(bad_layout)], root=tmp_path) == 1
+        assert not (tmp_path / "pulls").exists()
+
+    def test_a_missing_playwright_cli_is_a_browser_failure_not_a_traceback(self, tmp_path,
+                                                                           monkeypatch):
+        def run(cmd, cwd, capture_output, text):
+            raise FileNotFoundError("playwright-cli")
+
+        monkeypatch.setattr(PS.subprocess, "run", run)
+        assert PS.main(["--sheet-id", FAKE_ID], root=tmp_path) == 1
+        assert not (tmp_path / "pulls").exists()
+
 
 def test_the_layout_path_is_the_committed_file():
     assert PS.LAYOUT == Path(PS.__file__).resolve().parent / "board_layout.json"

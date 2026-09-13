@@ -416,9 +416,18 @@ def main(argv: list[str] | None = None, root: Path = BS.ROOT) -> int:
     except ValueError as e:
         print(e, file=sys.stderr)
         return 2
-    ranges = plan_ranges(json.loads(args.layout.read_text(encoding="utf-8")))
-    proc = subprocess.run(["playwright-cli", f"-s={SESSION}", "eval", build_eval(sheet_id, ranges)],
-                          cwd=REPO, capture_output=True, text=True)
+    try:
+        ranges = plan_ranges(json.loads(args.layout.read_text(encoding="utf-8")))
+    except ValueError as e:
+        print(f"pull refused: {e}", file=sys.stderr)
+        return 1
+    try:
+        proc = subprocess.run(
+            ["playwright-cli", f"-s={SESSION}", "eval", build_eval(sheet_id, ranges)],
+            cwd=REPO, capture_output=True, text=True)
+    except FileNotFoundError as e:
+        print(f"playwright-cli not found: {e}", file=sys.stderr)
+        return 1
     if proc.returncode != 0:
         print(f"playwright-cli exited {proc.returncode}:\n{proc.stderr.strip()[-600:]}",
               file=sys.stderr)

@@ -660,9 +660,11 @@ exercise them. Run the scenario on a **copy**, never on the live sheet:
 1. Through Playwright, open the live sheet and use **File ▸ Make a copy**. The copy carries the
    bound script, the named ranges and the rules. Note its id from the new tab's URL; it goes on
    the command line only, never into a file in the repo.
-2. Open the copy's `Draft Board` menu once and complete Google's authorisation for its script
-   through Playwright. **If that authorisation cannot be completed, stop and ask Bryan** — do
-   not work around it, and do not run the scenario on the live sheet instead.
+2. Open the copy's `Draft Board` menu once. Google will ask to authorise the script, and that
+   consent screen grants access to all of Bryan's Sheets — **stop and ask Bryan before clicking
+   Allow**, every time; the agent never clicks it unasked. Complete the rest of the flow through
+   Playwright only once he has agreed. **If he declines, or the flow cannot complete, stop** —
+   do not work around it, and do not run the scenario on the live sheet instead.
 3. For each step below, make the change in the copy, then:
    ```bash
    python3 scripts/draft-board/pull_sheet.py --sheet-id <copy id> --label copy
@@ -679,10 +681,11 @@ exercise them. Run the scenario on a **copy**, never on the live sheet:
    5. A `My GP Est` override, then a `Refresh data` that reorders rows. `Data.gs` is
       unchanged, so force the reordering path: type a number into one row's `My GP Est` on
       the copy's Board tab, then swap the `Player` cells of two *other* Board rows (type each
-      name into the other's cell). All three rows must carry no `GONE` or `MINE` tick, no note
-      and no override: the Draft Board points at fixed Board rows (I1), so a tick beside a
-      swapped name would move onto another player during the refresh, and `verify.py --local`,
-      which reads ticks back as truth, would still pass. `refreshData` compares the Board's names with `PLAYERS`,
+      name into the other's cell). All three rows must carry no `GONE` or `MINE` tick and no
+      note; only the first carries the override just typed. The Draft Board points at fixed
+      Board rows (I1), so a tick beside a swapped name would move onto another player during
+      the refresh, and `verify.py --local`, which reads ticks back as truth, would still pass.
+      `refreshData` compares the Board's names with `PLAYERS`,
       finds them out of order and runs `refreshWithReorder`, which writes the Board back in
       `Data.gs` order. The digest does not change, so the pull stays comparable, and every
       row without the override must show `My GP Est` equal to projected GP again (the C1
@@ -694,7 +697,8 @@ exercise them. Run the scenario on a **copy**, never on the live sheet:
 
 When a step fails: delete the failed copy as above; if the fix is in `Build.gs`, commit it,
 redeploy to the live sheet and pass the refresh verification there again; make a fresh copy,
-authorise its script again (it is a new script project), and resume from step 0. When only
+stop and ask Bryan again before clicking Allow on its script's authorisation (it is a new
+script project, so the previous consent does not carry over), and resume from step 0. When only
 `board_engine.py` changed and the sheet's build and digest did not, first re-run
 `verify.py --local` against the scenario pulls already under `data/draft-board/pulls/`, then
 continue on a fresh copy.

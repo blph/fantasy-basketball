@@ -184,6 +184,12 @@ def set_cell(pulls, sheet, col, row, value):
     rng["cells"][i][j] = as_cell(value)
 
 
+def set_error(pulls, sheet, col, row, text):
+    """Plant a gviz error cell -- `{"v": null, "f": text}`, exactly what pull_sheet.py keeps."""
+    rng, i, j = cell_at(pulls, sheet, col, row)
+    rng["cells"][i][j] = {"v": None, "f": text}
+
+
 def draft_col(key: str) -> int:
     return LAYOUT["tabs"][DB]["columns"][key]["index"]
 
@@ -468,3 +474,93 @@ def test_a_board_hand_column_the_pull_lost_is_caught_by_its_draft_board_mirror()
     code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
     assert code == 1
     assert any("(myGp)" in line for line in fails(lines))
+
+
+# --- error cells never compare equal to a blank (fix round 1, finding 1) -----------------
+
+
+def test_an_error_cell_in_a_blank_optional_column_fails():
+    snapshot, _, pulls = setup()
+    row = LAYOUT["first_row"]
+    set_error(pulls, DB, draft_col("xrank"), row, "#REF!")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1
+    assert any("(xrank)" in line and f"row {row}" in line for line in fails(lines))
+
+
+def test_an_error_cell_in_a_boolean_column_fails():
+    snapshot, _, pulls = setup()
+    row = LAYOUT["first_row"] + 5
+    set_error(pulls, DB, draft_col("mine"), row, "#REF!")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1
+    assert any("(mine)" in line and f"row {row}" in line for line in fails(lines))
+
+
+def test_a_div0_no_attempts_tracker_cell_still_passes():
+    snapshot = make_snapshot()
+    state = ENGINE.empty_state()
+    order = ENGINE.order(snapshot, state["applied_sort"])
+    p = snapshot["players"][order[0]]
+    st = ENGINE.player_state(state, p["key"])
+    st.update(name=p["name"], mine=True)
+    state["players"][p["key"]] = st
+    p["hbp_raw"] = {**p["hbp_raw"], "fga": 0.0, "fgm": 0.0}
+    trk = ENGINE.tracker(snapshot, state, snapshot["settings"], state["applied_sort"])
+    cat_i, cat = next((i, c) for i, c in enumerate(trk["cats"]) if c["cat"] == "FG%")
+    assert cat["flag"] == "no_attempts" and cat["my_team"] is None
+    pulls = fake_pulls(snapshot, state, LAYOUT)
+    t = LAYOUT["tabs"]["Category Tracker"]
+    row = t["first_cat_row"] + cat_i
+    set_error(pulls, "Category Tracker", t["columns"]["my_team"], row, "#DIV/0!")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 0, lines
+
+
+def test_a_div0_tracker_cell_without_the_no_attempts_flag_fails():
+    snapshot, state, pulls = setup()
+    trk = ENGINE.tracker(snapshot, state, snapshot["settings"], state["applied_sort"])
+    cat_i, cat = next((i, c) for i, c in enumerate(trk["cats"]) if c["flag"] is None)
+    assert cat["my_team"] is not None
+    t = LAYOUT["tabs"]["Category Tracker"]
+    row = t["first_cat_row"] + cat_i
+    set_error(pulls, "Category Tracker", t["columns"]["my_team"], row, "#DIV/0!")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1
+    assert any("(my_team)" in line and f"row {row}" in line for line in fails(lines))
+
+
+# --- pull_sheet.py and verify.py exit cleanly on bad input (fix round 1, finding 3) -------
+
+
+def test_a_non_json_pull_is_a_usage_error(tmp_path):
+    snap_path = write_snapshot(tmp_path, make_snapshot())
+    pull_path = tmp_path / "pull.json"
+    pull_path.write_text("{not json", encoding="utf-8")
+    assert VL.run_local(pull_path, snap_path) == 2
+
+
+def test_a_pull_with_no_ranges_object_is_a_usage_error(tmp_path):
+    snap_path = write_snapshot(tmp_path, make_snapshot())
+    pull_path = tmp_path / "pull.json"
+    pull_path.write_text(json.dumps({"label": "live"}), encoding="utf-8")
+    assert VL.run_local(pull_path, snap_path) == 2
+
+
+def test_a_missing_snapshot_with_a_present_pull_is_a_usage_error(tmp_path):
+    _, _, pulls = setup()
+    pull_path = tmp_path / "pull.json"
+    pull_path.write_text(json.dumps(pulls), encoding="utf-8")
+    assert VL.run_local(pull_path, tmp_path / "absent-snapshot.json") == 2
+
+
+def test_a_pull_whose_range_is_missing_its_own_range_key_is_not_comparable():
+    # Not a NotComparable this module raises on purpose -- a structurally broken pull that
+    # would otherwise crash diff_local outright. KeyError/TypeError/IndexError from a pull
+    # that is not pull_sheet.py's shape are reported as NOT COMPARABLE rather than a traceback.
+    snapshot, _, pulls = setup()
+    name = next(iter(pulls["ranges"]))
+    del pulls["ranges"][name]["range"]
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 3
+    assert lines[0].startswith("NOT COMPARABLE:")

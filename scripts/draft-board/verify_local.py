@@ -130,16 +130,36 @@ def _text(cell) -> str:
     return "" if v is None else str(v)
 
 
-def _same_num(cell, want) -> bool:
+def _is_error(cell) -> str | None:
+    """The error text of a pulled error cell (`{"v": null, "f": "#REF!"}`), else None.
+
+    pull_sheet.py keeps `f` on an error cell and drops the cell to `None` once both `v` and
+    `f` are empty, so a dict with `v` None and a non-empty `f` is always an error -- never a
+    legitimate blank. An error cell compares equal to nothing except the one case `_same_num`
+    is told to allow.
+    """
+    if cell is not None and cell.get("v") is None:
+        f = cell.get("f")
+        if f:
+            return f
+    return None
+
+
+def _same_num(cell, want, *, allow_error: str | None = None) -> bool:
+    err = _is_error(cell)
+    if err is not None:
+        return want is None and allow_error is not None and err == allow_error
     got = _num(cell)
     if want is None:
         return _v(cell) is None
     return got is not None and abs(got - want) <= TOL
 
 
-def _same(how: str, cell, want) -> bool:
+def _same(how: str, cell, want, *, allow_error: str | None = None) -> bool:
     if how == "num":
-        return _same_num(cell, want)
+        return _same_num(cell, want, allow_error=allow_error)
+    if _is_error(cell) is not None:
+        return False
     if how == "bool":
         return (_v(cell) is True) == bool(want)
     return _text(cell) == ("" if want is None else str(want))
@@ -441,7 +461,11 @@ def _compare_tracker(snapshot, sheet, layout, inputs, trk, rep) -> None:
                                ("avg_team", "num", cat["avg_team"]), ("z", "num", cat["z"]),
                                ("win", "num", cat["win"]), ("read", "text", cat["read"]),
                                ("punted", "bool", cat["conceded"])):
-            if not _same(how, sheet.cell(TRACKER, c[key], r), want):
+            # A zero-attempt category is a #DIV/0! on the sheet, and only there: the engine
+            # predicts it (flag == "no_attempts") rather than merely tolerating it.
+            allow = ("#DIV/0!" if key in ("my_team", "avg_team")
+                    and cat["flag"] == "no_attempts" else None)
+            if not _same(how, sheet.cell(TRACKER, c[key], r), want, allow_error=allow):
                 rep.miss(f"Category Tracker {col_letter(c[key])} ({key})", f"row {r}")
 
     # My roster: the MINE rows, in the order of the ranks the Draft Board shows for them.
@@ -569,6 +593,13 @@ def diff_local(snapshot: dict, pulls: dict, layout: dict) -> tuple[int, list[str
         _compare_settings(snapshot, sheet, layout, inputs, rep)
     except NotComparable as e:
         return NOT_COMPARABLE, [f"NOT COMPARABLE: {e}"]
+    except (KeyError, TypeError, IndexError) as e:
+        # A range present but missing a key pull_sheet.py always writes, or cells that are
+        # not the list-of-lists shape it always writes: not this checkout's pull_sheet.py, so
+        # a diff here would be noise rather than a real disagreement.
+        return NOT_COMPARABLE, [f"NOT COMPARABLE: the pull is not the shape pull_sheet.py "
+                                f"writes ({type(e).__name__}: {e}) -- pull again with this "
+                                "checkout's pull_sheet.py"]
     lines = rep.lines()
     return (MISMATCH if rep.fails else PASS), lines
 
@@ -594,8 +625,20 @@ def run_local(pulls_path: Path, snapshot_path: Path | None = None,
     except BS.SnapshotError as e:
         print(f"NOT COMPARABLE: {e}", file=sys.stderr)
         return NOT_COMPARABLE
-    pulls = json.loads(pulls_path.read_text(encoding="utf-8"))
-    layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    try:
+        pulls = json.loads(pulls_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        print(f"{pulls_path} is not valid JSON: {e}", file=sys.stderr)
+        return USAGE
+    if not isinstance(pulls, dict) or not isinstance(pulls.get("ranges"), dict):
+        print(f"{pulls_path} is not a pull_sheet.py pull file -- it has no 'ranges' object",
+              file=sys.stderr)
+        return USAGE
+    try:
+        layout = json.loads(layout_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        print(f"{layout_path} is not valid JSON: {e}", file=sys.stderr)
+        return USAGE
 
     print(f"\nDIFF vs SHEET, LOCAL ENGINE   pull {pulls.get('label')} {pulls.get('pulled_at')}   "
           f"snapshot {snapshot['meta']['generated']} {snapshot['meta']['digest'][:12]}")
