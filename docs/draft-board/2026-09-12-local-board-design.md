@@ -464,7 +464,9 @@ Each commit green on `pytest`, `ruff check .` and `node harness.js`; each ADR an
 | A project skill for the draft-day workflow | `AGENTS.md` loads in every session here and the Chrome workflow is not designed yet. |
 | Mock-draft replay now | Owner deferred it with the port. |
 
-## Open item
+## Resolved after review
 
-**ADR-0023 rationale.** The owner chose 40/60 over the documented 35/65. The ADR needs the
-owner's reason for accepting that an at-target category reads STRONG, before commit 2.
+**ADR-0023 rationale** (owner, 2026-09-12). In mock drafts the 35–65 band left too many rows
+CONTESTED to act on; 40/60 narrows CONTESTED to the genuinely close categories. The ADR states
+the cost as well: a category sitting exactly at the ~60% target now reads STRONG, the outcome
+35/65 was chosen to avoid, while the next pick there still returns about 97% of peak value.
