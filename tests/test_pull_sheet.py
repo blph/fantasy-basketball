@@ -23,11 +23,21 @@ def by_name(ranges: list[dict]) -> dict[str, dict]:
 
 
 def filled(r: dict, rows: int | None = None) -> dict:
-    """A gviz table for range `r`, every cell filled with a value of the range's type."""
+    """A gviz table for range `r`, every cell filled with a value of the range's type.
+
+    A range with an anchor is answered the way gviz actually answers a `tq=select` request:
+    the target columns in order, then the anchor's own always-filled column tacked on last --
+    `r["select"]` already lists both, in that order.
+    """
     value = {"number": 1.0, "string": "x", "boolean": True}[r["type"]]
     count = r["rows"] if rows is None else rows
-    return {"status": "ok", "cols": [PS.col_letter(i + 1) for i in range(r["cols"])],
-            "rows": [[{"v": value, "f": None}] * r["cols"] for _ in range(count)]}
+    if r.get("anchor"):
+        cols = r["select"]
+        row = [{"v": value, "f": None}] * r["cols"] + [{"v": "Anchor", "f": None}]
+    else:
+        cols = [PS.col_letter(i + 1) for i in range(r["cols"])]
+        row = [{"v": value, "f": None}] * r["cols"]
+    return {"status": "ok", "cols": cols, "rows": [row for _ in range(count)]}
 
 
 def canned(ranges: list[dict]) -> dict:
@@ -86,6 +96,52 @@ class TestPlan:
         with pytest.raises(ValueError, match="brandNew"):
             PS.plan_ranges(layout)
 
+    def test_a_range_that_can_go_fully_blank_carries_the_player_anchor(self):
+        # Break (AE) is a single optional column: every row can legitimately be blank there,
+        # exactly the shape gviz drops from the middle of a reply, not only the end.
+        ranges = by_name(PS.plan_ranges(LAYOUT))
+        cols = LAYOUT["tabs"]["Draft Board"]["columns"]
+        letter, first, last = cols["brk"]["letter"], LAYOUT["first_row"], LAYOUT["last_row"]
+        a1 = f"{letter}{first}:{letter}{last}"
+        r = ranges[f"Draft Board!{a1}"]
+        assert r["anchor"] == cols["player"]["index"]
+        assert r["select"] == [cols["brk"]["letter"], cols["player"]["letter"]]
+        assert r["fetch_range"] != r["range"]
+
+    def test_the_range_already_holding_the_anchor_column_needs_no_anchor(self):
+        ranges = by_name(PS.plan_ranges(LAYOUT))
+        cols = LAYOUT["tabs"]["Draft Board"]["columns"]
+        a1 = (f"{cols['player']['letter']}{LAYOUT['first_row']}:"
+              f"{cols['inj']['letter']}{LAYOUT['last_row']}")
+        assert "anchor" not in ranges[f"Draft Board!{a1}"]
+
+    def test_a_board_hand_column_range_carries_the_player_anchor(self):
+        ranges = by_name(PS.plan_ranges(LAYOUT))
+        cols = LAYOUT["tabs"]["Board"]["columns"]
+        a1 = (f"{cols['gp1']['letter']}{LAYOUT['first_row']}:"
+              f"{cols['myGp']['letter']}{LAYOUT['last_row']}")
+        assert ranges[f"Board!{a1}"]["anchor"] == cols["player"]["index"]
+
+    def test_a_punted_category_range_carries_the_cat_anchor(self):
+        # Only eight rows, and Punted can legitimately be blank on every one of them.
+        ranges = by_name(PS.plan_ranges(LAYOUT))
+        t = LAYOUT["tabs"]["Category Tracker"]
+        col = PS.col_letter(t["columns"]["punted"])
+        r1 = t["first_cat_row"]
+        r2 = r1 + len(LAYOUT["tabs"]["Settings"]["weights"]) - 1
+        r = ranges[f"Category Tracker!{col}{r1}:{col}{r2}"]
+        assert r["anchor"] == t["columns"]["cat"]
+
+    def test_the_my_roster_spill_and_punts_blocks_keep_no_anchor(self):
+        # Both are packed from the top: a short reply there can only be the natural tail,
+        # never a gap in the middle, so today's trailing-only handling still applies.
+        for r in PS.plan_ranges(LAYOUT):
+            if r["sheet"] == "Category Tracker" and r["range"].startswith(
+                    f"B{LAYOUT['tabs']['Category Tracker']['roster_first_row']}"):
+                assert "anchor" not in r
+            if r["sheet"] == "Punts":
+                assert "anchor" not in r
+
 
 class TestAssemble:
     def test_trailing_rows_gviz_left_off_are_padded_back(self):
@@ -142,12 +198,98 @@ class TestAssemble:
         cells = PS.assemble(raw, [r], "live", "t")["ranges"][r["name"]]["cells"]
         assert cells == [[None], [{"v": 2.0, "f": "2"}], [None], [None]]
 
+    def test_an_interior_omission_is_silently_misplaced_without_an_anchor(self):
+        # RED against aac328f: a target row can go blank anywhere in the range, not only at
+        # the end, but the only shape check available without an anchor is "does the reply
+        # end on a blank row". Here the SECOND row is the one gviz dropped (unknowable from
+        # this reply alone) and the actual last row is real data, so the old check cannot see
+        # it: it accepts the short reply and shifts every later row up by one, exactly the
+        # live AE (Break) and AI:AK (ADP/XRank/GAP) failures this branch fixes for the ranges
+        # that now carry an anchor.
+        r = {"name": "Draft Board!AE4:AE9", "sheet": "Draft Board", "range": "AE4:AE9",
+             "type": "string", "rows": 6, "cols": 1, "min_cells": 0}
+        raw = {r["name"]: {"status": "ok", "cols": ["AE"],
+                           "rows": [[{"v": "BREAK", "f": None}]] * 5}}
+        cells = PS.assemble(raw, [r], "live", "t")["ranges"][r["name"]]["cells"]
+        # The bug: five real rows packed at the top and the padding at the bottom, even though
+        # the true gap (row index 1, by construction) is nowhere in this grid.
+        assert cells == [[{"v": "BREAK", "f": None}]] * 5 + [[None]]
+
+
+class TestAnchoring:
+    """§4's fix for interior omission: an always-filled column rides along so gviz cannot
+    drop a row, and its own cell is stripped back out before the pull file is written.
+
+    Every test here fails against aac328f: `_range()` takes no `anchor` argument there, and
+    `assemble()` has no anchor-stripping step, so a two-column reply for a one-column target
+    either misplaces the anchor's cell into the grid or is rejected as "columns do not fit
+    the range" -- neither of which is "keep the row, drop the anchor".
+    """
+
+    def test_an_interior_all_empty_target_row_is_kept_when_the_anchor_is_present(self):
+        r = PS._range("Board", 20, 4, 20, 7, "number", 0, anchor=2)
+        assert r["select"] == ["T", "B"]
+        raw = {r["name"]: {"status": "ok", "cols": ["T", "B"],
+                           "rows": [[{"v": 1.0, "f": "1"}, {"v": "Alice", "f": None}],
+                                    [None, {"v": "Bob", "f": None}],
+                                    [{"v": 3.0, "f": "3"}, {"v": "Cara", "f": None}],
+                                    [None, {"v": "Dee", "f": None}]]}}
+        cells = PS.assemble(raw, [r], "live", "t")["ranges"][r["name"]]["cells"]
+        # Row index 1 ("Bob") is genuinely blank in the target column, but the anchor's
+        # presence kept gviz from dropping the row, so it lands at its real position -- not
+        # shifted up to take row 2's place.
+        assert cells == [[{"v": 1.0, "f": "1"}], [None], [{"v": 3.0, "f": "3"}], [None]]
+
+    def test_the_anchor_column_never_reaches_the_pull_file(self):
+        r = PS._range("Board", 20, 4, 20, 5, "number", 0, anchor=2)
+        raw = {r["name"]: {"status": "ok", "cols": ["T", "B"],
+                           "rows": [[{"v": 1.0, "f": "1"}, {"v": "Alice", "f": None}],
+                                    [{"v": 2.0, "f": "2"}, {"v": "Bob", "f": None}]]}}
+        cells = PS.assemble(raw, [r], "live", "t")["ranges"][r["name"]]["cells"]
+        assert cells == [[{"v": 1.0, "f": "1"}], [{"v": 2.0, "f": "2"}]]
+        assert all(len(row) == 1 for row in cells)
+
+    def test_a_reply_missing_a_planned_row_even_with_the_anchor_is_refused(self):
+        r = PS._range("Board", 20, 4, 20, 7, "number", 0, anchor=2)
+        raw = {r["name"]: {"status": "ok", "cols": ["T", "B"],
+                           "rows": [[{"v": 1.0, "f": "1"}, {"v": "Alice", "f": None}],
+                                    [None, {"v": "Bob", "f": None}],
+                                    [{"v": 3.0, "f": "3"}, {"v": "Cara", "f": None}]]}}  # 3 of 4
+        with pytest.raises(PS.PullError, match="3 of 4 rows came back with the anchor present"):
+            PS.assemble(raw, [r], "live", "t")
+
+    def test_a_reply_missing_the_anchor_column_itself_is_refused(self):
+        r = PS._range("Board", 20, 4, 20, 5, "number", 0, anchor=2)
+        raw = {r["name"]: {"status": "ok", "cols": ["T"],
+                           "rows": [[{"v": 1.0, "f": "1"}], [{"v": 2.0, "f": "2"}]]}}
+        with pytest.raises(PS.PullError, match="anchor column is missing"):
+            PS.assemble(raw, [r], "live", "t")
+
+
+class TestBooleanBlanks:
+    def test_a_blank_cell_in_a_boolean_range_assembles_as_false_and_is_not_refused(self):
+        r = {"name": "Draft Board!H4:I5", "sheet": "Draft Board", "range": "H4:I5",
+             "type": "boolean", "rows": 2, "cols": 2, "min_cells": 4}
+        raw = {r["name"]: {"status": "ok", "cols": ["H", "I"],
+                           "rows": [[None, {"v": True, "f": "TRUE"}], [None, None]]}}
+        cells = PS.assemble(raw, [r], "live", "t")["ranges"][r["name"]]["cells"]
+        assert cells == [[{"v": False, "f": None}, {"v": True, "f": "TRUE"}],
+                          [{"v": False, "f": None}, {"v": False, "f": None}]]
+
+    def test_a_number_range_with_a_missing_cell_is_still_refused(self):
+        r = {"name": "Board!Y4:Y5", "sheet": "Board", "range": "Y4:Y5", "type": "number",
+             "rows": 2, "cols": 1, "min_cells": 2}
+        raw = {r["name"]: {"status": "ok", "cols": ["Y"],
+                           "rows": [[{"v": 1.0, "f": "1"}], [None]]}}
+        with pytest.raises(PS.PullError, match="1 filled cells, at least 2"):
+            PS.assemble(raw, [r], "live", "t")
+
 
 class TestEvalAndOutput:
-    def test_build_eval_fetches_every_range_at_once_with_the_auth_header(self):
+    def test_build_eval_fetches_every_range_with_the_auth_header(self):
         ranges = PS.plan_ranges(LAYOUT)
         fn = PS.build_eval(FAKE_ID, ranges)
-        assert fn.startswith("async () =>") and "Promise.all" in fn
+        assert fn.startswith("async () =>")
         assert "'X-DataSource-Auth': 'true'" in fn and "credentials: 'include'" in fn
         assert f"/spreadsheets/d/{FAKE_ID}/gviz/tq?tqx=out:json&headers=0" in fn
         for r in ranges:
@@ -171,6 +313,36 @@ class TestEvalAndOutput:
             PS.read_sheet_id(env)
         with pytest.raises(ValueError, match=ENV_KEY):
             PS.read_sheet_id(tmp_path / "missing.env")
+
+
+class TestSequentialFetch:
+    """Defect #2: firing all ~94 fetches with Promise.all made exactly one come back non-JSON
+    on 5+ consecutive live attempts, at a different index each run, and the resulting
+    SyntaxError killed the whole eval without saying which range failed. Sequential, the
+    identical plan succeeded 94 of 94.
+    """
+
+    def test_the_eval_has_no_promise_all_and_awaits_each_fetch_in_turn(self):
+        ranges = PS.plan_ranges(LAYOUT)
+        fn = PS.build_eval(FAKE_ID, ranges)
+        assert "Promise.all" not in fn
+        assert "for (const p of plan)" in fn and "await one(p)" in fn
+
+    def test_a_structured_error_from_one_range_exits_1_naming_the_range(self, tmp_path,
+                                                                        monkeypatch, capsys):
+        ranges = PS.plan_ranges(LAYOUT)
+        bad_range = ranges[5]["name"]
+        payload = {"error": True, "range": bad_range, "reason": "invalid_json"}
+
+        def run(cmd, cwd, capture_output, text):
+            return subprocess.CompletedProcess(cmd, 0, stdout_for(payload), "")
+
+        monkeypatch.setattr(PS.subprocess, "run", run)
+        assert PS.main(["--sheet-id", FAKE_ID], root=tmp_path) == 1
+        err = capsys.readouterr().err
+        assert bad_range in err and "invalid_json" in err
+        assert FAKE_ID not in err
+        assert not (tmp_path / "pulls").exists()
 
 
 class TestMain:

@@ -5,19 +5,37 @@
     python3 scripts/draft-board/pull_sheet.py --sheet-id ID --label copy    # a scenario copy
 
 The sheet is read through `playwright-cli -s=fantasy`, the owner's signed-in browser, and by
-no other route (AGENTS.md). One `eval` fetches every range at once through gviz's JSON
-endpoint, which answers a private sheet only when the request carries
-`X-DataSource-Auth: true`.
+no other route (AGENTS.md). One `eval` fetches every range through gviz's JSON endpoint, one
+range at a time -- never with `Promise.all`. Firing all ~94 fetches in parallel failed live on
+5+ consecutive attempts: exactly one came back non-JSON each time, at a different index every
+run, and the resulting `SyntaxError` killed the whole eval without saying which range had
+failed. Fetched one at a time, the identical plan has succeeded 94 of 94 on every attempt. A
+reply that is not JSON, or that gviz answers with `status: "error"`, stops the loop and comes
+back as a structured error naming the range (never the sheet id); `main` reports it and exits
+1. gviz answers a private sheet only when the request carries `X-DataSource-Auth: true`.
 
 Every range is ONE type. gviz sniffs a type per column and silently drops the cells that do
 not match it -- in CSV and JSON alike. Settings B4:B11, which mixes numbers with the sort
 label and the scoring format, came back as 6 cells of 8 with nothing to say two were gone.
 So the plan splits every block by type, and every range states how many filled cells it
-must return. The types come from what each column holds, keyed off board_layout.json, and
-a column the table below does not know is an error rather than a guess.
+must return -- except a boolean range, which never refuses on a blank cell: an un-ticked
+checkbox is a genuinely empty cell, not an explicit FALSE, so "not enough filled cells" is
+the normal case rather than a sign anything is missing. The types come from what each column
+holds, keyed off board_layout.json, and a column the table below does not know is an error
+rather than a guess.
 
-gviz also leaves off trailing rows that are entirely empty, so every range is padded back
-to its planned size: a row index in the pull file is always a sheet row.
+gviz also omits every row whose fetched cells are all empty, wherever that falls in the
+range, not only at the end. Confirmed live: a fetch of Break alone returned 45 of 200 rows
+(only the rows carrying a tier break); ADP, XRank and GAP together returned 171 of 200 (the
+29 players with no ADP have blank XRank and GAP too, so their rows vanished). Every cell
+below a dropped row silently moves up one row, with nothing to say so. So every range whose
+columns can legitimately all be blank on the same player row also asks gviz, via `tq=select`,
+for an always-filled anchor column from board_layout.json -- Draft Board and Board: `player`;
+Category Tracker's category rows: `cat` -- inside a wider bounding `range`; the anchor keeps
+gviz from dropping the row at all, and its own cell is stripped back out once the reply is in
+hand, so the pull file's shape never carries it. An anchored reply that still comes back short
+is refused outright rather than padded: with the anchor guaranteed present on every row, a
+short reply cannot be explained away as "the tail of the range was empty."
 
 The output is provider data. It is written under data/draft-board/pulls/, which is
 gitignored and blocked by check-no-data.sh, and nothing is printed but counts.
@@ -137,10 +155,22 @@ def column_type(tab: str, key: str) -> str:
 
 
 def _range(name_sheet: str, c1: int, r1: int, c2: int, r2: int, kind: str,
-           min_cells: int) -> dict:
+           min_cells: int, anchor: int | None = None) -> dict:
+    """A range to fetch. `anchor`, when given, is an always-filled column index (never inside
+    c1..c2) that rides along so gviz cannot drop a row where every *target* cell is blank.
+    `range`/`name` stay the target's own address -- the contract verify_local reads -- while
+    `fetch_range`/`select` carry what actually goes into the eval's request.
+    """
     a1 = f"{col_letter(c1)}{r1}" + ("" if (c1, r1) == (c2, r2) else f":{col_letter(c2)}{r2}")
-    return {"name": f"{name_sheet}!{a1}", "sheet": name_sheet, "range": a1, "type": kind,
-            "rows": r2 - r1 + 1, "cols": c2 - c1 + 1, "min_cells": min_cells}
+    out = {"name": f"{name_sheet}!{a1}", "sheet": name_sheet, "range": a1, "type": kind,
+           "rows": r2 - r1 + 1, "cols": c2 - c1 + 1, "min_cells": min_cells}
+    if anchor is not None:
+        ac1, ac2 = min(c1, anchor), max(c2, anchor)
+        out["fetch_range"] = (f"{col_letter(ac1)}{r1}"
+                              + ("" if (ac1, r1) == (ac2, r2) else f":{col_letter(ac2)}{r2}"))
+        out["anchor"] = anchor
+        out["select"] = [col_letter(c) for c in range(c1, c2 + 1)] + [col_letter(anchor)]
+    return out
 
 
 def _runs(cols: list[tuple[int, str, int]]) -> list[tuple[int, int, str, int]]:
@@ -198,19 +228,28 @@ def plan_ranges(layout: dict) -> list[dict]:
         out.append(_header(tab, t["header_row"],
                            {c["index"]: c["label"] for c in t["columns"].values()}))
 
-    # Draft Board data, in runs of adjacent columns of one type.
+    # Draft Board data, in runs of adjacent columns of one type. Break, the Flag, ADP/XRank/GAP,
+    # Notes and GONE/MINE (before anyone touches a checkbox) can each be blank on a row, and
+    # more than one of them can be blank on the SAME row -- exactly the shape gviz drops. Every
+    # run but the one already holding `player` asks for it as an anchor; a run that can never
+    # go fully blank pays one harmless extra column rather than needing its own case here.
     cols = []
     for key, c in tabs["Draft Board"]["columns"].items():
         least = 0 if key in DRAFT_OPTIONAL else rows - 1 if key in DRAFT_NOT_FIRST else rows
         cols.append((c["index"], column_type("Draft Board", key), least))
+    anchor_col = tabs["Draft Board"]["columns"]["player"]["index"]
     for c1, c2, kind, least in _runs(cols):
-        out.append(_range("Draft Board", c1, first, c2, last, kind, least))
+        anchor = None if c1 <= anchor_col <= c2 else anchor_col
+        out.append(_range("Draft Board", c1, first, c2, last, kind, least, anchor=anchor))
 
-    # Board: the name column, then the hand columns.
+    # Board: the name column, then the hand columns. Every hand column is a human override,
+    # blank on most rows, so every run but `player`'s own asks for `player` as an anchor.
     bcols = [(tabs["Board"]["columns"][k]["index"], kind, rows if k in BOARD_FULL else 0)
              for k, kind in BOARD_TYPES.items()]
+    anchor_col_b = tabs["Board"]["columns"]["player"]["index"]
     for c1, c2, kind, least in _runs(bcols):
-        out.append(_range("Board", c1, first, c2, last, kind, least))
+        anchor = None if c1 <= anchor_col_b <= c2 else anchor_col_b
+        out.append(_range("Board", c1, first, c2, last, kind, least, anchor=anchor))
 
     # Settings: inputs and sanity cells, their labels, the reported weights and constants.
     s = tabs["Settings"]
@@ -236,8 +275,16 @@ def plan_ranges(layout: dict) -> list[dict]:
     cat_first, cat_last = t["first_cat_row"], t["first_cat_row"] + ncat - 1
     tcols = [(t["columns"][k], kind, ncat if k in TRACKER_FULL else 0)
              for k, kind in TRACKER_TYPES.items()]
+    # Only eight rows here, and Punted especially can be blank on every one of them -- nobody
+    # has to concede a category. `cat` (the category name) is always filled, so every run but
+    # its own asks for it as an anchor. The roster block below is left as it was: MINE players
+    # are listed from the top, so a short reply there can only be the natural tail, never a
+    # gap in the middle.
+    anchor_col_t = t["columns"]["cat"]
     for c1, c2, kind, least in _runs(tcols):
-        out.append(_range("Category Tracker", c1, cat_first, c2, cat_last, kind, least))
+        anchor = None if c1 <= anchor_col_t <= c2 else anchor_col_t
+        out.append(_range("Category Tracker", c1, cat_first, c2, cat_last, kind, least,
+                          anchor=anchor))
     roster = {t["roster_columns"][k]: t["roster_labels"][k] for k in t["roster_columns"]}
     out.append(_header("Category Tracker", t["roster_header_row"], roster))
     r1, r2 = t["roster_first_row"], t["roster_first_row"] + t["roster_rows"] - 1
@@ -260,35 +307,68 @@ def plan_ranges(layout: dict) -> list[dict]:
 
 
 def build_eval(sheet_id: str, ranges: list[dict]) -> str:
-    """One async function for `playwright-cli eval`: every range, fetched together.
+    """One async function for `playwright-cli eval`: every range, fetched one at a time.
 
     The page has to be on docs.google.com for the request to carry the owner's cookies, which
     is why this runs inside the browser rather than from Python. Each table is cut down to its
     column ids and cells before it comes back, because the tool prints the result on stdout.
+
+    Ranges are awaited in turn, never with `Promise.all`: firing all ~94 at once made exactly
+    one non-JSON on every one of 5+ consecutive live attempts, at a different index each time,
+    and the resulting SyntaxError killed the whole eval without saying which range had failed.
+    So `one()` never lets a parse failure escape -- a bad reply becomes a same-shaped error
+    result -- and the loop stops at the first one, returning a small object naming the range
+    (never the sheet id) instead of throwing.
     """
-    plan = [{"name": r["name"], "sheet": r["sheet"], "range": r["range"]} for r in ranges]
+    plan = []
+    for r in ranges:
+        entry = {"name": r["name"], "sheet": r["sheet"], "range": r.get("fetch_range", r["range"])}
+        if "select" in r:
+            entry["select"] = ",".join(r["select"])
+        plan.append(entry)
     base = GVIZ.format(id=sheet_id)
     return (
         "async () => {\n"
         f"  const base = {json.dumps(base)};\n"
         f"  const plan = {json.dumps(plan, ensure_ascii=False)};\n"
         "  const one = async (p) => {\n"
-        "    const url = base + '&sheet=' + encodeURIComponent(p.sheet)"
+        "    let url = base + '&sheet=' + encodeURIComponent(p.sheet)"
         " + '&range=' + encodeURIComponent(p.range);\n"
-        "    const res = await fetch(url, {credentials: 'include',"
+        "    if (p.select) url += '&tq=' + encodeURIComponent('select ' + p.select);\n"
+        "    let status = 0, text;\n"
+        "    try {\n"
+        "      const res = await fetch(url, {credentials: 'include',"
         " headers: {'X-DataSource-Auth': 'true'}});\n"
-        "    const text = await res.text();\n"
+        "      status = res.status;\n"
+        "      text = await res.text();\n"
+        "    } catch (e) {\n"
+        "      return [p.name, {status: 'error', errors: [{reason: 'fetch_failed'}]}];\n"
+        "    }\n"
         "    const i = text.indexOf('{'), j = text.lastIndexOf('}');\n"
         "    if (i < 0 || j < i) return [p.name, {status: 'error', errors:"
-        " [{reason: 'http_' + res.status}]}];\n"
-        "    const g = JSON.parse(text.slice(i, j + 1));\n"
+        " [{reason: 'http_' + status}]}];\n"
+        "    let g;\n"
+        "    try {\n"
+        "      g = JSON.parse(text.slice(i, j + 1));\n"
+        "    } catch (e) {\n"
+        "      return [p.name, {status: 'error', errors: [{reason: 'invalid_json'}]}];\n"
+        "    }\n"
         "    if (g.status === 'error' || !g.table) return [p.name, {status: 'error',"
         " errors: g.errors || []}];\n"
         "    return [p.name, {status: g.status, cols: g.table.cols.map(c => c.id),\n"
         "      rows: g.table.rows.map(r => (r.c || []).map(c => c == null ? null :\n"
         "        {v: c.v === undefined ? null : c.v, f: c.f === undefined ? null : c.f}))}];\n"
         "  };\n"
-        "  const out = await Promise.all(plan.map(one));\n"
+        "  const out = [];\n"
+        "  for (const p of plan) {\n"
+        "    const [name, result] = await one(p);\n"
+        "    if (result.status === 'error') {\n"
+        "      const reason = (result.errors && result.errors[0] &&"
+        " result.errors[0].reason) || 'unknown';\n"
+        "      return JSON.stringify({error: true, range: name, reason: reason});\n"
+        "    }\n"
+        "    out.push([name, result]);\n"
+        "  }\n"
         "  return JSON.stringify(Object.fromEntries(out));\n"
         "}"
     )
@@ -362,7 +442,27 @@ def assemble(raw: dict, ranges: list[dict], label: str, pulled_at: str) -> dict:
                             "profile signed in? Open the sheet with "
                             f"`playwright-cli -s={SESSION} open --persistent` from the repo root")
         c1 = parse_a1(r["range"])[0]
-        ids = got.get("cols") or []
+        ids = list(got.get("cols") or [])
+        rows = [list(row) for row in (got.get("rows") or [])]
+
+        anchor = r.get("anchor")
+        if anchor is not None:
+            # The anchor rides along so gviz cannot see an all-blank row in the target columns
+            # -- it is always present, so a short reply here cannot be the tail of the range;
+            # refuse rather than guess which row is missing. Its own cell never reaches the
+            # pull file: it exists only to keep every planned row in the reply.
+            try:
+                anchor_pos = next(i for i, cid in enumerate(ids) if col_number(cid) == anchor)
+            except StopIteration:
+                raise PullError(f"{r['name']}: the anchor column is missing from the reply -- "
+                                "gviz did not return what was asked for") from None
+            if len(rows) != r["rows"]:
+                raise PullError(f"{r['name']}: {len(rows)} of {r['rows']} rows came back with "
+                                "the anchor present -- refusing rather than guessing which "
+                                "row is missing")
+            ids = [cid for i, cid in enumerate(ids) if i != anchor_pos]
+            rows = [[cell for i, cell in enumerate(row) if i != anchor_pos] for row in rows]
+
         if len(ids) == r["cols"]:
             where = list(range(r["cols"]))
         else:
@@ -375,14 +475,16 @@ def assemble(raw: dict, ranges: list[dict], label: str, pulled_at: str) -> dict:
                 where = [n - 1 for n in nums]
             else:
                 raise PullError(f"{r['name']}: returned columns {ids} do not fit the range")
-        rows = got.get("rows") or []
         if len(rows) > r["rows"]:
             raise PullError(f"{r['name']}: {len(rows)} rows returned for {r['rows']} planned")
-        # gviz leaves off only TRAILING rows that are entirely empty, so the last row it does
-        # return always holds something. A short reply that ends on an empty row was cut off
-        # some other way, and nothing can be assumed about the rows after it -- refuse it
-        # rather than pad a truncation into blanks the engine would read as "no value".
-        if 0 < len(rows) < r["rows"] and all(_cell(c) is None for c in rows[-1]):
+        # Without an anchor, gviz leaves off only TRAILING rows that are entirely empty, so the
+        # last row it does return always holds something. A short reply that ends on an empty
+        # row was cut off some other way, and nothing can be assumed about the rows after it --
+        # refuse it rather than pad a truncation into blanks the engine would read as "no
+        # value". An anchored range never reaches this check: it was already required to
+        # return every planned row above.
+        if (anchor is None and 0 < len(rows) < r["rows"]
+                and all(_cell(c) is None for c in rows[-1])):
             raise PullError(f"{r['name']}: {len(rows)} of {r['rows']} rows came back and the "
                             "last one is empty -- gviz omits only trailing empty rows, so the "
                             "reply was truncated")
@@ -391,10 +493,15 @@ def assemble(raw: dict, ranges: list[dict], label: str, pulled_at: str) -> dict:
         for i, row in enumerate(rows):
             for j, cell in enumerate(row[: len(where)]):
                 value = _cell(cell)
+                if value is None and r["type"] == BOOLEAN:
+                    # Sheets leaves an un-ticked checkbox with no value at all, not an explicit
+                    # FALSE. verify_local already reads a missing boolean cell as false; this
+                    # just makes the pull file say so plainly instead of leaving it implicit.
+                    value = {"v": False, "f": None}
                 grid[i][where[j]] = value
                 if value is not None and value.get("v") is not None:
                     filled += 1
-        if filled < r["min_cells"]:
+        if r["type"] != BOOLEAN and filled < r["min_cells"]:
             raise PullError(f"{r['name']}: {filled} filled cells, at least {r['min_cells']} "
                             f"expected -- gviz dropped cells of another type, or the range "
                             "is not what this layout says")
@@ -434,8 +541,10 @@ def main(argv: list[str] | None = None, root: Path = BS.ROOT) -> int:
         return 1
     now = datetime.now(UTC)
     try:
-        pull = assemble(extract(proc.stdout), ranges, args.label,
-                        now.isoformat(timespec="seconds"))
+        raw = extract(proc.stdout)
+        if isinstance(raw, dict) and raw.get("error"):
+            raise PullError(f"{raw.get('range', '?')}: {raw.get('reason', '?')}")
+        pull = assemble(raw, ranges, args.label, now.isoformat(timespec="seconds"))
     except PullError as e:
         print(f"pull refused: {e}", file=sys.stderr)
         return 1
