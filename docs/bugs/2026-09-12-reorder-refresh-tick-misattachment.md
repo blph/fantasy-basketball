@@ -161,7 +161,11 @@ still counts only real edits.
 - **In the sheet: verified 2026-09-13** by `tick_scenario.py` step e on a copy. Two Board names
   were swapped on clean rows and `Refresh data` took the reordering path. Afterwards
   `verify.py --local` passed on every cell, including `My GP` on all 200 rows, so no
-  unoverridden row was blanked, and the stored seeding formulas evaluate. The hand value the
-  scenario typed stayed on its player's row. It went in `GP Y-1`, not `My GP`: on this sheet
-  the Board's `My GP` column is hidden and the Name Box cannot reach it. A `My GP` override
-  specifically surviving the refresh is covered offline by the harness above, not in the sheet.
+  unoverridden row was blanked, and the stored seeding formulas evaluate.
+- **A hand value re-attaching by name: verified 2026-09-14.** In the 2026-09-13 run the `GP Y-1`
+  hand value sat on a row the swap never moved, so a refresh keeping hand values by row position
+  would have passed as well. Step e now types it on one of the swapped rows and requires it on
+  the swapped-in player's new row and gone from the row it was typed on; that version passed on
+  a copy, every step at verify exit 0, and step d confirmed the new sort. The value goes in `GP Y-1`,
+  not `My GP`: on this sheet the Board's `My GP` column is hidden and the Name Box cannot reach
+  it. A `My GP` override surviving the refresh is covered offline by the harness above.

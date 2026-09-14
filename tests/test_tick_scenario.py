@@ -65,17 +65,70 @@ def test_clean_rows_come_from_the_bottom_and_skip_anything_touched():
     put(pull, "Draft Board", D["mine"]["index"], LAST, True)            # ticked
     put(pull, "Board", B["notes"]["index"], LAST - 1, "a note")         # noted
     put(pull, "Draft Board", D["myGp"]["index"], LAST - 2, 55)          # overridden
-    ra, na, rb, nb, ro = TS.clean_rows(VL._Pull(pull), LAYOUT)
-    assert (ra, rb, ro) == (LAST - 3, LAST - 4, LAST - 5)
+    ra, na, rb, nb = TS.clean_rows(VL._Pull(pull), LAYOUT)
+    assert (ra, rb) == (LAST - 3, LAST - 4)
     assert (na, nb) == (f"Player {LAST - 3}", f"Player {LAST - 4}")
 
 
 def test_too_few_clean_rows_stops_the_step():
     pull = blank_pull()
-    for row in range(FIRST, LAST - 1):
+    for row in range(FIRST, LAST):
         put(pull, "Draft Board", D["drafted"]["index"], row, True)
-    with pytest.raises(TS.StepFailed, match="fewer than three"):
+    with pytest.raises(TS.StepFailed, match="fewer than two"):
         TS.clean_rows(VL._Pull(pull), LAYOUT)
+
+
+def put_settings(pull: dict, key: str, value) -> None:
+    c, r, _, _ = PS.parse_a1(LAYOUT["tabs"]["Settings"]["cells"][key])
+    put(pull, "Settings", c, r, value)
+
+
+def test_a_sort_that_never_reached_sort_by_fails_step_d():
+    want = "Source · KIND"
+    pull = blank_pull()
+    put_settings(pull, "sort_by", "Other · KIND")
+    lines = ["ok: the board is sorted by Other · KIND"]
+    assert "SORT_BY reads" in TS.sort_applied(VL._Pull(pull), LAYOUT, lines, want)
+
+    put_settings(pull, "sort_by", want)                      # set, but never re-sorted
+    assert "not sorted by it" in TS.sort_applied(VL._Pull(pull), LAYOUT, lines, want)
+    assert TS.sort_applied(VL._Pull(pull), LAYOUT, [f"ok: the board is sorted by {want}"],
+                           want) is None
+
+
+def test_a_hand_value_kept_by_row_position_fails_step_e():
+    # Typed on row a while it showed "Player b"; Refresh put the names back in order.
+    a, b = LAST - 1, LAST
+    owner, other = f"Player {a + 1}", f"Player {a}"          # rows a+1 == b and a
+    pull = blank_pull()
+    put(pull, "Board", B["gp1"]["index"], a, 50)             # left where it was typed
+    assert "did not follow" in TS.hand_value_followed(VL._Pull(pull), LAYOUT, owner, other, 50)
+
+    pull = blank_pull()
+    put(pull, "Board", B["gp1"]["index"], b, 50)             # followed its player
+    assert TS.hand_value_followed(VL._Pull(pull), LAYOUT, owner, other, 50) is None
+
+    put(pull, "Board", B["gp1"]["index"], a, 50)             # followed, and also left behind
+    assert "also left" in TS.hand_value_followed(VL._Pull(pull), LAYOUT, owner, other, 50)
+    assert "no longer" in TS.hand_value_followed(VL._Pull(pull), LAYOUT, "Nobody", other, 50)
+
+
+@pytest.mark.parametrize("got", [{"id": "copy-id", "error": "the copy never finished loading"},
+                                 {"id": "copy-id", "title": "Not a copy"}])
+def test_a_copy_that_fails_after_it_exists_is_still_recorded_for_deletion(got):
+    browser = TS.Browser("live-id")
+    browser.run = lambda body, **args: got
+    with pytest.raises(TS.StepFailed):
+        browser.make_copy()
+    assert browser.copy_id == "copy-id"
+
+
+def test_the_live_sheet_is_never_recorded_as_the_copy():
+    browser = TS.Browser("live-id")
+    browser.run = lambda body, **args: {"id": "live-id", "title": "Copy of x"}
+    with pytest.raises(TS.StepFailed, match="not a copy"):
+        browser.make_copy()
+    assert browser.copy_id is None
 
 
 def test_the_run_gate(tmp_path):

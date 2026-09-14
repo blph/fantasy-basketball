@@ -131,15 +131,34 @@ its seed formula in a values pull.
   inherited ticks cleared, MINE 8 then 14, GONE on 10, one then two punted categories, a new
   sort with Rebuild & re-sort (the copy's authorisation, allowed with the owner's approval),
   and a reordering Refresh with a hand value and two swapped names on clean rows. Every step
-  passed `verify.py --local` in full (exit 0), the hand value stayed on its player, and the copy
+  passed `verify.py --local` in full (exit 0), the hand value stayed on its row, and the copy
   was deleted permanently and confirmed gone. That pass closes C1 in the sheet. One run takes
-  about 8.5 minutes of wall-clock and a single line per step of output.
+  about 8.5 minutes of wall-clock and a single line per step of output. (That hand value sat on
+  a row the swap never moved, so it did not prove re-attachment by name; see 2026-09-14.)
 - Found on the live sheet: the Board's `My GP` (W) and `XRank` (Z) columns are hidden, so the
   Name Box cannot reach them; the scenario's hand value goes in `GP Y-1`. The live sheet also
   showed 0 MINE ticks where the 03:33 pull had 7; the owner chose to leave them unticked.
 - Six earlier attempts each left a test copy behind; every one was found by id, confirmed by
   its contents, and permanently deleted. The older, unstamped copy in the owner's Drive was not
   touched.
+
+## Update, 2026-09-14: the tick scenario checks what it claimed to
+
+A code review of the scenario found three steps that could pass without testing their point.
+Fixed in `tick_scenario.py`, with tests, and the scenario passed on a copy (every step at
+verify exit 0, copy deleted, 320 s):
+
+- **Step e** types the hand value on one of the two swapped rows. Refresh keys hand values by
+  the name a row shows, so the value must land on the swapped-in player's new row and be gone
+  from the row it was typed on. A refresh keeping hand values by row position now fails.
+  Re-attachment by name is verified in the sheet.
+- **Step d** fails unless Settings `SORT_BY` reads the new sort and verify sees the board
+  sorted by it. `onEdit` swallows its own errors, so a sort that never landed used to pass.
+- **The copy** is recorded for deletion as soon as it has an id, so a timeout or a failed title
+  check after it exists no longer leaves it in Drive silently.
+- Not fixed: the "scenario not needed" gate records the repo's HEAD, not what `Code.gs` the
+  sheet runs, so a change tested before deployment can later be skipped. Run it with `--force`
+  after a deploy until that gate compares against the deployed script.
 
 ## Records
 

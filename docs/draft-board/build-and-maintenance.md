@@ -704,11 +704,16 @@ never Delete, which strips the checkbox), and then, pulling and running the full
    asks to authorise the copy's script, a screen that grants access to all of Bryan's Sheets.
    `--allow-consent` is Bryan's approval, **asked for before the run**, to click Allow on it.
    Without the flag the run stops here and exits 5.
-5. A hand value (`GP Y-1` = 50) and two swapped Board names, on rows carrying no tick, note or
-   hand value, then `Refresh data`. `refreshData` finds the names out of order and runs
-   `refreshWithReorder`, which writes the Board back in `Data.gs` order. Verify compares
-   `My GP` on every row, so its pass is the C1 check, and the hand value must still read 50 on
-   its player's row. It goes in `GP Y-1` because the Name Box cannot reach `My GP` on this
+4. The step fails unless Settings `SORT_BY` reads the new sort **and** verify sees the board
+   sorted by it. Verify on its own accepts whatever sort the board shows, and `onEdit` swallows
+   its own errors.
+5. Two swapped Board names on rows carrying no tick, note or hand value, a hand value
+   (`GP Y-1` = 50) on one of the two swapped rows, then `Refresh data`. `refreshData` finds the
+   names out of order and runs `refreshWithReorder`, which keys hand values by the name each row
+   shows at that moment and writes the Board back in `Data.gs` order. Verify compares `My GP` on
+   every row, so its pass is the C1 check. The hand value belongs to the swapped-in player, so it
+   must read 50 on that player's new row and be gone from the row it was typed on. A refresh that
+   kept hand values by row position fails here. It goes in `GP Y-1` because the Name Box cannot reach `My GP` on this
    sheet: Board columns `W` and `Z` are hidden, and the Name Box lands on the next visible one. Clean rows matter because the
    Draft Board points at fixed Board rows (I1): a tick beside a swapped name would move, and
    verify, which reads ticks back as truth, would still pass.

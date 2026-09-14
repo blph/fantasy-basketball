@@ -12,10 +12,12 @@ deleted at the end, pass or fail.
 Steps: copy; untick anything inherited (Space, never Delete); a. MINE 8 then 14 (the tracker's
 cap); b. GONE on ten spread rows, two of them MINE; c. one punted category, then two; d. a new
 Sort by and Rebuild & re-sort (the copy's first script run, so Google asks to authorise it);
-e. a hand value (GP Y-1) and two swapped Board names on clean rows, then Refresh data -- the
-reordering path. Verify compares My GP on every row, so its pass is the C1 check; the hand value
-must stay on its player. It goes in GP Y-1 because the Name Box cannot reach My GP on this sheet:
-Board W and Z sit in hidden columns, and the Name Box lands on the next visible one.
+e. two swapped Board names on clean rows and a hand value (GP Y-1) on one of the swapped rows,
+then Refresh data -- the reordering path. Verify compares My GP on every row, so its pass is the
+C1 check. Refresh keys hand values by the name a row shows when it runs, so the value belongs to
+the swapped-in player and must land on whichever row that player occupies afterwards; a value
+kept by row position fails. It goes in GP Y-1 because the Name Box cannot reach My GP on this
+sheet: Board W and Z sit in hidden columns, and the Name Box lands on the next visible one.
 
 `--allow-consent` is the owner's approval, given before the run, to click Allow on the copy's
 authorisation screen. Without it the run stops at step d (exit 5). The scenario only runs when
@@ -95,8 +97,8 @@ def ticked_cells(sheet: VL._Pull, layout: dict) -> list[tuple[str, str]]:
     return out
 
 
-def clean_rows(sheet: VL._Pull, layout: dict) -> tuple[int, str, int, str, int]:
-    """Two Board rows to swap and one to override, none carrying a tick, note or hand value.
+def clean_rows(sheet: VL._Pull, layout: dict) -> tuple[int, str, int, str]:
+    """Two Board rows to swap, neither carrying a tick, note or hand value.
 
     The Draft Board points at fixed Board rows (I1), so a swapped name beside a tick would move
     the tick onto another player and verify, which reads ticks back as truth, would still pass.
@@ -116,10 +118,39 @@ def clean_rows(sheet: VL._Pull, layout: dict) -> tuple[int, str, int, str, int]:
              if VL._text(board("player", r)) and VL._text(board("player", r)) not in touched
              and not VL._text(board("notes", r))
              and all(VL._v(board(k, r)) is None for k in ("gp1", "gp2", "gp3", "xrank"))]
-    if len(clean) < 3:
-        raise StepFailed("fewer than three clean Board rows")
-    (ra, na), (rb, nb), (ro, _) = clean[-1], clean[-2], clean[-3]
-    return ra, na, rb, nb, ro
+    if len(clean) < 2:
+        raise StepFailed("fewer than two clean Board rows")
+    (ra, na), (rb, nb) = clean[-1], clean[-2]
+    return ra, na, rb, nb
+
+
+def sort_applied(sheet: VL._Pull, layout: dict, lines: list[str], want: str) -> str | None:
+    """None when Settings SORT_BY reads `want` and verify saw the board sorted by it, else why.
+
+    Verify accepts whatever sort the board shows, and onEdit swallows its own errors, so a sort
+    that never reached SORT_BY would otherwise pass as a re-sort.
+    """
+    label = VL._text(sheet.at("Settings", layout["tabs"]["Settings"]["cells"]["sort_by"]))
+    if label != want:
+        return f"Settings SORT_BY reads {label!r}, not {want!r}"
+    if f"ok: the board is sorted by {want}" not in lines:
+        return f"SORT_BY reads {want!r} but the board is not sorted by it"
+    return None
+
+
+def hand_value_followed(sheet: VL._Pull, layout: dict, owner: str, other: str,
+                        value: float) -> str | None:
+    """None when `value` sits in GP Y-1 on `owner`'s Board row and not on `other`'s, else why."""
+    b = layout["tabs"]["Board"]["columns"]
+    rows = {VL._text(sheet.cell("Board", b["player"]["index"], r)): r
+            for r in range(layout["first_row"], layout["last_row"] + 1)}
+    if owner not in rows or other not in rows:
+        return "a swapped player is no longer on the Board"
+    if VL._num(sheet.cell("Board", b["gp1"]["index"], rows[owner])) != value:
+        return "the hand value did not follow its player to the player's new row"
+    if VL._num(sheet.cell("Board", b["gp1"]["index"], rows[other])) is not None:
+        return "the hand value was also left on the row it was typed on, under another player"
+    return None
 
 
 # ------------------------------------------------------------------ the browser
@@ -162,6 +193,8 @@ class Browser:
             raise StepFailed(f"browser: {msg[-300:]}") from None
 
     def make_copy(self) -> None:
+        """Copy the live sheet. Once the copy has an id it is recorded before anything else can
+        fail, so main's cleanup deletes it; a failure before that says a copy may exist."""
         got = self.run(
             "await menu(live, 'File', 'Make a copy');"
             " const btn = live.getByRole('button', {name: 'Make a copy'});"
@@ -169,13 +202,18 @@ class Browser:
             " page.context().waitForEvent('page', {timeout: 60000}),"
             " btn.click()]);"
             " await np.waitForURL(/\\/spreadsheets\\/d\\//, {timeout: 60000});"
-            " await np.locator('#t-name-box').waitFor({timeout: 90000});"
-            " return JSON.stringify({id: np.url().split('/d/')[1].split('/')[0],"
+            " const id = np.url().split('/d/')[1].split('/')[0];"
+            " try { await np.locator('#t-name-box').waitFor({timeout: 90000}); }"
+            " catch (e) { return JSON.stringify({id, error: 'the copy never finished loading'}); }"
+            " return JSON.stringify({id,"
             " title: (await np.title()).replace(/ - Google Sheets$/, '')});",
             live=self.live_id)
-        if not got.get("title", "").startswith("Copy of ") or got.get("id") == self.live_id:
+        if got.get("id") and got["id"] != self.live_id:
+            self.copy_id, self.title = got["id"], got.get("title")
+        if got.get("error"):
+            raise StepFailed(got["error"])
+        if not self.copy_id or not (self.title or "").startswith("Copy of "):
             raise StepFailed("the new tab is not a copy")
-        self.copy_id, self.title = got["id"], got["title"]
 
     def toggle(self, cells: list[tuple[str, str]]) -> None:
         """Space on each cell or range: ticks an unticked checkbox, unticks a ticked one."""
@@ -276,6 +314,7 @@ class Scenario:
     def __init__(self, browser: Browser, layout: dict, snapshot: dict):
         self.b, self.layout, self.snapshot = browser, layout, snapshot
         self.sheet: VL._Pull | None = None
+        self.lines: list[str] = []
 
     def check(self, step: str, expect: dict | None = None, tries: int = 6,
               verify: bool = True) -> VL._Pull:
@@ -302,7 +341,7 @@ class Scenario:
               flush=True)
         if code != 0:
             raise StepFailed("\n".join(f"  {ln}" for ln in lines if not ln.startswith("ok"))[:1500])
-        self.sheet = sheet
+        self.sheet, self.lines = sheet, lines
         return sheet
 
     def run(self, allow: bool) -> None:
@@ -334,18 +373,22 @@ class Scenario:
         self.b.type_into([("Draft Board", f"{d['drafted']['letter']}1", NEW_SORT)])
         self.b.draft_menu("Rebuild & re-sort", "^Sorted by ", allow)
         sheet = self.check("d re-sort", {"mine": 14, "gone": 10, "punted": 2})
+        why = sort_applied(sheet, L, self.lines, NEW_SORT)
+        if why:
+            raise StepFailed(f"step d: {why}")
 
-        ra, na, rb, nb, ro = clean_rows(sheet, L)
+        # Row ra shows nb once swapped, so the hand value typed there belongs to nb.
+        ra, na, rb, nb = clean_rows(sheet, L)
         b = L["tabs"]["Board"]["columns"]
         entries = [("Board", f"{b['player']['letter']}{ra}", nb),
                    ("Board", f"{b['player']['letter']}{rb}", na),
-                   ("Board", f"{b['gp1']['letter']}{ro}", str(OVERRIDE))]
+                   ("Board", f"{b['gp1']['letter']}{ra}", str(OVERRIDE))]
         self.b.type_into(entries)
         for attempt in (1, 2):
             typed = self.check("e typed", {"mine": 14, "gone": 10, "punted": 2}, verify=False)
             landed = (VL._text(typed.cell("Board", b["player"]["index"], ra)) == nb,
                       VL._text(typed.cell("Board", b["player"]["index"], rb)) == na,
-                      VL._num(typed.cell("Board", b["gp1"]["index"], ro)) == OVERRIDE)
+                      VL._num(typed.cell("Board", b["gp1"]["index"], ra)) == OVERRIDE)
             if all(landed):
                 break
             if attempt == 2:
@@ -354,8 +397,9 @@ class Scenario:
             self.b.type_into([e for e, ok in zip(entries, landed, strict=True) if not ok])
         self.b.draft_menu("Refresh data", "Calculation tabs rewritten", allow)
         sheet = self.check("e refresh", {"mine": 14, "gone": 10, "punted": 2})
-        if VL._num(sheet.cell("Board", b["gp1"]["index"], ro)) != OVERRIDE:
-            raise StepFailed("step e: the hand value did not stay on its player's row")
+        why = hand_value_followed(sheet, L, nb, na, OVERRIDE)
+        if why:
+            raise StepFailed(f"step e: {why}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -389,6 +433,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"scenario FAILED: {e}".replace(sheet_id, "<sheet id>"))
         code = 1
     finally:
+        if not browser.copy_id and code:
+            print("a copy may exist in Drive with no id recorded -- check for one and delete it "
+                  "by hand before anything else")
         if browser.copy_id:
             for attempt in (1, 2):
                 try:
