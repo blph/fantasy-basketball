@@ -1850,8 +1850,13 @@ function formatDraftTab(sh, si, ki) {
   sh.setColumnWidth(D.projGp, 44); sh.setColumnWidth(D.myGp, 44); sh.setColumnWidth(D.gpFlag, 46);
   sh.setColumnWidth(D.adp, 48); sh.setColumnWidth(D.xrank, 46); sh.setColumnWidth(D.gap, 54);
   sh.setColumnWidth(D.best, 108);
-  sh.setColumnWidth(D.strengths, 132); sh.setColumnWidth(D.secondary, 110);
-  sh.setColumnWidth(D.weaknesses, 118);
+  // Sized to the measured maximum, not to a character count: a five-label line is about
+  // 185px of Arial 10pt, and 25 characters is nothing like 110px. Every neighbouring cell
+  // always holds at least an em-dash, so Sheets can never overflow one of these into the
+  // next -- an undersized column here clips mid-word, and it clips on exactly the
+  // multi-category players the column exists to find.
+  sh.setColumnWidth(D.strengths, 200); sh.setColumnWidth(D.secondary, 190);
+  sh.setColumnWidth(D.weaknesses, 190);
   sh.setColumnWidth(D.posLeft, 50); sh.setColumnWidth(D.notes, 300);
 
   sh.getRange(R0, 1, POOL_ROWS, D_LAST).setFontSize(10).setVerticalAlignment('middle');
