@@ -102,8 +102,10 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | | |
 |---|---|
 | **▲ Strengths / ▼ Weaknesses** | Every category where his DURANT value clears ±1.00. A descriptor, not a second valuation: the value column already prices him, this says what for. |
+| **△ Secondary** | Where he clears +0.50 but not +1.00 — the moderate contributors. Read it when the tracker says a category is CONTESTED and nobody left is ▲ strong at it. A third of drafted players have no ▲ at all; this leaves only 9% with nothing. |
+| **Why no ▼ secondary** | Weakness is one band. A near-miss weakness changes no pick: you are not shopping for the least bad hole, you are shopping for the player who fills it. |
 | **Why unweighted** | A weighted column's spread IS its weight, so one band would be unreachable for the five categories weighted below 1. Unweighted, one band serves all eight. |
-| **Punted categories** | Drop out of both columns, on all 200 rows. |
+| **Punted categories** | Drop out of all three columns, on all 200 rows. |
 
 ### THE CATEGORY TRACKER
 

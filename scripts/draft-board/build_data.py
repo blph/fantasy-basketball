@@ -377,6 +377,8 @@ def _deriv(scored: dict, report: dict) -> dict:
         "slopes": {_label(c): v for c, v in
                    BV.durant_vs_z_slopes(scored["BMP"]["players"], ranked).items()},
         "band_calibration": BV.profile_calibration(scored["BMP"]["players"], ranked),
+        "sec_band_calibration": BV.secondary_calibration(
+            scored["BMP"]["players"], ranked, BSET.CAT_BAND),
         "pools": {lab: scored[lab]["pools"] for lab in labs},
         "universe": {lab: scored[lab]["universe"] for lab in labs},
         "pool_overlap": {lab: scored[lab]["pool_overlap"] for lab in labs},

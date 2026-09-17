@@ -576,6 +576,14 @@ def main(argv: list[str] | None = None) -> int:
               f"{stats['pct_unlabelled']}% with no label")
     print("  ADR-0013 chose the current band at ~2.6 flags/player and ~9% unlabelled.")
 
+    print("\nSECONDARY BAND   half-open under the primary band")
+    for floor, stats in sorted(deriv["sec_band_calibration"].items(),
+                               key=lambda kv: float(kv[0])):
+        print(f"  {float(floor):.2f}   {stats['sec_per_player']:.2f} secondary/player, "
+              f"{stats['pct_no_strength']}% with no strength at all")
+    print("  ADR-0024 chose 0.50: every category reachable, and the share carrying no")
+    print("  strength label falls from about a third to under a tenth.")
+
     print("\nINVARIANTS")
     fails = check(data)
     for tsv in args.published:

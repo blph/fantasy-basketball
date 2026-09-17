@@ -30,6 +30,9 @@ SCORING = "Head-to-Head Categories"
 TIER_MULT = 2.0
 #: A category is a strength or weakness at +/- this many unweighted DURANT SDs (ADR-0018).
 CAT_BAND = 1.0
+#: A category is a *secondary* strength from here up to CAT_BAND, half-open so a primary
+#: strength is never listed twice. There is no secondary weakness band (ADR-0024).
+CAT_BAND_SEC = 0.5
 #: Rank places a source must disagree by before its tag is painted.
 DISAGREE_GAP = 15
 
@@ -47,6 +50,7 @@ SHEET_KEYS = (
     "scoring",
     "tier_mult",
     "cat_band",
+    "cat_band_sec",
     "disagree_gap",
     "weak_win",
     "strong_win",
@@ -66,6 +70,7 @@ def as_dict() -> dict:
         "scoring": SCORING,
         "tier_mult": TIER_MULT,
         "cat_band": CAT_BAND,
+        "cat_band_sec": CAT_BAND_SEC,
         "disagree_gap": DISAGREE_GAP,
         "weak_win": WEAK_WIN,
         "strong_win": STRONG_WIN,

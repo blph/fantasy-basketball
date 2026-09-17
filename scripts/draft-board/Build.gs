@@ -31,7 +31,7 @@
 // stays strict JSON on one line: double-quoted keys, no trailing comma, no expressions.
 // These are DEFAULTS. The yellow cells on Settings are still yours to edit; a Full rebuild
 // writes these back over them.
-var SETTINGS_DEFAULTS = {"teams": 12, "roster": 13, "scoring": "Head-to-Head Categories", "tier_mult": 2, "cat_band": 1, "disagree_gap": 15, "weak_win": 0.4, "strong_win": 0.6, "bank_win": 0.75};
+var SETTINGS_DEFAULTS = {"teams": 12, "roster": 13, "scoring": "Head-to-Head Categories", "tier_mult": 2, "cat_band": 1, "cat_band_sec": 0.5, "disagree_gap": 15, "weak_win": 0.4, "strong_win": 0.6, "bank_win": 0.75};
 
 /** 0.4 -> '40%'. For prose that quotes a cutoff, so the text cannot drift from the cell. */
 function winPct(p) { return Math.round(p * 100) + '%'; }
@@ -77,6 +77,10 @@ var COLOR = {
   // well as hue, because the bad/good pair above sits at nearly identical lightness and is
   // the classic red-green failure case.
   posBg: '#CDE9D8', posText: '#0B5D33',
+  // The secondary-strength green. A TEXT colour, never a fill: mineBg (#E6F4EA) already
+  // occupies the very-light-green background slot, and a second one lands within a few
+  // hex points of it -- two meanings, one swatch, which is the mistake warnBg fixed.
+  posTextSoft: '#3D7A5A',
   negBg: '#FBE9E7', negText: '#8C3B2B',
 
   flagBg:   '#FCE8E6',
@@ -218,7 +222,9 @@ var D = (function () {
   m.best = c++;
   // Split from one 240px string: strengths are scanned when the tracker says a category
   // is contested, and weaknesses can carry a pale fill so damage reads without being read.
-  m.strengths = c++; m.weaknesses = c++;
+  // Secondary sits between them, so the two green columns read as one thing and the whole
+  // block stays inside the D.best -> D.posLeft writeGrid span.
+  m.strengths = c++; m.secondary = c++; m.weaknesses = c++;
   m.posLeft = c++; m.notes = c++;
   // Hidden feed. The tracker and the profile read these rather than reaching across to a
   // calculation tab, so they follow whichever projection is selected.
@@ -948,7 +954,7 @@ function writeSettingsSkeleton(sh) {
     + 'weight, a lambda or the punt weight, edit the pipeline and re-run it.');
 
   sh.getRange(S_LEAGUE, 1, 1, 2).setValues([['LEAGUE', '']]);
-  sh.getRange(S_LEAGUE + 1, 1, 8, 2).setValues([
+  sh.getRange(S_LEAGUE + 1, 1, 9, 2).setValues([
     ['Teams', SETTINGS_DEFAULTS.teams],
     ['Roster spots', SETTINGS_DEFAULTS.roster],
     ['Pool size (Q)', '=B' + (S_LEAGUE + 1) + '*B' + (S_LEAGUE + 2)],
@@ -956,6 +962,7 @@ function writeSettingsSkeleton(sh) {
     ['Scoring format', SETTINGS_DEFAULTS.scoring],
     ['Tier multiplier', SETTINGS_DEFAULTS.tier_mult],
     ['Category band', SETTINGS_DEFAULTS.cat_band],
+    ['Secondary band', SETTINGS_DEFAULTS.cat_band_sec],
     ['Disagreement gap', SETTINGS_DEFAULTS.disagree_gap]
   ]);
 
@@ -1148,7 +1155,8 @@ function defineNames(ss) {
     SCORING: s + '!$B$' + (S_LEAGUE + 5),
     TIER_MULT: s + '!$B$' + (S_LEAGUE + 6),
     CAT_BAND: s + '!$B$' + (S_LEAGUE + 7),
-    DISAGREE_GAP: s + '!$B$' + (S_LEAGUE + 8),
+    CAT_BAND_SEC: s + '!$B$' + (S_LEAGUE + 8),
+    DISAGREE_GAP: s + '!$B$' + (S_LEAGUE + 9),
     WEAK_WIN: s + '!$B$' + (S_WINRATE + 1),
     STRONG_WIN: s + '!$B$' + (S_WINRATE + 2),
     BANK_WIN: s + '!$B$' + (S_WINRATE + 3),
@@ -1395,7 +1403,8 @@ function writeDraftHeaders(sh, si, ki) {
   head[D.projGp] = 'Proj\nGP'; head[D.myGp] = 'My\nGP'; head[D.gpFlag] = 'Flag';
   head[D.adp] = 'ADP'; head[D.xrank] = 'XRank'; head[D.gap] = 'GAP';
   head[D.best] = 'Best build';
-  head[D.strengths] = '▲ Strengths'; head[D.weaknesses] = '▼ Weaknesses';
+  head[D.strengths] = '▲ Strengths'; head[D.secondary] = '△ Secondary';
+  head[D.weaknesses] = '▼ Weaknesses';
   head[D.posLeft] = 'Left\n@pos'; head[D.notes] = 'Notes';
   for (var f = 0; f < CAT_LABELS.length; f++) {
     head[D.dh0 + f] = 'dh ' + CAT_LABELS[f];
@@ -1475,6 +1484,10 @@ function profileFormulas(row, r) {
   row[D.strengths] = head
     + 's,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((d>=CAT_BAND)*(punt<>TRUE),L,""))),'
     + 'IF(s="","—","▲ "&s)))';
+  // Half-open, [CAT_BAND_SEC, CAT_BAND): a primary strength must never also be listed here.
+  row[D.secondary] = head
+    + 'n,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((d>=CAT_BAND_SEC)*(d<CAT_BAND)*(punt<>TRUE),L,""))),'
+    + 'IF(n="","—","△ "&n)))';
   row[D.weaknesses] = head
     + 'w,TEXTJOIN(", ",TRUE,ARRAYFORMULA(IF((d<=-CAT_BAND)*(punt<>TRUE),L,""))),'
     + 'IF(w="","—","▼ "&w)))';
@@ -1837,7 +1850,8 @@ function formatDraftTab(sh, si, ki) {
   sh.setColumnWidth(D.projGp, 44); sh.setColumnWidth(D.myGp, 44); sh.setColumnWidth(D.gpFlag, 46);
   sh.setColumnWidth(D.adp, 48); sh.setColumnWidth(D.xrank, 46); sh.setColumnWidth(D.gap, 54);
   sh.setColumnWidth(D.best, 108);
-  sh.setColumnWidth(D.strengths, 132); sh.setColumnWidth(D.weaknesses, 118);
+  sh.setColumnWidth(D.strengths, 132); sh.setColumnWidth(D.secondary, 110);
+  sh.setColumnWidth(D.weaknesses, 118);
   sh.setColumnWidth(D.posLeft, 50); sh.setColumnWidth(D.notes, 300);
 
   sh.getRange(R0, 1, POOL_ROWS, D_LAST).setFontSize(10).setVerticalAlignment('middle');
@@ -1891,6 +1905,11 @@ function formatDraftTab(sh, si, ki) {
   markInput(sh, D.notes);
   sh.getRange(R0, D.notes, POOL_ROWS, 1).setFontWeight('normal');
   sh.getRange(R0, D.weaknesses, POOL_ROWS, 1).setBackground(COLOR.negBg);
+  // Dark green bold for the primary, soft green regular for the secondary. The filled
+  // and hollow triangles carry the same split without colour (see the GAP column).
+  sh.getRange(R0, D.strengths, POOL_ROWS, 1)
+    .setFontColor(COLOR.posText).setFontWeight('bold');
+  sh.getRange(R0, D.secondary, POOL_ROWS, 1).setFontColor(COLOR.posTextSoft);
 
   addDraftRules(sh, si, ki, activeCol, disagreeGap());
 
@@ -2002,7 +2021,7 @@ function addDraftRules(sh, si, ki, activeCol, gap) {
     }
   }
   bands.push(sh.getRange(R0, D.drop, POOL_ROWS, D.best - D.drop + 1));
-  bands.push(sh.getRange(R0, D.strengths, POOL_ROWS, 1));
+  bands.push(sh.getRange(R0, D.strengths, POOL_ROWS, D.secondary - D.strengths + 1));
   bands.push(sh.getRange(R0, D.posLeft, POOL_ROWS, 1));
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied('=ISEVEN(ROW())')
@@ -2024,7 +2043,7 @@ function formatSettings(sh) {
 
   // Yellow means you may type here. Q is a formula, so it is deliberately not tinted.
   [S_LEAGUE + 1, S_LEAGUE + 2, S_LEAGUE + 4, S_LEAGUE + 5,
-   S_LEAGUE + 6, S_LEAGUE + 7, S_LEAGUE + 8].forEach(function (r) {
+   S_LEAGUE + 6, S_LEAGUE + 7, S_LEAGUE + 8, S_LEAGUE + 9].forEach(function (r) {
     sh.getRange(r, 2).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText);
   });
   sh.getRange(S_WINRATE + 1, 2, 3, 1)
@@ -2045,7 +2064,8 @@ function formatSettings(sh) {
   sh.getRange(S_LEAGUE + 3, 2).setNumberFormat('0');
   sh.getRange(S_LEAGUE + 6, 2).setNumberFormat('0.0');
   sh.getRange(S_LEAGUE + 7, 2).setNumberFormat('0.00');
-  sh.getRange(S_LEAGUE + 8, 2).setNumberFormat('0');
+  sh.getRange(S_LEAGUE + 8, 2).setNumberFormat('0.00');
+  sh.getRange(S_LEAGUE + 9, 2).setNumberFormat('0');
   sh.getRange(S_LEAGUE + 5, 2).setDataValidation(SpreadsheetApp.newDataValidation()
     .requireValueInList(['Head-to-Head Categories', 'Head-to-Head One Win'], true).build());
   sh.getRange(S_LEAGUE + 4, 2).setDataValidation(SpreadsheetApp.newDataValidation()
@@ -2230,14 +2250,14 @@ function buildTrackerTab(sh) {
   var last = TRACKER_R0 + CAT_LABELS.length;
   sh.getRange(last + 1, 1).setValue(
     'Tick Punted to concede a category: it stops counting toward what you still need, and '
-    + 'it drops out of the Draft Board\'s Strengths and Weaknesses columns too.')
+    + 'it drops out of all three of the Draft Board\'s profile columns too.')
     .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
   sh.getRange(last + 1, 1, 1, 7).merge();
   sh.setRowHeight(last + 1, 30);
 
   sh.getRange(last + 2, 1).setValue(
     'When a row reads WEAK or CONTESTED, the Draft Board\'s ▲ Strengths column is where you '
-    + 'fix it. The two measure different things on purpose: this tab compares you to the '
+    + 'fix it, and △ Secondary is where you look when nobody left is ▲ strong at it. The two measure different things on purpose: this tab compares you to the '
     + 'managers drafting alongside you, so its benchmark moves every round, while that '
     + 'column compares a player to the whole pool and never moves. Early on this can read '
     + 'REB 68% while few players show ▲ REB. Both are right.')
@@ -2499,10 +2519,17 @@ var README_ROWS = [
   ['▲ Strengths / ▼ Weaknesses', '',
    'Every category where his DURANT value clears ±1.00. A descriptor, not a second '
    + 'valuation: the value column already prices him, this says what for.'],
+  ['△ Secondary', '',
+   'Where he clears +0.50 but not +1.00 — the moderate contributors. Read it when the '
+   + 'tracker says a category is CONTESTED and nobody left is ▲ strong at it. A third of '
+   + 'drafted players have no ▲ at all; this leaves only 9% with nothing.'],
+  ['Why no ▼ secondary', '',
+   'Weakness is one band. A near-miss weakness changes no pick: you are not shopping for '
+   + 'the least bad hole, you are shopping for the player who fills it.'],
   ['Why unweighted', '',
    'A weighted column\'s spread IS its weight, so one band would be unreachable for the '
    + 'five categories weighted below 1. Unweighted, one band serves all eight.'],
-  ['Punted categories', '', 'Drop out of both columns, on all 200 rows.'],
+  ['Punted categories', '', 'Drop out of all three columns, on all 200 rows.'],
   ['', '', ''],
 
   ['THE CATEGORY TRACKER', '', ''],

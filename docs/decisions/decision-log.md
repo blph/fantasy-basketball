@@ -31,6 +31,7 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0021](ADR-0021-borrowed-bbm-pool-constants.md) | The Basketball Monster sources borrow their standardisation constants | Accepted | 2026-09-01 | Bryan | ADR-0015 (in part), ADR-0019 (in part) |
 | [ADR-0022](ADR-0022-local-draft-board.md) | A local copy of the draft board for agents, kept in step by construction | Accepted | 2026-09-12 | Bryan | |
 | [ADR-0023](ADR-0023-win-rate-cutoffs-40-60.md) | Win-rate cutoffs of 40% and 60%, on both boards | Accepted | 2026-09-12 | Bryan | ADR-0018 (in part) |
+| [ADR-0024](ADR-0024-secondary-strength-band.md) | A secondary strength band at +0.50, and no secondary weakness | Accepted | 2026-09-17 | Bryan | extends ADR-0013, ADR-0018 |
 
 ## Decisions expected next
 

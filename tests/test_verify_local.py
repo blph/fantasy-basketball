@@ -30,7 +30,8 @@ FIELD = {"rank": "rank", "tier": "tier", "round": "rnd", "player": "name", "team
          "pos": "pos", "inj": "inj", "drafted": "gone", "mine": "mine", "drop": "drop",
          "med": "med", "brk": "brk", "projGp": "gp", "myGp": "my_gp", "gpFlag": "gp_flag",
          "adp": "adp", "xrank": "xrank", "gap": "gap", "best": "best_build",
-         "strengths": "strengths", "weaknesses": "weaknesses", "posLeft": "left_at_pos",
+         "strengths": "strengths", "secondary": "secondary",
+         "weaknesses": "weaknesses", "posLeft": "left_at_pos",
          "notes": "notes"}
 
 

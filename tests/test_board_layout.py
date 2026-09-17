@@ -38,7 +38,8 @@ def letter(n: int) -> str:
 def draft_keys() -> set[str]:
     keys = {"rank", "tier", "round", "player", "team", "pos", "inj", "drafted", "mine", "sel",
             "drop", "med", "brk", "projGp", "myGp", "gpFlag", "adp", "xrank", "gap", "best",
-            "strengths", "weaknesses", "posLeft", "notes", "hFgm", "hFga", "hFtm", "hFta", "h3",
+            "strengths", "secondary", "weaknesses", "posLeft", "notes",
+            "hFgm", "hFga", "hFtm", "hFta", "h3",
             "hPts", "hReb", "hAst", "hStl", "hBlk", "rowCheck"}
     for src in board_snapshot.SOURCES:
         for kind in board_snapshot.KINDS:

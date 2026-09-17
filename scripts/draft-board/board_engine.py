@@ -152,16 +152,24 @@ def _best_build(player: dict, builds: list[dict]) -> str:
     return f"{label}  {base - low:+.0f}"          # TEXT(base - min, "+0")
 
 
-def _profile(name: str, d: dict, labels: list[str], conceded: set, band: float) -> tuple:
+def _profile(name: str, d: dict, labels: list[str], conceded: set, band: float,
+             band_sec: float) -> tuple:
     """profileFormulas: the categories the applied source's UNWEIGHTED d clears by a band.
 
-    A category ticked Punted drops out of both lists.
+    Three lists. The secondary band is half-open, [band_sec, band), so a primary strength
+    is never also listed as a secondary one. There is no secondary weakness band: the
+    weakness list is the single band it has always been (ADR-0024).
+
+    A category ticked Punted drops out of all three.
     """
     if name == "":
-        return "", ""
-    strong = [c for c in labels if d[c] >= band and c not in conceded]
-    weak = [c for c in labels if d[c] <= -band and c not in conceded]
+        return "", "", ""
+    live = [c for c in labels if c not in conceded]
+    strong = [c for c in live if d[c] >= band]
+    second = [c for c in live if band_sec <= d[c] < band]
+    weak = [c for c in live if d[c] <= -band]
     return ("▲ " + ", ".join(strong) if strong else "—",
+            "△ " + ", ".join(second) if second else "—",
             "▼ " + ", ".join(weak) if weak else "—")
 
 
@@ -229,8 +237,9 @@ def board_rows(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
                     disagree[sk] = None
         gp = pl["hbp_raw"]["gp"]
         my_gp = gp if ps["my_gp"] is None else ps["my_gp"]
-        strengths, weaknesses = _profile(pl["name"], pl["values"][src]["d"], labels,
-                                         conceded, settings["cat_band"])
+        strengths, secondary, weaknesses = _profile(
+            pl["name"], pl["values"][src]["d"], labels, conceded,
+            settings["cat_band"], settings["cat_band_sec"])
         rows.append({
             "row": pl["row"], "key": pl["key"], "name": pl["name"], "team": pl["team"],
             "pos": pl["pos"], "inj": pl["inj"], "gone": ps["gone"], "mine": ps["mine"],
@@ -243,7 +252,7 @@ def board_rows(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
             "gp_flag": "CHECK" if abs(gp - my_gp) > 10 else "",
             "gp_warn": 68 <= gp <= 74,                  # addDraftRules' Proj GP warning
             "best_build": _best_build(pl, builds),
-            "strengths": strengths, "weaknesses": weaknesses,
+            "strengths": strengths, "secondary": secondary, "weaknesses": weaknesses,
             "left_at_pos": 0,
             "in_pool": pl["values"]["BMP"]["durh"]["rank"] <= settings["q"],
             "values": values, "ranks": ranks, "tags": tags, "disagree": disagree,

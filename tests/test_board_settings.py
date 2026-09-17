@@ -32,6 +32,7 @@ def test_as_dict_carries_exactly_the_snapshot_keys():
         "scoring",
         "tier_mult",
         "cat_band",
+        "cat_band_sec",
         "disagree_gap",
         "weak_win",
         "strong_win",

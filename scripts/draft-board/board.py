@@ -44,7 +44,8 @@ DEFAULT_FIELDS = ("rank", "tier", "rnd", "name", "team", "pos", "inj", "value", 
                   "left_at_pos")
 COMPACT_FIELDS = ("rank", "tier", "rnd", "name", "team", "pos", "inj", "value", "gone",
                   "mine", "pick", "adp", "gap", "gp", "my_gp", "gp_flag", "gp_warn", "xrank",
-                  "in_pool", "strengths", "weaknesses", "best_build", "notes")
+                  "in_pool", "strengths", "secondary", "weaknesses", "best_build",
+                  "notes")
 ECHO = ("cmd", "name", "team", "rank", "gone", "mine", "pick", "detail")
 KV = ("field", "value")
 

@@ -135,7 +135,7 @@ and never recomputes a value — a test asserts it imports nothing from `bbm_ref
 | `drop`, `med`, `brk`, `tier` | `buildDraftTab` | Row 0: tier 1, others blank. Row i ≥ 1: `drop = sel[i-1] - sel[i]`; `med` = median of drops over rows `max(0,i-7)..min(199,i+7)`, ignoring row 0's blank, even counts averaged `(a+b)/2`; `brk` when `med > 0 and drop > tier_mult * med` — plain floats in the sheet's operation order, no rounding; tier accumulates. Over all 200 rows, independent of GONE. |
 | `gap` | `buildDraftTab` | `adp - rank`, null without ADP. |
 | `best_build` | `bestBuildFormula` | Always BMP. Base = BMP DURH rank; span = nine punt ranks in `PUNTS` order; `"—"` if `min ≥ base` or no ranks; else first-minimum label with `"Punt "` stripped, two spaces, `"+" + (base - min)`. |
-| `strengths`, `weaknesses` | `profileFormulas` | Applied source's unweighted `d`; `d ≥ cat_band` / `d ≤ -cat_band`; conceded categories excluded; `"▲ "`/`"▼ "` + labels joined `", "`, else `"—"`. |
+| `strengths`, `secondary`, `weaknesses` | `profileFormulas` | Applied source's unweighted `d`; `d ≥ cat_band` / `cat_band_sec ≤ d < cat_band` / `d ≤ -cat_band`; conceded categories excluded; `"▲ "`/`"△ "`/`"▼ "` + labels joined `", "`, else `"—"`. The secondary band is half-open, so a primary strength is never listed twice (ADR-0024). |
 | `left_at_pos` | `posLeftFormula` | Rows with the same tier, GONE false, and `re.search(this_pos.replace(",", "|"), candidate_pos)`. Counts the row itself and MINE rows not GONE. |
 | `in_pool` | `writeCalcSheet` | BMP DURH rank ≤ q. |
 | `disagree` | `addDraftRules` | Per source × kind: `"higher"` if `rank - src_rank ≥ gap`, `"lower"` if `src_rank - rank ≥ gap`. Live gap (the sheet bakes it into rules at build time; §4 lists this as a known gap). |

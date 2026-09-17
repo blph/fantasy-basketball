@@ -30,7 +30,7 @@ The two vendors no longer iterate at all, because they borrow fixed constants
 either way the numbers arrive already computed.
 
 What stays a live formula is everything that has to react while you are drafting: rank,
-tier, round, GAP, the strengths and weaknesses columns, `Left @pos`, and the whole Category
+tier, round, GAP, the three profile columns, `Left @pos`, and the whole Category
 Tracker. Ticking `MINE` still updates the tracker instantly.
 
 > **The consequence to keep in mind: changing a constant on Settings does not recalculate
@@ -56,7 +56,7 @@ context for a judgement call, not a multiplier.
 | `BMP`, `HBP`, `BMP-ALT` | One calculation tab per projection: raw line, the three values with their ranks and dropped categories, the DURANT H2H columns, plain z, and the punt builds. All numbers, no formulas. |
 | `Board` | The spine. Identity, the HBP raw line, the GP block, market, and every column you edit by hand. `Refresh data` writes here and nowhere else. |
 | `Punts` | Nine builds, each listing who it gets at a discount. Computed on BMP · DURH. |
-| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of the Draft Board's Strengths and Weaknesses columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. |
+| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of all three of the Draft Board's profile columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. |
 | `Settings` | Every constant. Yellow cells are yours; grey cells record what the pipeline used. |
 | `README` | The cheat sheet, mirrored to [cheat-sheet.md](cheat-sheet.md). |
 
@@ -296,9 +296,20 @@ work than one which does not. The change report at step 2 tells you in advance.
 Moving a **Board** column breaks `Refresh data`, because `REFRESH_MAP` writes into fixed
 positions.
 
-Moving a **Draft Board** column does not touch the refresh — but the **Category Tracker
-bakes in Draft Board column letters at write time**, and `Rebuild & re-sort` rebuilds only
-the Draft Board. An un-rebuilt tracker reports wrong totals with no error.
+Moving a **Draft Board** column does not touch the refresh — but it silently repoints the
+**Category Tracker**. The tracker's formulas name no column letters; they read `DB_MINE`,
+`DB_RANK`, `DB_DH_<cat>` and the rest, and the letters live in *those named ranges'
+definitions*. `Rebuild & re-sort` calls `buildDraftTab` without `defineNames`, and
+`sheetByName` clears a tab rather than deleting it, so the old definitions survive pointing
+at the pre-move columns. The tracker then computes every win probability off the wrong
+column, with no `#REF!` and no error.
+
+(ADR-0013 records this as the tracker baking in letters "at write time". That was true when
+it was written and is not now; the hazard and the fix are unchanged.)
+
+A column *insert* has a second, louder failure on the same path: `rebuildAndResort` passes
+the sheet straight through with no `ensureGrid`, so once `D_LAST` grows past the live tab's
+column count, `writeGrid` throws.
 
 After any Draft Board column change, do a **full rebuild**, in this order:
 
@@ -434,7 +445,7 @@ development:
 - A **new sheet is 26 columns**. The Draft Board needs 77 and a calculation tab 66.
   `ensureGrid()` grows it first; `setColumnWidth` past the last column throws.
 - A **formula naming a sheet that does not exist yet is a permanent `#REF!`**. It does not
-  heal when the sheet is created later. The Strengths and Weaknesses columns reference the
+  heal when the sheet is created later. The three profile columns reference the
   Category Tracker, and every Draft Board row references a calculation tab, so a full build
   makes all nine tabs up front — `Step 4` and `Rebuild & re-sort` assume they exist.
 - A **sheet name containing a hyphen must be quoted inside a formula**: `'BMP-ALT'!$Q$4`,

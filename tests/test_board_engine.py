@@ -201,7 +201,8 @@ class TestRowFields:
         assert set(row) == {
             "row", "key", "name", "team", "pos", "inj", "gone", "mine", "rank", "tier", "rnd",
             "sel", "drop", "med", "brk", "gap", "adp", "xrank", "notes", "gp", "my_gp",
-            "gp_flag", "gp_warn", "best_build", "strengths", "weaknesses", "left_at_pos",
+            "gp_flag", "gp_warn", "best_build", "strengths", "secondary", "weaknesses",
+            "left_at_pos",
             "in_pool", "values", "ranks", "tags", "disagree"}
 
     def test_gap_is_adp_minus_rank_and_blank_without_adp(self):
@@ -263,6 +264,31 @@ class TestRowFields:
         assert rows[0]["weaknesses"] == "▼ REB"
         assert (rows[1]["strengths"], rows[1]["weaknesses"]) == ("—", "—")
         assert rows_for(snap)[0]["strengths"] == "▲ AST"
+
+    def test_secondary_strengths_are_the_half_open_band_under_the_primary(self):
+        snap = make_snapshot(n=3)
+        for p in snap["players"]:                    # a flat profile, then the cases
+            for src in SOURCES:
+                p["values"][src]["d"] = dict.fromkeys(CATS, 0.0)
+        # cat_band 1.00 is primary; cat_band_sec 0.50 is the first secondary. The interval
+        # is half-open, so 1.00 appears once and only in the primary list.
+        snap["players"][0]["values"]["HBP"]["d"].update(
+            {"FG%": 1.0, "FT%": 0.99, "3PM": 0.5, "PTS": 0.49, "REB": -0.6})
+        rows = rows_for(snap, sort={"source": "HBP", "kind": "durh"})
+        assert rows[0]["strengths"] == "▲ FG%"
+        assert rows[0]["secondary"] == "△ FT%, 3PM"
+        assert rows[0]["weaknesses"] == "—"          # there is no secondary weakness band
+        assert rows[1]["secondary"] == "—"
+
+    def test_a_conceded_category_drops_out_of_the_secondary_list(self):
+        snap = make_snapshot(n=3)
+        for p in snap["players"]:
+            for src in SOURCES:
+                p["values"][src]["d"] = dict.fromkeys(CATS, 0.0)
+        snap["players"][0]["values"]["BMP"]["d"].update({"AST": 0.8, "STL": 0.7})
+        state = E.empty_state()
+        state["conceded"] = ["AST"]
+        assert rows_for(snap, state)[0]["secondary"] == "△ STL"
 
     def test_tags_values_ranks_and_disagreement(self):
         snap = make_snapshot(n=20, settings={"disagree_gap": 15})    # the league's gap

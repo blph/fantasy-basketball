@@ -308,6 +308,35 @@ def profile_calibration(players: dict, ranked: list, bands=(0.85, 1.0, 1.15)) ->
     return out
 
 
+def secondary_calibration(players: dict, ranked: list, band: float,
+                          floors=(0.4, 0.5, 0.6, 0.75)) -> dict:
+    """How many SECONDARY strengths each candidate floor names, over the drafted pool.
+
+    The same instrument as `profile_calibration`, asking the question the secondary band
+    actually poses: given the primary band, how much does a floor add, and how many players
+    does it leave with no strength label at all. ADR-0024 chose 0.50 by reading this, and a
+    change of basis has to re-read it rather than inherit the number.
+
+    `pct_no_strength` counts a player with neither a primary nor a secondary strength. It is
+    the number that argues for the column existing: the primary band alone leaves about a
+    third of the drafted pool silent.
+    """
+    out = {}
+    for floor in floors:
+        sec = nothing = 0
+        for k in ranked:
+            d = players[k]["d"]
+            s = [c for c in CAT_ORDER if d[c] >= band]
+            n = [c for c in CAT_ORDER if floor <= d[c] < band]
+            sec += len(n)
+            nothing += not (s or n)
+        out[floor] = {
+            "sec_per_player": round(sec / len(ranked), 2),
+            "pct_no_strength": round(100 * nothing / len(ranked)),
+        }
+    return out
+
+
 def durant_vs_z_slopes(players: dict, ranked: list) -> dict[str, float]:
     """Least-squares slope of each DURANT column on its plain-z column, over the pool.
 

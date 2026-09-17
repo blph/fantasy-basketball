@@ -62,6 +62,7 @@ DIRECT = {
     "brk": ("text", "brk"), "projGp": ("num", "gp"), "myGp": ("num", "my_gp"),
     "gpFlag": ("text", "gp_flag"), "adp": ("num", "adp"), "xrank": ("num", "xrank"),
     "best": ("text", "best_build"), "strengths": ("text", "strengths"),
+    "secondary": ("text", "secondary"),
     "weaknesses": ("text", "weaknesses"), "posLeft": ("num", "left_at_pos"),
     "notes": ("text", "notes"),
 }

@@ -96,9 +96,10 @@ class TestPlan:
             assert 0 <= r["min_cells"] <= r["rows"] * r["cols"]
             assert r["name"] == f"{r['sheet']}!{r['range']}"
 
-    def test_settings_b4_to_b11_is_split_by_type(self):
+    def test_settings_b4_to_b12_is_split_by_type(self):
         ranges = by_name(PS.plan_ranges(LAYOUT))
-        assert {"Settings!B4:B6", "Settings!B7:B8", "Settings!B9:B11"} <= set(ranges)
+        # B9:B12 is tier_mult, cat_band, cat_band_sec, disagree_gap -- one numeric run.
+        assert {"Settings!B4:B6", "Settings!B7:B8", "Settings!B9:B12"} <= set(ranges)
         assert ranges["Settings!B7:B8"]["type"] == "string"
         assert ranges["Settings!B4:B6"]["type"] == "number"
 

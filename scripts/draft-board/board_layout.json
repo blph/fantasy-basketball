@@ -203,199 +203,204 @@
           "letter": "AM",
           "label": "▲ Strengths"
         },
-        "weaknesses": {
+        "secondary": {
           "index": 40,
           "letter": "AN",
+          "label": "△ Secondary"
+        },
+        "weaknesses": {
+          "index": 41,
+          "letter": "AO",
           "label": "▼ Weaknesses"
         },
         "posLeft": {
-          "index": 41,
-          "letter": "AO",
+          "index": 42,
+          "letter": "AP",
           "label": "Left\n@pos"
         },
         "notes": {
-          "index": 42,
-          "letter": "AP",
+          "index": 43,
+          "letter": "AQ",
           "label": "Notes"
         },
         "hFgm": {
-          "index": 43,
-          "letter": "AQ",
+          "index": 44,
+          "letter": "AR",
           "label": "FGM"
         },
         "hFga": {
-          "index": 44,
-          "letter": "AR",
+          "index": 45,
+          "letter": "AS",
           "label": "FGA"
         },
         "hFtm": {
-          "index": 45,
-          "letter": "AS",
+          "index": 46,
+          "letter": "AT",
           "label": "FTM"
         },
         "hFta": {
-          "index": 46,
-          "letter": "AT",
+          "index": 47,
+          "letter": "AU",
           "label": "FTA"
         },
         "h3": {
-          "index": 47,
-          "letter": "AU",
+          "index": 48,
+          "letter": "AV",
           "label": "3PM"
         },
         "hPts": {
-          "index": 48,
-          "letter": "AV",
+          "index": 49,
+          "letter": "AW",
           "label": "PTS"
         },
         "hReb": {
-          "index": 49,
-          "letter": "AW",
+          "index": 50,
+          "letter": "AX",
           "label": "REB"
         },
         "hAst": {
-          "index": 50,
-          "letter": "AX",
+          "index": 51,
+          "letter": "AY",
           "label": "AST"
         },
         "hStl": {
-          "index": 51,
-          "letter": "AY",
+          "index": 52,
+          "letter": "AZ",
           "label": "STL"
         },
         "hBlk": {
-          "index": 52,
-          "letter": "AZ",
+          "index": 53,
+          "letter": "BA",
           "label": "BLK"
         },
         "dh:FG%": {
-          "index": 53,
-          "letter": "BA",
+          "index": 54,
+          "letter": "BB",
           "label": "dh FG%"
         },
         "dh:FT%": {
-          "index": 54,
-          "letter": "BB",
+          "index": 55,
+          "letter": "BC",
           "label": "dh FT%"
         },
         "dh:3PM": {
-          "index": 55,
-          "letter": "BC",
+          "index": 56,
+          "letter": "BD",
           "label": "dh 3PM"
         },
         "dh:PTS": {
-          "index": 56,
-          "letter": "BD",
+          "index": 57,
+          "letter": "BE",
           "label": "dh PTS"
         },
         "dh:REB": {
-          "index": 57,
-          "letter": "BE",
+          "index": 58,
+          "letter": "BF",
           "label": "dh REB"
         },
         "dh:AST": {
-          "index": 58,
-          "letter": "BF",
+          "index": 59,
+          "letter": "BG",
           "label": "dh AST"
         },
         "dh:STL": {
-          "index": 59,
-          "letter": "BG",
+          "index": 60,
+          "letter": "BH",
           "label": "dh STL"
         },
         "dh:BLK": {
-          "index": 60,
-          "letter": "BH",
+          "index": 61,
+          "letter": "BI",
           "label": "dh BLK"
         },
         "d:FG%": {
-          "index": 61,
-          "letter": "BI",
+          "index": 62,
+          "letter": "BJ",
           "label": "d FG%"
         },
         "d:FT%": {
-          "index": 62,
-          "letter": "BJ",
+          "index": 63,
+          "letter": "BK",
           "label": "d FT%"
         },
         "d:3PM": {
-          "index": 63,
-          "letter": "BK",
+          "index": 64,
+          "letter": "BL",
           "label": "d 3PM"
         },
         "d:PTS": {
-          "index": 64,
-          "letter": "BL",
+          "index": 65,
+          "letter": "BM",
           "label": "d PTS"
         },
         "d:REB": {
-          "index": 65,
-          "letter": "BM",
+          "index": 66,
+          "letter": "BN",
           "label": "d REB"
         },
         "d:AST": {
-          "index": 66,
-          "letter": "BN",
+          "index": 67,
+          "letter": "BO",
           "label": "d AST"
         },
         "d:STL": {
-          "index": 67,
-          "letter": "BO",
+          "index": 68,
+          "letter": "BP",
           "label": "d STL"
         },
         "d:BLK": {
-          "index": 68,
-          "letter": "BP",
+          "index": 69,
+          "letter": "BQ",
           "label": "d BLK"
         },
         "rank:BMP:durh": {
-          "index": 69,
-          "letter": "BQ",
+          "index": 70,
+          "letter": "BR",
           "label": "BMP DURH #"
         },
         "rank:BMP:zsh": {
-          "index": 70,
-          "letter": "BR",
+          "index": 71,
+          "letter": "BS",
           "label": "BMP ZSH #"
         },
         "rank:BMP:zsc": {
-          "index": 71,
-          "letter": "BS",
+          "index": 72,
+          "letter": "BT",
           "label": "BMP ZSC #"
         },
         "rank:HBP:durh": {
-          "index": 72,
-          "letter": "BT",
+          "index": 73,
+          "letter": "BU",
           "label": "HBP DURH #"
         },
         "rank:HBP:zsh": {
-          "index": 73,
-          "letter": "BU",
+          "index": 74,
+          "letter": "BV",
           "label": "HBP ZSH #"
         },
         "rank:HBP:zsc": {
-          "index": 74,
-          "letter": "BV",
+          "index": 75,
+          "letter": "BW",
           "label": "HBP ZSC #"
         },
         "rank:BMP-ALT:durh": {
-          "index": 75,
-          "letter": "BW",
+          "index": 76,
+          "letter": "BX",
           "label": "BMP-ALT DURH #"
         },
         "rank:BMP-ALT:zsh": {
-          "index": 76,
-          "letter": "BX",
+          "index": 77,
+          "letter": "BY",
           "label": "BMP-ALT ZSH #"
         },
         "rank:BMP-ALT:zsc": {
-          "index": 77,
-          "letter": "BY",
+          "index": 78,
+          "letter": "BZ",
           "label": "BMP-ALT ZSC #"
         },
         "rowCheck": {
-          "index": 78,
-          "letter": "BZ",
+          "index": 79,
+          "letter": "CA",
           "label": "row check"
         }
       }
@@ -1559,7 +1564,8 @@
         "scoring": "B8",
         "tier_mult": "B9",
         "cat_band": "B10",
-        "disagree_gap": "B11",
+        "cat_band_sec": "B11",
+        "disagree_gap": "B12",
         "weak_win": "B26",
         "strong_win": "B27",
         "bank_win": "B28",
@@ -1601,8 +1607,12 @@
           "cell": "A10",
           "text": "Category band"
         },
-        "disagree_gap": {
+        "cat_band_sec": {
           "cell": "A11",
+          "text": "Secondary band"
+        },
+        "disagree_gap": {
+          "cell": "A12",
           "text": "Disagreement gap"
         },
         "weak_win": {
@@ -1857,38 +1867,39 @@
     "B_MYGP": "Board!W4:W203",
     "B_PLAYER": "Board!B4:B203",
     "CAT_BAND": "Settings!B10",
-    "DB_AST": "'Draft Board'!AX4:AX203",
-    "DB_BLK": "'Draft Board'!AZ4:AZ203",
-    "DB_DH_AST": "'Draft Board'!BF4:BF203",
-    "DB_DH_BLK": "'Draft Board'!BH4:BH203",
-    "DB_DH_FGPCT": "'Draft Board'!BA4:BA203",
-    "DB_DH_FTPCT": "'Draft Board'!BB4:BB203",
-    "DB_DH_PTS": "'Draft Board'!BD4:BD203",
-    "DB_DH_REB": "'Draft Board'!BE4:BE203",
-    "DB_DH_STL": "'Draft Board'!BG4:BG203",
-    "DB_DH_TPM": "'Draft Board'!BC4:BC203",
-    "DB_D_AST": "'Draft Board'!BN4:BN203",
-    "DB_D_BLK": "'Draft Board'!BP4:BP203",
-    "DB_D_FGPCT": "'Draft Board'!BI4:BI203",
-    "DB_D_FTPCT": "'Draft Board'!BJ4:BJ203",
-    "DB_D_PTS": "'Draft Board'!BL4:BL203",
-    "DB_D_REB": "'Draft Board'!BM4:BM203",
-    "DB_D_STL": "'Draft Board'!BO4:BO203",
-    "DB_D_TPM": "'Draft Board'!BK4:BK203",
-    "DB_FGA": "'Draft Board'!AR4:AR203",
-    "DB_FGM": "'Draft Board'!AQ4:AQ203",
-    "DB_FTA": "'Draft Board'!AT4:AT203",
-    "DB_FTM": "'Draft Board'!AS4:AS203",
+    "CAT_BAND_SEC": "Settings!B11",
+    "DB_AST": "'Draft Board'!AY4:AY203",
+    "DB_BLK": "'Draft Board'!BA4:BA203",
+    "DB_DH_AST": "'Draft Board'!BG4:BG203",
+    "DB_DH_BLK": "'Draft Board'!BI4:BI203",
+    "DB_DH_FGPCT": "'Draft Board'!BB4:BB203",
+    "DB_DH_FTPCT": "'Draft Board'!BC4:BC203",
+    "DB_DH_PTS": "'Draft Board'!BE4:BE203",
+    "DB_DH_REB": "'Draft Board'!BF4:BF203",
+    "DB_DH_STL": "'Draft Board'!BH4:BH203",
+    "DB_DH_TPM": "'Draft Board'!BD4:BD203",
+    "DB_D_AST": "'Draft Board'!BO4:BO203",
+    "DB_D_BLK": "'Draft Board'!BQ4:BQ203",
+    "DB_D_FGPCT": "'Draft Board'!BJ4:BJ203",
+    "DB_D_FTPCT": "'Draft Board'!BK4:BK203",
+    "DB_D_PTS": "'Draft Board'!BM4:BM203",
+    "DB_D_REB": "'Draft Board'!BN4:BN203",
+    "DB_D_STL": "'Draft Board'!BP4:BP203",
+    "DB_D_TPM": "'Draft Board'!BL4:BL203",
+    "DB_FGA": "'Draft Board'!AS4:AS203",
+    "DB_FGM": "'Draft Board'!AR4:AR203",
+    "DB_FTA": "'Draft Board'!AU4:AU203",
+    "DB_FTM": "'Draft Board'!AT4:AT203",
     "DB_GONE": "'Draft Board'!H4:H203",
     "DB_MINE": "'Draft Board'!I4:I203",
     "DB_PLAYER": "'Draft Board'!D4:D203",
     "DB_POS": "'Draft Board'!F4:F203",
-    "DB_PTS": "'Draft Board'!AV4:AV203",
+    "DB_PTS": "'Draft Board'!AW4:AW203",
     "DB_RANK": "'Draft Board'!A4:A203",
-    "DB_REB": "'Draft Board'!AW4:AW203",
-    "DB_STL": "'Draft Board'!AY4:AY203",
-    "DB_TPM": "'Draft Board'!AU4:AU203",
-    "DISAGREE_GAP": "Settings!B11",
+    "DB_REB": "'Draft Board'!AX4:AX203",
+    "DB_STL": "'Draft Board'!AZ4:AZ203",
+    "DB_TPM": "'Draft Board'!AV4:AV203",
+    "DISAGREE_GAP": "Settings!B12",
     "HBP_ADP": "HBP!P4:P203",
     "HBP_DURH": "HBP!Q4:Q203",
     "HBP_DURH_RANK": "HBP!R4:R203",

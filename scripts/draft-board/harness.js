@@ -336,7 +336,8 @@ function boardLayout() {
   const S = 'Settings';
   const named = {
     teams: 'TEAMS', roster: 'ROSTER', q: 'Q', sort_by: 'SORT_BY', scoring: 'SCORING',
-    tier_mult: 'TIER_MULT', cat_band: 'CAT_BAND', disagree_gap: 'DISAGREE_GAP',
+    tier_mult: 'TIER_MULT', cat_band: 'CAT_BAND', cat_band_sec: 'CAT_BAND_SEC',
+    disagree_gap: 'DISAGREE_GAP',
     weak_win: 'WEAK_WIN', strong_win: 'STRONG_WIN', bank_win: 'BANK_WIN'
   };
   const sanity = ['names_aligned', 'rows_aligned', 'board_rows', 'mine', 'adp_coverage',
@@ -693,8 +694,9 @@ for (const r of [R0, RN]) {
 // The profile columns: both array traps live here and neither is visible offline.
 {
   const s = String(cell('Draft Board', r4, D.strengths));
+  const n2 = String(cell('Draft Board', r4, D.secondary));
   const w = String(cell('Draft Board', r4, D.weaknesses));
-  [['strengths', s], ['weaknesses', w]].forEach(([name, f]) => {
+  [['strengths', s], ['secondary', n2], ['weaknesses', w]].forEach(([name, f]) => {
     check(`${name} wraps its IF in ARRAYFORMULA`, f.indexOf('ARRAYFORMULA(IF(') >= 0, f);
     // The LET trap: bind the raw TRANSPOSE and compare inside the ARRAYFORMULA.
     check(`${name} binds the raw TRANSPOSE, not a comparison`,
@@ -705,7 +707,13 @@ for (const r of [R0, RN]) {
     check(`${name} reads the tracker's Punted column`,
       f.indexOf(`$${L(TRACK_PUNT_COL)}$${TRACKER_R0}`) >= 0, f);
   });
-  check('strengths and weaknesses are different formulas', s !== w);
+  check('the three profile columns are different formulas',
+    s !== w && s !== n2 && n2 !== w);
+  // Half-open, or a primary strength is listed twice.
+  check('secondary is bounded above by CAT_BAND',
+    n2.indexOf('(d<CAT_BAND)') >= 0, n2);
+  check('secondary is bounded below by CAT_BAND_SEC',
+    n2.indexOf('(d>=CAT_BAND_SEC)') >= 0, n2);
 }
 
 // --- Category Tracker ------------------------------------------------------
@@ -756,6 +764,7 @@ labelFor('Q', 'Pool size (Q)');
 labelFor('SORT_BY', 'Sort by');
 labelFor('TIER_MULT', 'Tier multiplier');
 labelFor('CAT_BAND', 'Category band');
+labelFor('CAT_BAND_SEC', 'Secondary band');
 labelFor('DISAGREE_GAP', 'Disagreement gap');
 labelFor('WEAK_WIN', 'Weak at or below');
 labelFor('STRONG_WIN', 'Strong at or above');
@@ -776,7 +785,8 @@ CAT_LABELS.forEach(lab => {
 // default changed must follow every change.
 {
   const cellsByKey = { teams: 'TEAMS', roster: 'ROSTER', scoring: 'SCORING',
-    tier_mult: 'TIER_MULT', cat_band: 'CAT_BAND', disagree_gap: 'DISAGREE_GAP',
+    tier_mult: 'TIER_MULT', cat_band: 'CAT_BAND', cat_band_sec: 'CAT_BAND_SEC',
+    disagree_gap: 'DISAGREE_GAP',
     weak_win: 'WEAK_WIN', strong_win: 'STRONG_WIN', bank_win: 'BANK_WIN' };
   expect('every SETTINGS_DEFAULTS key has a Settings cell',
     Object.keys(SETTINGS_DEFAULTS).sort().join(','), Object.keys(cellsByKey).sort().join(','));
@@ -798,6 +808,7 @@ CAT_LABELS.forEach(lab => {
 
   const saved = SETTINGS_DEFAULTS;
   const altered = { teams: 11, roster: 14, scoring: 'probe', tier_mult: 3, cat_band: 1.5,
+                    cat_band_sec: 0.25,
                     disagree_gap: 9, weak_win: 0.3, strong_win: 0.7, bank_win: 0.8 };
   const probe = new Sheet('Settings probe');
   probe.maxCols = 10; probe.maxRows = 90;
@@ -947,7 +958,8 @@ check('the injury tier is the 21st PLAYERS field',
   // this workbook lives on Settings. Referencing one takes down the entire rule set for
   // that tab -- "Conditional format rule cannot reference a different sheet" -- which is
   // how the Draft Board build failed on its first live run.
-  const named = ['DISAGREE_GAP','CAT_BAND','TIER_MULT','TEAMS','Q','WEAK_WIN','STRONG_WIN',
+  const named = ['DISAGREE_GAP','CAT_BAND','CAT_BAND_SEC','TIER_MULT','TEAMS','Q',
+                 'WEAK_WIN','STRONG_WIN',
                  'BANK_WIN','SORT_BY','ROSTER','SCORING'];
   ['Draft Board','Board','Category Tracker','Punts','BMP','HBP','BMP-ALT','Settings']
     .forEach(name => {

@@ -333,6 +333,16 @@ class TestDiagnostics:
         # A wider band names fewer players. If this ever inverts, the band is not a band.
         assert cal[0.85]["flags_per_player"] >= cal[1.15]["flags_per_player"]
 
+    def test_the_secondary_calibration_counts_the_half_open_band(self):
+        res = BV.score_source(spread(60), 30)
+        ranked = sorted(res["players"], key=lambda k: res["players"][k]["durh_rank"])[:30]
+        cal = BV.secondary_calibration(res["players"], ranked, 1.0)
+        # A lower floor names more players, and none of them is a primary strength.
+        assert cal[0.4]["sec_per_player"] >= cal[0.75]["sec_per_player"]
+        # Adding the secondary list can only reduce how many players carry nothing.
+        prim = BV.profile_calibration(res["players"], ranked, bands=(1.0,))
+        assert cal[0.5]["pct_no_strength"] <= prim[1.0]["pct_unlabelled"]
+
     def test_the_durant_on_z_slopes_sit_just_under_one(self):
         # Both columns have unit SD by construction, so the transform reshapes without
         # rescaling. A slope far from 1 would mean the two bases are not comparable and

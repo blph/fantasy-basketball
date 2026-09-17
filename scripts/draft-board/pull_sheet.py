@@ -57,7 +57,8 @@ DRAFT_TYPES = {
     "sel": NUMBER, "drop": NUMBER, "med": NUMBER, "brk": STRING,
     "projGp": NUMBER, "myGp": NUMBER, "gpFlag": STRING,
     "adp": NUMBER, "xrank": NUMBER, "gap": NUMBER,
-    "best": STRING, "strengths": STRING, "weaknesses": STRING, "posLeft": NUMBER,
+    "best": STRING, "strengths": STRING, "secondary": STRING, "weaknesses": STRING,
+    "posLeft": NUMBER,
     "notes": STRING, "rowCheck": STRING,
     "hFgm": NUMBER, "hFga": NUMBER, "hFtm": NUMBER, "hFta": NUMBER, "h3": NUMBER,
     "hPts": NUMBER, "hReb": NUMBER, "hAst": NUMBER, "hStl": NUMBER, "hBlk": NUMBER,
@@ -77,7 +78,8 @@ BOARD_FULL = {"player"}
 
 SETTINGS_TYPES = {
     "teams": NUMBER, "roster": NUMBER, "q": NUMBER, "sort_by": STRING, "scoring": STRING,
-    "tier_mult": NUMBER, "cat_band": NUMBER, "disagree_gap": NUMBER,
+    "tier_mult": NUMBER, "cat_band": NUMBER, "cat_band_sec": NUMBER,
+    "disagree_gap": NUMBER,
     "weak_win": NUMBER, "strong_win": NUMBER, "bank_win": NUMBER,
     "names_aligned": STRING, "rows_aligned": STRING, "board_rows": NUMBER, "mine": NUMBER,
     "adp_coverage": STRING, "generated": STRING, "injuries": STRING, "digest": STRING,
