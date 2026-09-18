@@ -42,3 +42,9 @@ docs/reviews/mock-drafts/
 # Same content, second location. A report written to docs/mock-drafts/ was sitting
 # untracked and uncovered: one glob per directory is one glob per way to get this wrong.
 docs/mock-drafts/
+# Generated studies over the local board (ADR-0026). A study reads the snapshot and renders
+# aggregate counts, which are not provider data -- but check-no-data.sh does not scan .md or
+# .html under docs/, so the directory is the guard, as it is for the mock-draft reviews
+# above. The committed, reproducible artifact is the script that writes these:
+# scripts/draft-board/study_*.py, with tests over synthetic fixtures.
+docs/studies/
