@@ -440,9 +440,12 @@ function boardLayout() {
 
   // Compare picks (ADR-0027), checked against its own labels like the rest of the tab.
   const cmpLabels = {};
+  // The category labels too: Sheets reads a bare "3PM" as 3:00 PM unless the cell is text,
+  // and a label that turned into a time is only caught if something compares it.
   [[CMP_LABEL_COL, 1, 'Compare picks'], [CMP_LABEL_COL, CMP_BOARD_ROW, 'Board #'],
    [CMP_LABEL_COL, CMP_SLOT_ROW, 'If I take'], [CMP_LABEL_COL, CMP_EXP_ROW, 'Exp. cats'],
    [CMP_LABEL_COL, CMP_GAP_ROW, 'vs best'], [1, CMP_EXP_ROW, 'Expected cats']]
+    .concat(CAT_LABELS.map((lab, i) => [CMP_LABEL_COL, TRACKER_R0 + i, lab]))
     .forEach(([c, r, label]) => {
       need(text(T, r, c) === label, `tracker ${addr(c, r)} is "${text(T, r, c)}", not "${label}"`);
       cmpLabels[addr(c, r)] = label;

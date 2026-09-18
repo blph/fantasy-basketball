@@ -1823,7 +1823,15 @@
           "H6": "If I take",
           "H15": "Exp. cats",
           "H16": "vs best",
-          "A15": "Expected cats"
+          "A15": "Expected cats",
+          "H7": "FG%",
+          "H8": "FT%",
+          "H9": "3PM",
+          "H10": "PTS",
+          "H11": "REB",
+          "H12": "AST",
+          "H13": "STL",
+          "H14": "BLK"
         }
       }
     },

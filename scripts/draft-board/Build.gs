@@ -2355,12 +2355,14 @@ function buildComparePanel(sh, n) {
     'Each column is this tracker as it would read after you take that player, ranked on the '
     + 'categories you would expect to win each week. A glyph marks a category whose Read '
     + 'would change; players taken since drop out on their own.')
-    .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
+    .setFontSize(9).setFontColor(COLOR.muted).setWrap(true).setVerticalAlignment('top');
   sh.getRange(2, CMP_LABEL_COL, 1, CMP_SLOTS + 1).merge();
 
   sh.getRange(CMP_BOARD_ROW, CMP_LABEL_COL).setValue('Board #');
   sh.getRange(CMP_SLOT_ROW, CMP_LABEL_COL).setValue('If I take');
-  for (var i = 0; i < CAT_LABELS.length; i++) sh.getRange(r0 + i, CMP_LABEL_COL).setValue(CAT_LABELS[i]);
+  // Plain text first: written into a General cell, "3PM" becomes 3:00 PM.
+  sh.getRange(r0, CMP_LABEL_COL, CAT_LABELS.length, 1).setNumberFormat('@')
+    .setValues(CAT_LABELS.map(function (lab) { return [lab]; }));
   sh.getRange(CMP_EXP_ROW, CMP_LABEL_COL).setValue('Exp. cats');
   sh.getRange(CMP_GAP_ROW, CMP_LABEL_COL).setValue('vs best');
 
@@ -2494,8 +2496,10 @@ function formatTracker(sh) {
 
 function formatComparePanel(sh) {
   var L = a1col, rows = CAT_LABELS.length, r0 = TRACKER_R0, c0 = CMP_C0, ns = CMP_SLOTS;
+  // 132 px holds a 19-character name beside the dropdown arrow; longer ones clip at the end,
+  // where the first name and most of the surname are already showing.
   sh.setColumnWidth(CMP_LABEL_COL, 56);
-  for (var s = 0; s < ns; s++) sh.setColumnWidth(c0 + s, 120);
+  for (var s = 0; s < ns; s++) sh.setColumnWidth(c0 + s, 132);
 
   sh.getRange(CMP_BOARD_ROW, CMP_LABEL_COL, CMP_GAP_ROW - CMP_BOARD_ROW + 1, 1)
     .setFontSize(9).setFontColor(COLOR.muted);
@@ -2505,7 +2509,7 @@ function formatComparePanel(sh) {
   sh.getRange(CMP_RANK_ROW, c0, 1, ns).setFontSize(10).setFontWeight('bold')
     .setHorizontalAlignment('center');
   sh.getRange(CMP_SLOT_ROW, c0, 1, ns).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText)
-    .setFontSize(9).setFontWeight('bold');
+    .setFontSize(9);
   sh.getRange(r0, c0, rows, ns).setFontSize(11).setHorizontalAlignment('center')
     .setVerticalAlignment('middle');
   // Expected cats is the one number the ranking is on, so it takes the tracker's largest type.

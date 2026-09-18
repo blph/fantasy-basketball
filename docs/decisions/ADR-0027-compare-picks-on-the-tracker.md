@@ -69,9 +69,11 @@ Bad:
   - `k_FG` and `k_FT` are still provisional.
 
   A gap of a few hundredths of a category is within that noise.
-- Five slots cost 656 px beside the tracker, plus six hidden columns. The two cutoffs and the
-  Read strings are now written in two places in `Build.gs`, the tracker's Read column and
-  the panel's. The engine's `READS` is the one both are checked against.
+- Five slots cost 716 px beside the tracker, plus six hidden columns. Names longer than about
+  19 characters clip in their slot.
+- The two cutoffs and the Read strings are now written in two places in `Build.gs`, the
+  tracker's Read column and the panel's. The engine's `READS` is the one both are checked
+  against.
 
 ## Alternatives rejected
 
