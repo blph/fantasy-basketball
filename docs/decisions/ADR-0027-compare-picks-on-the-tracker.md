@@ -36,6 +36,10 @@ gap to the best says what the choice is worth: whether it is a toss-up or a real
 The tracker's own total now sits under its Win % column, so the before and after can still be
 read across.
 
+> **Superseded in part by [ADR-0028](ADR-0028-cmp-replaces-gone.md).** The slots are no
+> longer dropdowns. They fill from the Draft Board's `CMP` ticks, which took `GONE`'s place.
+> The rest of this record stands.
+
 **Five single-select dropdown slots, not one multi-select.** Apps Script cannot create a
 multi-select dropdown: `DataValidationBuilder` has no such option, and no API offers one.
 Every Full rebuild also clears all the validation on the tracker tab. A multi-select set by

@@ -124,7 +124,7 @@ class ReviewError(Exception):
 # The old header said `Gone` and `Mine`, and had no round, injury or value-kind columns.
 # A literal rather than a read of board_layout.json, so this file still does no I/O beyond
 # its arguments; a test pins the set to that file.
-CURRENT_ONLY_LABELS = frozenset({"RND", "Tm", "INJ", "GONE", "MINE", "DURH", "ZSH", "ZSC"})
+CURRENT_ONLY_LABELS = frozenset({"RND", "Tm", "INJ", "CMP", "MINE", "DURH", "ZSH", "ZSC"})
 # What the current layout's RND column holds where this tool expects a player name: `R3`
 # as displayed, or `3` when a pull returns the raw value. No player's name is a number.
 ROUND_CELL = re.compile(r"R?\d+")

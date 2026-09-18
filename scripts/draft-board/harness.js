@@ -89,6 +89,18 @@ Range.prototype.setFormulas = function (g) {
   this.sheet._write(this, g); return this;
 };
 Range.prototype.getValue = function () { return this.sheet._read(this.row, this.col); };
+// What onEdit reads off e.range, and what clearCompare writes. Recorded rather than stubbed:
+// a clear that unticks the wrong span is the failure worth catching.
+Range.prototype.getRow = function () { return this.row; };
+Range.prototype.getColumn = function () { return this.col; };
+Range.prototype.getNumRows = function () { return this.nr; };
+Range.prototype.getNumColumns = function () { return this.nc; };
+Range.prototype.getSheet = function () { return this.sheet; };
+Range.prototype.uncheck = function () {
+  for (let i = 0; i < this.nr; i++)
+    for (let j = 0; j < this.nc; j++) this.sheet.cells[`${this.row + i},${this.col + j}`] = false;
+  return this;
+};
 // refreshWithReorder tells a My GP override from its seeding formula by reading FORMULAS.
 // Without this the one path that re-attaches hand edits could not be run at all.
 Range.prototype.getFormulas = function () {
@@ -161,6 +173,7 @@ Sheet.prototype.setFrozenColumns = function (n) {
   return this;
 };
 Sheet.prototype.getName = function(){ return this.name; };
+Sheet.prototype.getParent = function(){ return ss; };
 Sheet.prototype.getBandings = function(){ return []; };
 Sheet.prototype.getConditionalFormatRules = function(){ return this.rules; };
 Sheet.prototype.setConditionalFormatRules = function(r){ this.rules = r; return this; };
@@ -175,6 +188,7 @@ const ss = {
   deleteSheet(){}, setActiveSheet(){ return this; }, moveActiveSheet(){}, toast(){},
   setSpreadsheetTimeZone(){}, getSpreadsheetTimeZone: () => 'UTC',
   getNamedRanges: () => [],
+  getRangeByName: name => seen.namedRanges[name] || null,
   setNamedRange(name, rng) {
     seen.namedRanges[name] = rng;
     if (!rng || !(rng instanceof Range)) problems.push(`named range ${name} is not a Range`);
@@ -442,7 +456,8 @@ function boardLayout() {
   const cmpLabels = {};
   // The category labels too: Sheets reads a bare "3PM" as 3:00 PM unless the cell is text,
   // and a label that turned into a time is only caught if something compares it.
-  [[CMP_LABEL_COL, 1, 'Compare picks'], [CMP_LABEL_COL, CMP_BOARD_ROW, 'Board #'],
+  [[CMP_LABEL_COL, 1, 'Compare picks'], [CMP_CLEAR_COL - 1, 1, 'Clear all'],
+   [CMP_LABEL_COL, CMP_BOARD_ROW, 'Board #'],
    [CMP_LABEL_COL, CMP_SLOT_ROW, 'If I take'], [CMP_LABEL_COL, CMP_EXP_ROW, 'Exp. cats'],
    [CMP_LABEL_COL, CMP_GAP_ROW, 'vs best'], [1, CMP_EXP_ROW, 'Expected cats']]
     .concat(CAT_LABELS.map((lab, i) => [CMP_LABEL_COL, TRACKER_R0 + i, lab]))
@@ -458,7 +473,8 @@ function boardLayout() {
       { index: CMP_C0 + s, letter: a1col(CMP_C0 + s), hidden: CMP_HID0 + s })),
     board_row: CMP_BOARD_ROW, rank_row: CMP_RANK_ROW, slot_row: CMP_SLOT_ROW,
     expected_row: CMP_EXP_ROW, gap_row: CMP_GAP_ROW,
-    source: { col: CMP_SRC_COL, letter: a1col(CMP_SRC_COL), first_row: 1, rows: POOL_ROWS },
+    note: addr(CMP_LABEL_COL, CMP_NOTE_ROW),
+    clear: addr(CMP_CLEAR_COL, 1),
     expected_now: addr(TRACK_WIN_COL, CMP_EXP_ROW),
     labels: cmpLabels
   };
@@ -542,9 +558,9 @@ function tickFingerprint() {
   // Two vocabularies for the same checkboxes, and the hash has to cover both. The Draft
   // Board reads them as column letters; the Category Tracker reads them as named ranges,
   // so matching only on letters would miss every tracker formula the ticks drive.
-  const reads = ['$' + a1col(D.drafted), '$' + a1col(D.mine),
+  const reads = ['$' + a1col(D.cmp), '$' + a1col(D.mine),
                  '$' + a1col(TRACK_PUNT_COL) + '$' + TRACKER_R0,
-                 'DB_MINE', 'DB_GONE'];
+                 'DB_MINE', 'DB_CMP'];
   const refreshTabs = { 'Draft Board': true, 'Board': true, 'Category Tracker': true };
 
   const tick = [], rebuild = [];
@@ -622,9 +638,20 @@ SOURCES.forEach((s, i) => {
     dSpanStart(i) + SPAN - 1 === dTag(i, VALUE_KINDS.length - 1));
 });
 
-// Gone and Mine sit inside the frozen pane, and the freeze is set to Mine.
-check('GONE and MINE are adjacent and inside the frozen pane',
-  D.mine === D.drafted + 1 && D.mine < dSpanStart(0));
+// CMP and Mine sit inside the frozen pane, and the freeze is set to Mine.
+check('CMP and MINE are adjacent and inside the frozen pane',
+  D.mine === D.cmp + 1 && D.mine < dSpanStart(0));
+// GONE and Left @pos left the sheet together (ADR-0028). Nothing may still reach for either.
+check('the Draft Board has no GONE or Left @pos column',
+  D.drafted === undefined && D.posLeft === undefined && typeof posLeftFormula === 'undefined');
+{
+  const stale = [];
+  Object.values(seen.sheets).forEach(sh => Object.values(sh.cells).forEach(v => {
+    if (typeof v === 'string' && /DB_GONE|\bGONE\b/.test(v) && v.charAt(0) === '=') stale.push(v);
+  }));
+  check('no formula still reads GONE', stale.length === 0, stale[0]);
+  expect('the CMP header', cell('Draft Board', HDR, D.cmp), 'CMP');
+}
 
 // The punt score and rank blocks must each be contiguous: "Best build" takes MIN and MATCH
 // across the rank span as one range, and the labels are positional against it.
@@ -844,10 +871,11 @@ for (let i = 0; i < CAT_LABELS.length; i++) {
   });
 }
 
-// --- Compare picks (ADR-0027) ----------------------------------------------
-// The panel is the tracker run one pick ahead, once per slot. Every reference below is built
-// from the CMP_* and TRACK_* constants, so a panel that drifts off its own columns fails here
-// -- but none of this evaluates a formula. The sheet and verify.py --local do that.
+// --- Compare picks (ADR-0027, ADR-0028) -----------------------------------
+// The panel is the tracker run one pick ahead, once per slot, for the players ticked CMP on
+// the Draft Board. Every reference below is built from the CMP_*, TRACK_* and D constants, so
+// a panel that drifts off its own columns fails here -- but none of this evaluates a formula.
+// The sheet and verify.py --local do that.
 {
   const T = TRACKER_TAB, sh = seen.sheets[T];
   const f = (r, c) => String(cell(T, r, c));
@@ -855,48 +883,40 @@ for (let i = 0; i < CAT_LABELS.length; i++) {
   const punt = L(TRACK_PUNT_COL);
   check('the panel starts right of Punted',
     CMP_LABEL_COL === TRACK_PUNT_COL + 1 && CMP_C0 === CMP_LABEL_COL + 1);
-  check('the hidden block and the source sit past the slots',
-    CMP_HID0 === last + 1 && CMP_SRC_COL === CMP_HID0 + CMP_SLOTS);
+  check('the hidden block sits past the slots, and nothing else is hidden past it',
+    CMP_HID0 === last + 1 && typeof CMP_SRC_COL === 'undefined');
   check('one ordinal per slot', CMP_ORDINALS.length === CMP_SLOTS);
   check('the slots sit on the tracker header row', CMP_SLOT_ROW === TRACKER_R0 - 1);
+  check('the slots carry no dropdown: CMP ticks fill them',
+    (sh.validations || []).length === 0, JSON.stringify(sh.validations));
+  check('the hidden block is hidden, and only it',
+    (sh.hidden || []).length === 1 && sh.hidden[0][0] === CMP_HID0
+    && sh.hidden[0][1] === CMP_SLOTS, JSON.stringify(sh.hidden));
 
-  const src = f(1, CMP_SRC_COL);
-  check('the dropdown source leaves out GONE and MINE',
-    src.indexOf('DB_GONE<>TRUE') >= 0 && src.indexOf('DB_MINE<>TRUE') >= 0, src);
-  check('the dropdown source runs in board-rank order',
-    src.indexOf('SORT(FILTER({DB_RANK,DB_PLAYER},') >= 0, src);
-  const v = (sh.validations || []).filter(x => x.row === CMP_SLOT_ROW && x.col === CMP_C0);
-  check('the slots carry one dropdown rule across all five',
-    v.length === 1 && v[0].nr === 1 && v[0].nc === CMP_SLOTS, JSON.stringify(sh.validations));
-  if (v.length === 1) {
-    const r = v[0].rule;
-    check('the slot dropdown reads the whole source column',
-      r.range && r.range.sheet === T && r.range.col === CMP_SRC_COL && r.range.row === 1
-      && r.range.nr === POOL_ROWS && r.range.nc === 1, JSON.stringify(r));
-    check('the slot dropdown shows its arrow and rejects a partial name',
-      r.dropdown === true && r.allowInvalid === false, JSON.stringify(r));
-  }
-  check('the hidden block and the source are hidden',
-    (sh.hidden || []).some(([c, n]) => c === CMP_HID0 && n === CMP_SRC_COL - CMP_HID0 + 1),
-    JSON.stringify(sh.hidden));
+  const ticked = 'SUMPRODUCT((DB_CMP=TRUE)*(DB_MINE<>TRUE))';
+  const note = f(CMP_NOTE_ROW, CMP_LABEL_COL);
+  check('the note counts CMP ticks that are not MINE', note.indexOf(ticked) >= 0, note);
+  check('the note speaks only past the slot count',
+    note.indexOf(`>${CMP_SLOTS},"Top ${CMP_SLOTS} of "&`) >= 0, note);
+  expect('the Clear all label sits just left of its box',
+    cell(T, 1, CMP_CLEAR_COL - 1), 'Clear all');
+  check('the Clear all box is on row 1, past the title', CMP_CLEAR_COL > CMP_LABEL_COL + 1);
 
   for (let s = 0; s < CMP_SLOTS; s++) {
     const c = CMP_C0 + s, h = CMP_HID0 + s, name = `${L(c)}$${CMP_SLOT_ROW}`;
     const match = `MATCH(${name},DB_PLAYER,0)`;
-    const status = f(CMP_RANK_ROW, h);
-    check(`slot ${s + 1} status reads its own slot`, status.indexOf(match) >= 0, status);
-    ['not on board', 'mine', 'gone'].forEach(w => {
-      check(`slot ${s + 1} status can read ${w}`, status.indexOf(`"${w}"`) >= 0, status);
-    });
-    const earlier = `MATCH(${name},$${L(CMP_C0)}$${CMP_SLOT_ROW}:$${L(c - 1)}$${CMP_SLOT_ROW},0)`;
-    check(`slot ${s + 1} repeat test covers exactly the earlier slots`,
-      s === 0 ? status.indexOf('repeat') < 0 : status.indexOf(earlier) >= 0, status);
+    expect(`slot ${s + 1} is the ${s + 1}th CMP tick by board #`, f(CMP_SLOT_ROW, c),
+      `=IFERROR(INDEX(SORT(FILTER({DB_RANK,DB_PLAYER},DB_CMP=TRUE,DB_MINE<>TRUE),1,TRUE),`
+      + `${s + 1},2),"")`);
+    check(`slot ${s + 1} has no status cell`, cell(T, CMP_RANK_ROW, h) === '<empty>');
     check(`slot ${s + 1} board # reads DB_RANK`,
       f(CMP_BOARD_ROW, c).indexOf(`INDEX(DB_RANK,${match})`) >= 0, f(CMP_BOARD_ROW, c));
 
     CAT_LABELS.forEach((lab, i) => {
       const r = TRACKER_R0 + i, key = catKey(lab);
       const win = f(r, h);
+      check(`slot ${s + 1} ${lab} is blank for an empty slot`,
+        win.indexOf(`=IF(${name}="","",`) === 0, win);
       check(`slot ${s + 1} ${lab} is a normal CDF on its own K`,
         win.indexOf('NORMSDIST(') >= 0 && win.indexOf('*K_' + key + ')') >= 0, win);
       check(`slot ${s + 1} ${lab} counts the candidate as pick n + 1`,
@@ -916,6 +936,8 @@ for (let i = 0; i < CAT_LABELS.length; i++) {
       exp.indexOf(`SUMIFS(${L(h)}$${TRACKER_R0}:${L(h)}$${catLast},`
         + `$${punt}$${TRACKER_R0}:$${punt}$${catLast},FALSE)`) >= 0, exp);
     const rank = f(CMP_RANK_ROW, c);
+    check(`slot ${s + 1} rank is blank for an empty slot`,
+      rank.indexOf(`=IF(${name}="","",CHOOSE(`) === 0, rank);
     check(`slot ${s + 1} rank masks blanks and breaks ties on board #`,
       rank.indexOf('SUMPRODUCT(ISNUMBER(') >= 0
       && rank.indexOf(`<${L(c)}$${CMP_BOARD_ROW})`) >= 0, rank);
@@ -1081,13 +1103,59 @@ CAT_LABELS.forEach(lab => {
   // A checkbox tick anywhere but row 1 of the Draft Board must do nothing at all: onEdit
   // fires on every edit, including each of the ~156 GONE ticks during a draft.
   sh.hidden = []; sh.shown = [];
-  onEdit({ range: { getRow: () => 5, getColumn: () => 1, getSheet: () => sh,
-                    getValue: () => false } });
+  onEdit({ range: sh.getRange(5, 1) });
   check('onEdit ignores edits outside row 1', sh.hidden.length === 0 && sh.shown.length === 0);
   onEdit({ range: { getRow: () => 1, getColumn: () => 1, getSheet: () => sh,
                     getValue: () => false } });
   expect('onEdit on the first checkbox hides the first block',
     JSON.stringify(sh.hidden), JSON.stringify([[dSpanStart(0), SPAN]]));
+}
+
+// --- clearing CMP (ADR-0028) ------------------------------------------------
+// Two routes clear every CMP tick: the Clear all box beside the Compare picks title, and any
+// MINE tick, because the comparison was for that pick. onEdit swallows its own errors, so a
+// route that silently stopped working would look exactly like a route that was never used.
+{
+  const db = seen.sheets['Draft Board'], tr = seen.sheets[TRACKER_TAB];
+  const rows = [R0 + 2, R0 + 9, R0 + 30];
+  const tickCmp = () => rows.forEach(r => { db.cells[`${r},${D.cmp}`] = true; });
+  const cmpLeft = () => rows.filter(r => db.cells[`${r},${D.cmp}`] === true).length;
+  const edit = (sheet, r, c, v, nr, nc) => {
+    const rg = sheet.getRange(r, c, nr || 1, nc || 1);
+    for (let i = 0; i < (nr || 1); i++)
+      for (let j = 0; j < (nc || 1); j++) sheet.cells[`${r + i},${c + j}`] = v;
+    onEdit({ range: rg, value: nr || nc ? undefined : v });
+  };
+
+  tickCmp();
+  edit(tr, 1, CMP_CLEAR_COL, true);
+  check('the Clear all box clears every CMP tick', cmpLeft() === 0, `${cmpLeft()} left`);
+  check('the Clear all box unticks itself', tr.cells[`1,${CMP_CLEAR_COL}`] === false);
+  check('DB_CMP is the CMP column, all of it',
+    seen.namedRanges.DB_CMP && seen.namedRanges.DB_CMP.col === D.cmp
+    && seen.namedRanges.DB_CMP.row === R0 && seen.namedRanges.DB_CMP.nr === POOL_ROWS);
+
+  tickCmp();
+  edit(db, R0 + 50, D.mine, true);
+  check('a MINE tick clears every CMP tick', cmpLeft() === 0, `${cmpLeft()} left`);
+
+  tickCmp();
+  edit(db, R0 + 51, D.mine, false);
+  check('unticking MINE clears nothing', cmpLeft() === rows.length);
+  edit(db, R0 + 60, D.cmp, true);
+  check('a CMP tick clears nothing', cmpLeft() === rows.length);
+  edit(tr, 1, CMP_CLEAR_COL + 1, true);
+  check('a tick beside the Clear all box clears nothing', cmpLeft() === rows.length);
+
+  // A paste across CMP and MINE arrives as one multi-cell edit with no e.value.
+  edit(db, R0 + 70, D.cmp, true, 3, 2);
+  check('a pasted block that ticks MINE clears every CMP tick', cmpLeft() === 0);
+  [50, 70, 71, 72].forEach(k => { db.cells[`${R0 + k},${D.mine}`] = false; });
+  [60, 70, 71, 72].forEach(k => { db.cells[`${R0 + k},${D.cmp}`] = false; });
+
+  tickCmp();
+  clearCompareMenu();
+  check('the menu item clears every CMP tick', cmpLeft() === 0);
 }
 
 // --- draft state survives a layout change ----------------------------------
@@ -1110,25 +1178,29 @@ CAT_LABELS.forEach(lab => {
   // column would prove nothing.
   old.cells[`${HDR},${oldInj}`] = 'INJ';
   old.cells[`${R0},${oldPlayer}`] = 'Ada Lovelace';
-  old.cells[`${R0},${oldGone}`] = false;
+  old.cells[`${R0},${oldGone}`] = true;
+  old.cells[`${R0},${D.cmp}`] = true;
   old.cells[`${R0},${oldMine}`] = true;
   old.cells[`${R0},${oldNotes}`] = 'target';
   old.cells[`${R0},${oldInj}`] = 'STALE';
   old.getLastRow = () => R0;
 
   const at = draftHeaderCols(old);
-  check('draftHeaderCols finds GONE by its header, not by the map', at.GONE === oldGone,
-    `got ${at.GONE}, expected ${oldGone}`);
-  check('draftHeaderCols finds MINE by its header', at.MINE === oldMine);
+  check('draftHeaderCols finds MINE by its header, not by the map', at.MINE === oldMine,
+    `got ${at.MINE}, expected ${oldMine}`);
+  // The sheet before ADR-0028 had GONE where CMP now sits. Falling back to the map there
+  // would read every old GONE tick as a CMP tick on the first rebuild.
+  check('a sheet with no CMP header has no CMP column to read', at.CMP === null,
+    `got ${at.CMP}`);
 
   check('readCheckState tolerates a missing sheet', readCheckState(null) && true);
   const state = readCheckState(old);
   const rec = state['Ada Lovelace'];
   check('the ticked player is read back', !!rec);
   if (rec) {
-    // The precise corruption to guard against: reading MINE as GONE.
-    check('MINE is not read as GONE', rec.gone === false && rec.mine === true,
-      `gone=${rec.gone} mine=${rec.mine}`);
+    check('MINE is read from its own column', rec.mine === true, `mine=${rec.mine}`);
+    check('an old GONE tick never comes back as CMP', rec.cmp === false && rec.gone === undefined,
+      JSON.stringify(rec));
     check('Notes travel with the checkboxes', rec.notes === 'target', JSON.stringify(rec));
     // The Board owns INJ now, and the Draft Board cell is a formula into it. Capturing it
     // here would restore a literal over that formula on the next re-sort and freeze the
@@ -1137,6 +1209,10 @@ CAT_LABELS.forEach(lab => {
       `readCheckState still captures INJ: ${JSON.stringify(rec)}`);
     check('draftHeaderCols no longer resolves INJ', at.INJ === undefined);
   }
+  // The same sheet once it says CMP: now the tick is real, and it is carried by its header.
+  old.cells[`${HDR},${oldGone}`] = 'CMP';
+  const rec2 = readCheckState(old)['Ada Lovelace'];
+  check('a CMP tick is carried by its header', !!rec2 && rec2.cmp === true, JSON.stringify(rec2));
 }
 
 // The injury tier is a pipeline column. Both halves of that have to hold: it must be
@@ -1153,13 +1229,13 @@ check('the injury tier is the 21st PLAYERS field',
   const rules = seen.sheets['Draft Board'].rules.map(r => r.formula).filter(Boolean);
   const has = f => rules.some(x => x === f);
   check('MINE rule keys off the Mine column', has(`=${C(D.mine)}${R0}=TRUE`), rules.join('\n'));
-  check('GONE rule keys off the Gone column', has(`=${C(D.drafted)}${R0}=TRUE`));
-  // First match wins, so MINE has to be added before GONE: the old order rendered a
-  // player who was both as struck through, which the mine rule explicitly undid.
+  check('CMP rule keys off the CMP column', has(`=${C(D.cmp)}${R0}=TRUE`));
+  // First match wins, so MINE has to be added before CMP: a player you have taken reads as
+  // yours, whatever else is ticked beside him.
   const iMine = rules.indexOf(`=${C(D.mine)}${R0}=TRUE`);
-  const iGone = rules.indexOf(`=${C(D.drafted)}${R0}=TRUE`);
-  check('MINE resolves before GONE', iMine >= 0 && iGone >= 0 && iMine < iGone,
-    `mine at ${iMine}, gone at ${iGone}`);
+  const iCmp = rules.indexOf(`=${C(D.cmp)}${R0}=TRUE`);
+  check('MINE resolves before CMP', iMine >= 0 && iCmp >= 0 && iMine < iCmp,
+    `mine at ${iMine}, cmp at ${iCmp}`);
   check('the GP haircut band points at Projected GP',
     has(`=AND(${C(D.projGp)}${R0}>=68,${C(D.projGp)}${R0}<=74)`));
   check('the round ruler points at the round column',

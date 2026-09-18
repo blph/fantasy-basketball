@@ -12,7 +12,7 @@ and compares every derived cell.
     2. Engine input, in memory only. Nothing is written to draft-state.json.
     3. Values, tags, INJ and the # column, on raw values rather than display rounding.
     4. Every other derived column, the tracker, My roster, Compare picks and the Punts
-       blocks. The five Compare picks slots are read as input, like the ticks. Numbers
+       blocks. Compare picks is filled from the CMP ticks, which are read as input. Numbers
        compare on the raw `v` to 1e-9 -- or, when the pull says it holds `sig_digits` (an xlsx
        download stores 10), to within half a unit in the last digit it holds -- text on its
        text. Tied values share their ranks as a set; the columns computed from a tied row's
@@ -58,13 +58,13 @@ REPORTED = {"k": "k_rosenof", "w": "weights", "K": "k_tracker", "slope": "slopes
 #: Draft Board columns read straight off an engine row: (how to compare, engine field).
 DIRECT = {
     "tier": ("num", "tier"), "player": ("text", "name"), "team": ("text", "team"),
-    "pos": ("text", "pos"), "inj": ("text", "inj"), "drafted": ("bool", "gone"),
+    "pos": ("text", "pos"), "inj": ("text", "inj"), "cmp": ("bool", "cmp"),
     "mine": ("bool", "mine"), "drop": ("num", "drop"), "med": ("num", "med"),
     "brk": ("text", "brk"), "projGp": ("num", "gp"), "myGp": ("num", "my_gp"),
     "gpFlag": ("text", "gp_flag"), "adp": ("num", "adp"), "xrank": ("num", "xrank"),
     "best": ("text", "best_build"), "strengths": ("text", "strengths"),
     "secondary": ("text", "secondary"),
-    "weaknesses": ("text", "weaknesses"), "posLeft": ("num", "left_at_pos"),
+    "weaknesses": ("text", "weaknesses"),
     "notes": ("text", "notes"),
 }
 #: Compared by their own rule below.
@@ -300,15 +300,15 @@ def _engine_inputs(snapshot: dict, sheet: _Pull, layout: dict) -> dict:
         state["players"][p["key"]] = st
     for i, idx in enumerate(order):
         st = state["players"][players[idx]["key"]]
-        st["gone"] = _v(sheet.cell(DB, dcols["drafted"]["index"], first + i)) is True
+        # No GONE on the sheet since ADR-0028, so `gone` stays False here: it is the local
+        # board's own pick log, and nothing the sheet shows reads it.
+        st["cmp"] = _v(sheet.cell(DB, dcols["cmp"]["index"], first + i)) is True
         st["mine"] = _v(sheet.cell(DB, dcols["mine"]["index"], first + i)) is True
 
     t = tabs[TRACKER]
     state["conceded"] = [
         cat for i, cat in enumerate(snapshot["cat_labels"])
         if _v(sheet.cell(TRACKER, t["columns"]["punted"], t["first_cat_row"] + i)) is True]
-    cmp = t["compare"]
-    candidates = [_text(sheet.cell(TRACKER, s["index"], cmp["slot_row"])) for s in cmp["slots"]]
 
     cells, settings = tabs[SET]["cells"], dict(snapshot["settings"])
     for key in INPUT_KEYS:
@@ -320,7 +320,7 @@ def _engine_inputs(snapshot: dict, sheet: _Pull, layout: dict) -> dict:
         if v is None:
             raise NotComparable(f"Settings {cells[key]} ({key}) is not a number")
         settings[key] = int(v) if key in WHOLE and float(v).is_integer() else v
-    return {"state": state, "settings": settings, "order": order, "candidates": candidates}
+    return {"state": state, "settings": settings, "order": order}
 
 
 # ------------------------------------------------------------------ steps 3 to 6
@@ -518,24 +518,19 @@ def _compare_tracker(snapshot, sheet, layout, inputs, trk, rep) -> None:
 
 
 def _compare_panel(sheet, layout, got, rep) -> None:
-    """Compare picks (ADR-0027): the dropdown source, the total now, and every slot cell."""
+    """Compare picks (ADR-0027, ADR-0028): the note, the total now, and every slot cell --
+    the names too, which the CMP ticks choose."""
     t = layout["tabs"][TRACKER]
     c = t["compare"]
     where = "Category Tracker Compare picks"
     if not _same_num(sheet.at(TRACKER, c["expected_now"]), got["now_expected"]):
         rep.miss(f"{where} expected cats now", c["expected_now"])
-
-    src = c["source"]
-    listed = [_text(sheet.cell(TRACKER, src["col"], src["first_row"] + i))
-              for i in range(src["rows"])]
-    if listed != got["available"] + [""] * (src["rows"] - len(got["available"])):
-        at = next(i for i, (a, b) in enumerate(zip(listed, got["available"] + [""] * src["rows"],
-                                                  strict=False)) if a != b)
-        rep.miss(f"{where} dropdown source", f"row {src['first_row'] + at}")
+    if not _same("text", sheet.at(TRACKER, c["note"]), got["note"]):
+        rep.miss(f"{where} note", c["note"])
 
     for pos, slot in zip(c["slots"], got["slots"], strict=True):
         col, hid, letter = pos["index"], pos["hidden"], pos["letter"]
-        cells = [(c["rank_row"], hid, "text", slot["status"], "status"),
+        cells = [(c["slot_row"], col, "text", slot["name"], "name"),
                  (c["board_row"], col, "num", slot["board_rank"], "board #"),
                  (c["rank_row"], col, "text", slot["label"], "rank"),
                  (c["expected_row"], col, "num", slot["expected"], "expected cats"),
@@ -546,10 +541,9 @@ def _compare_panel(sheet, layout, got, rep) -> None:
         for r, cc, how, want, what in cells:
             if not _same(how, sheet.cell(TRACKER, cc, r), want):
                 rep.miss(f"{where} slot {letter} ({what})", f"{col_letter(cc)}{r}")
-    typed = sum(1 for s in got["slots"] if s["status"])
-    ranked = sum(1 for s in got["slots"] if s["status"] == "ok")
-    rep.oks.append(f"ok: compared Compare picks, {typed} slot(s) filled and {ranked} ranked, "
-                   f"and a dropdown of {len(got['available'])}")
+    filled = sum(1 for s in got["slots"] if s["name"])
+    rep.oks.append(f"ok: compared Compare picks, {got['ticked']} ticked CMP and {filled} "
+                   "compared")
 
 
 def _compare_punts(snapshot, sheet, layout, rep) -> None:
@@ -659,8 +653,9 @@ def diff_local(snapshot: dict, pulls: dict, layout: dict) -> tuple[int, list[str
         trk = ENGINE.tracker(snapshot, state, settings, applied, rows=rows)
         _compare_draft(snapshot, sheet, layout, inputs, applied, rows, rep)
         _compare_tracker(snapshot, sheet, layout, inputs, trk, rep)
+        slots = len(layout["tabs"][TRACKER]["compare"]["slots"])
         _compare_panel(sheet, layout, ENGINE.compare(snapshot, state, settings, applied,
-                                                     inputs["candidates"], rows=rows), rep)
+                                                     rows=rows, slots=slots), rep)
         _compare_punts(snapshot, sheet, layout, rep)
         _compare_settings(snapshot, sheet, layout, inputs, rep)
     except NotComparable as e:

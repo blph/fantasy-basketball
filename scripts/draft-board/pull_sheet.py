@@ -53,12 +53,11 @@ STRING, NUMBER, BOOLEAN = "string", "number", "boolean"
 DRAFT_TYPES = {
     "rank": NUMBER, "tier": NUMBER, "round": NUMBER,
     "player": STRING, "team": STRING, "pos": STRING, "inj": STRING,
-    "drafted": BOOLEAN, "mine": BOOLEAN,
+    "cmp": BOOLEAN, "mine": BOOLEAN,
     "sel": NUMBER, "drop": NUMBER, "med": NUMBER, "brk": STRING,
     "projGp": NUMBER, "myGp": NUMBER, "gpFlag": STRING,
     "adp": NUMBER, "xrank": NUMBER, "gap": NUMBER,
     "best": STRING, "strengths": STRING, "secondary": STRING, "weaknesses": STRING,
-    "posLeft": NUMBER,
     "notes": STRING, "rowCheck": STRING,
     "hFgm": NUMBER, "hFga": NUMBER, "hFtm": NUMBER, "hFta": NUMBER, "h3": NUMBER,
     "hPts": NUMBER, "hReb": NUMBER, "hAst": NUMBER, "hStl": NUMBER, "hBlk": NUMBER,
@@ -272,16 +271,15 @@ def plan_ranges(layout: dict) -> list[dict]:
 
 
 def _compare_ranges(t: dict, ncat: int) -> list[dict]:
-    """Compare picks (ADR-0027): its labels, and every panel cell with nothing required.
+    """Compare picks (ADR-0027, ADR-0028): its labels, and every panel cell, nothing required.
 
-    Five empty slots are a normal state, and so is a candidate who has since been drafted, so
-    no count here can tell a wrong layout from a quiet panel. The labels do that instead.
+    Five empty slots are the normal state whenever nothing is ticked CMP, so no count here can
+    tell a wrong layout from a quiet panel. The labels do that instead.
     """
     tab, c = "Category Tracker", t["compare"]
     s0, s1 = c["slots"][0]["index"], c["slots"][-1]["index"]
     h0, h1 = c["slots"][0]["hidden"], c["slots"][-1]["hidden"]
     cat0, cat1 = t["first_cat_row"], t["first_cat_row"] + ncat - 1
-    src = c["source"]
     out = _cells_by_column(tab, {a1: a1 for a1 in c["labels"]},
                            {a1: STRING for a1 in c["labels"]})
     for row, kind in ((c["slot_row"], STRING), (c["board_row"], NUMBER),
@@ -289,12 +287,10 @@ def _compare_ranges(t: dict, ncat: int) -> list[dict]:
                       (c["gap_row"], NUMBER)):
         out.append(_range(tab, s0, row, s1, row, kind, 0))
     out.append(_range(tab, s0, cat0, s1, cat1, STRING, 0))
-    out.append(_range(tab, h0, c["rank_row"], h1, c["rank_row"], STRING, 0))
     out.append(_range(tab, h0, cat0, h1, cat1, NUMBER, 0))
-    out.append(_range(tab, src["col"], src["first_row"], src["col"],
-                      src["first_row"] + src["rows"] - 1, STRING, 0))
-    col, row, _, _ = parse_a1(c["expected_now"])
-    out.append(_range(tab, col, row, col, row, NUMBER, 0))
+    for a1, kind in ((c["expected_now"], NUMBER), (c["note"], STRING), (c["clear"], BOOLEAN)):
+        col, row, _, _ = parse_a1(a1)
+        out.append(_range(tab, col, row, col, row, kind, 0))
     return out
 
 

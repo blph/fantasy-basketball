@@ -12,14 +12,14 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | | |
 |---|---|
 | **Before the draft** | Pick your sort in the dropdown at the top left, run Draft Board ▸ Rebuild & re-sort, and read down. Learn the top ten of each punt build. |
-| **On the clock** | Tick GONE as players come off the board — for everyone, not just you. Tick MINE for your own picks. Both live in the frozen pane so they never scroll away. |
+| **On the clock** | Tick CMP beside the players you are deciding between, and read Compare picks on the Category Tracker. Tick MINE for your pick, which clears CMP. Both live in the frozen pane so they never scroll away. |
 | **After each pick** | Read the Category Tracker. Spend the next pick on a CONTESTED row, not a STRONG one. |
 
 ## THE TWO THINGS THAT ARE NOT AUTOMATIC
 
 | | |
 |---|---|
-| **GONE** | Nobody else is ticking it for you. Left @pos is wrong if it is not kept up. The tracker's Average team does not read it: that benchmark is the top Teams × MINE players by rank, capped at Q, whether or not they are ticked. |
+| **CMP** | Nobody else's pick clears it. A player another manager takes stays in Compare picks until you untick him, tick Clear all beside the panel, or tick MINE on your own pick. The board does not track other managers' picks at all: the tracker's Average team is the top Teams × MINE players by rank, capped at Q, whoever took them. |
 | **Sort by** | Changing the dropdown does NOT re-sort the board on its own. Run Rebuild & re-sort. Until you do, nothing on the board follows the new choice — the rows, #, tiers and the tracker all still reflect the previous sort. |
 
 ## COLOURS
@@ -115,7 +115,7 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | **Z** | `` | Your roster's edge in that category, in standard deviations, scaled by √n. |
 | **The five reads** | `` | WEAK ≤40%. CONTESTED — spend the next pick here. STRONG ≥60%. BANKED ≥75%, stop looking. PUNTED, conceded on purpose. |
 | **No turnovers row** | `` | DURANT H2H weights turnovers zero, so the board cannot measure them. They are still on the Board tab as a raw number. |
-| **Compare picks** | `` | Type up to five players you are deciding between into the yellow slots beside the tracker. Each column is this tracker as it would read if you took that player next, and a glyph marks a category whose Read would change. Anyone taken since drops out. |
+| **Compare picks** | `` | Tick CMP on the Draft Board beside the players you are deciding between. Each column beside the tracker is the tracker as it would read if you took that player next, and a glyph marks a category whose Read would change. More than five ticked compares the best five by board #, and says so. |
 | **Exp. cats** | `= Σ Win % not punted` | The categories you would expect to win each week against an average opponent. Compare picks ranks on it, and vs best is how far each candidate trails the top one. |
 
 ## THINGS WORTH KNOWING
@@ -124,5 +124,4 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 |---|---|
 | **Nothing scales by games played** | Availability is the least predictable part of any projection, and Basketball Monster's method has no availability term at all. The GP columns are context for a judgement call, not a multiplier. |
 | **Changing a constant does not recalculate** | Weights and the punt weight are applied in the pipeline. Edit those in board_values.py and re-run build_data.py; the grey cells on Settings only record what was used. The lambdas and the pool constants are not in any source file at all — they are refitted from Basketball Monster by calibrate_bbm.py on every refresh. |
-| **Left @pos** | How many un-GONE players in his tier could fill a slot he is eligible for. The one column that needs everyone's picks ticked. |
 | **MPG** | Carried for context and deliberately not valued — a per-game projection already is the minutes. |

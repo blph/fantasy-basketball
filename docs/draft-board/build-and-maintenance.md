@@ -30,8 +30,8 @@ The two vendors no longer iterate at all, because they borrow fixed constants
 either way the numbers arrive already computed.
 
 What stays a live formula is everything that has to react while you are drafting: rank,
-tier, round, GAP, the three profile columns, `Left @pos`, and the whole Category
-Tracker. Ticking `MINE` still updates the tracker instantly.
+tier, round, GAP, the three profile columns, and the whole Category Tracker, Compare
+picks included. Ticking `MINE` or `CMP` still updates the tracker instantly.
 
 > **The consequence to keep in mind: changing a constant on Settings does not recalculate
 > the board.** Weights, lambdas and the punt weight are applied upstream. Edit the pipeline
@@ -52,11 +52,11 @@ context for a judgement call, not a multiplier.
 
 | Tab | What it is |
 |---|---|
-| `Draft Board` | The one you use on the clock. Row 1 is the control strip — the sort dropdown and the three projection checkboxes. `GONE` and `MINE` sit inside the frozen pane because they are the only cells you write during a draft. |
+| `Draft Board` | The one you use on the clock. Row 1 is the control strip — the sort dropdown and the three projection checkboxes. `CMP` and `MINE` sit inside the frozen pane because they are the only cells you write during a draft. Tick `CMP` beside the players you are deciding between and they fill Compare picks on the tracker; ticking `MINE` clears every `CMP`. There is no `GONE`: nobody ticked other managers' picks, and `Left @pos`, which needed them, went with it ([ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)). |
 | `BMP`, `HBP`, `BMP-ALT` | One calculation tab per projection: raw line, the three values with their ranks and dropped categories, the DURANT H2H columns, plain z, and the punt builds. All numbers, no formulas. |
 | `Board` | The spine. Identity, the HBP raw line, the GP block, market, and every column you edit by hand. `Refresh data` writes here and nowhere else. |
 | `Punts` | Nine builds, each listing who it gets at a discount. Computed on BMP · DURH. |
-| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of all three of the Draft Board's profile columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. Beside it, **Compare picks**: up to five candidates typed into yellow dropdown slots (I6:M6), each column the tracker as it would read if you took that player next, ranked on expected categories won ([ADR-0027](../decisions/ADR-0027-compare-picks-on-the-tracker.md)). Its status and win columns, and the dropdown's source list, are hidden in N:S. |
+| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of all three of the Draft Board's profile columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. Beside it, **Compare picks**: the players ticked `CMP` and not `MINE`, best board # first, up to five (I6:M6). Each column is the tracker as it would read if you took that player next, ranked on expected categories won ([ADR-0027](../decisions/ADR-0027-compare-picks-on-the-tracker.md), [ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)). H3 says so when more than five are ticked. The **Clear all** box in K1 unticks every `CMP` through `onEdit`; `Draft Board ▸ Clear compare` does the same by hand. The win columns are hidden in N:R. |
 | `Settings` | Every constant. Yellow cells are yours; grey cells record what the pipeline used. |
 | `README` | The cheat sheet, mirrored to [cheat-sheet.md](cheat-sheet.md). |
 
@@ -202,7 +202,7 @@ itself](#changing-the-sheet-itself). It is about 185KB, so roughly fifteen chunk
 
 **8. Run `Draft Board ▸ Refresh data`.** Read the toast and the build log on Settings.
 
-Before running it, record every GONE and MINE tick and every Notes cell on the Draft Board
+Before running it, record every MINE tick and every Notes cell on the Draft Board
 by player name. A refresh that reorders rows can leave them beside the wrong players (see
 [I1](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md#workaround-until-it-is-fixed)
 for the workaround) — the checkboxes and Notes are the Draft Board's own values, not
@@ -217,7 +217,7 @@ value on the Draft Board is attached to the wrong player. Stop there.
 **11. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes and notes
 reattach by player name **only when the refresh did not reorder rows**. After a reordering
 refresh, that reattachment is by sheet row, not identity ([I1](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md)) —
-restore GONE, MINE and Notes from the names recorded in step 8 rather than trusting what the
+restore MINE and Notes from the names recorded in step 8 rather than trusting what the
 re-sort left in place. Injury tiers do not need either kind of recovery — the Board owns that
 column and the Draft Board mirrors it, so a tier follows its player through any sort by
 construction.
@@ -271,7 +271,7 @@ its own cause:
 calculation tabs; the raw stat lines; ADP; seed rank; the reported pool constants.
 
 **Never touched:** `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Notes`, the
-`Punted` ticks, the `GONE` and `MINE` checkboxes, the `Sort by` selection, the projection
+`Punted` ticks, the `CMP` and `MINE` checkboxes, the `Sort by` selection, the projection
 filter state — and every formula, format, column width and named range.
 
 `Injuries` belongs to the first list. It is written from Basketball Monster's risk table
@@ -466,7 +466,7 @@ steps that each finish well under it:
 | Menu item | Rebuilds |
 |---|---|
 | `Refresh data` | the Board's changed cells, plus all three calculation tabs — the normal path |
-| `Rebuild & re-sort` | Draft Board order, keeping GONE / MINE / Notes |
+| `Rebuild & re-sort` | Draft Board order, keeping CMP / MINE / Notes |
 | `Apply projection filter` | shows and hides the value blocks by hand |
 | `Full rebuild (from Data.gs)` | everything, destroying hand edits |
 | `Step 1 — Settings only` | Settings and the named ranges. **Building up only** — run against a live board it leaves `TIER` and `RND` as `#REF!`; see below |
@@ -589,7 +589,8 @@ cells. It runs without `Data.gs`, synthesizing a 200-player pool, so it works on
 
 It also checks the things this refactor made easy to get wrong: that each projection's six
 value columns are contiguous, that no reference to a hyphenated sheet name is left
-unquoted, that `MINE` resolves before `GONE`, that the projection filter's column
+unquoted, that `MINE` resolves before `CMP`, that both routes that clear `CMP` do, that the
+projection filter's column
 arithmetic hides exactly one block, and that `readCheckState` finds the draft state by
 header label rather than by the current column map. Each of those is verified by
 deliberately breaking it and confirming the harness fails.
@@ -663,7 +664,7 @@ cell's own value and type, so none of that applies. The pull is refused, and not
 when the download is not an xlsx (a signed-out profile), a tab is missing, or a range holds
 fewer filled cells than the layout says it must.
 
-`verify.py --local` never writes the draft state. It takes the sheet's own `GONE`, `MINE` and
+`verify.py --local` never writes the draft state. It takes the sheet's own `CMP`, `MINE` and
 `Punted` ticks, the Board's hand columns, the Settings inputs and the displayed row order, runs
 the engine on them in memory, and compares:
 
@@ -701,57 +702,55 @@ Ticks drive most of what the engine re-implements, and the owner's sheet cannot 
 exercise them, so the scenario runs on a **copy**, as one command:
 
 ```bash
-python3 scripts/draft-board/tick_scenario.py            # ticks and punts, 130s measured
-python3 scripts/draft-board/tick_scenario.py --full --allow-consent   # adds 5 and 6
+python3 scripts/draft-board/tick_scenario.py            # ticks, punts and clearing CMP
+python3 scripts/draft-board/tick_scenario.py --full --allow-consent   # adds 6 and 7
 ```
 
-**Two tiers, and a gate that reads formulas rather than filenames.** Steps 5 and 6 each cost a
+**Two tiers, and a gate that reads formulas rather than filenames.** Steps 6 and 7 each cost a
 full Apps Script execution on the copy, which is most of the wall-clock, so they are opt-in.
 Before anything opens a browser, `node scripts/draft-board/harness.js --tick-fingerprint`
 builds the workbook offline and prints two hashes: `tick`, over every generated formula that
-reads the `GONE` column, the `MINE` column or the tracker's `Punted` range — in either
+reads the `CMP` column, the `MINE` column or the tracker's `Punted` range — in either
 vocabulary, since the Draft Board reads them as column letters and the tracker as `DB_MINE` /
-`DB_GONE` named ranges — and `rebuild`, over every formula the re-sort and `Refresh data` paths
+`DB_CMP` named ranges — and `rebuild`, over every formula the re-sort and `Refresh data` paths
 rewrite. `tier_needed` compares both against the last passing run:
 
 | what moved | what runs |
 |---|---|
 | neither hash, and not `board_engine.py` | nothing; the browser never opens |
-| the `tick` hash, or `board_engine.py` | steps 1-4 |
-| the `rebuild` hash | steps 1-6, and it says so |
-| no hashes recorded (first run, or a pre-fingerprint stamp) | steps 1-6 |
+| the `tick` hash, or `board_engine.py` | steps 1-5 |
+| the `rebuild` hash | steps 1-7, and it says so |
+| no hashes recorded (first run, or a pre-fingerprint stamp) | steps 1-7 |
 
 The hash is taken from the **generated formula text**, so a column width, a colour, a header or
 a README row cannot move it — that was the whole defect. The old gate was `git diff --name-only
 -- Build.gs board_engine.py`, and `Build.gs` is one 2,600-line file covering all nine tabs, so
 editing a column width tripped a four-minute browser run ([ADR-0025](../decisions/ADR-0025-verification-budget.md)).
 Column letters are deliberately left in the hashed text: a formula still reading `$H4` after
-`GONE` moved to `I` is exactly the silent breakage the scenario exists to catch.
+`CMP` moved to `I` is exactly the silent breakage the scenario exists to catch.
 
 A tick-tier pass records only the `tick` hash. It must not stamp `rebuild`, or the steps it
 skipped would never run again.
 
 It copies the live sheet (**File ▸ Make a copy**), unticks anything the copy inherited (Space,
-never Delete, which strips the checkbox), empties any Compare picks slot it inherited (Delete),
-and then, pulling and running the full
+never Delete, which strips the checkbox), and then, pulling and running the full
 `verify.py --local` comparison after every step:
 
 1. `MINE` on 8 rows, then 14, which reaches the tracker's `MIN(Q, TEAMS × n)` cap.
-2. `GONE` on ten rows spread over the board, two of them `MINE`.
+2. `CMP` on eight rows spread over the board, two of them `MINE`. Compare picks sees six, shows
+   the best five by board #, and its note says so.
 3. One conceded category, then two.
-4. Five names typed into the Compare picks slots, each taken from the slots' own dropdown list:
-   three spread down it, a repeat of the first, and a fifth that is then ticked `GONE`. So the
-   panel has to rank three candidates, flag a repeat and drop a player taken since he was
-   typed, at fourteen picks with two punts. The step fails if a slot holds anything but the
-   name typed, because verify reads the slots back as input and would pass either way.
-5. A changed `Sort by`, then `Rebuild & re-sort`. This is the copy's first script run, so Google
+4. The **Clear all** box beside Compare picks. `onEdit` has to untick every `CMP` and the box
+   itself. Simple triggers run on a copy with no authorisation, so this needs no consent.
+5. `CMP` on three rows, then `MINE` on a fifteenth, which has to clear them: the second route.
+6. A changed `Sort by`, then `Rebuild & re-sort`. This is the copy's first script run, so Google
    asks to authorise the copy's script, a screen that grants access to all of Bryan's Sheets.
    `--allow-consent` is Bryan's approval, **asked for before the run**, to click Allow on it.
    Without the flag the run stops here and exits 5.
-5. The step fails unless Settings `SORT_BY` reads the new sort **and** verify sees the board
+6. The step fails unless Settings `SORT_BY` reads the new sort **and** verify sees the board
    sorted by it. Verify on its own accepts whatever sort the board shows, and `onEdit` swallows
    its own errors.
-6. Two swapped Board names on rows carrying no tick, note or hand value, a hand value
+7. Two swapped Board names on rows carrying no tick, note or hand value, a hand value
    (`GP Y-1` = 50) on one of the two swapped rows, then `Refresh data`. `refreshData` finds the
    names out of order and runs `refreshWithReorder`, which keys hand values by the name each row
    shows at that moment and writes the Board back in `Data.gs` order. Verify compares `My GP` on
@@ -854,15 +853,19 @@ python3 scripts/draft-board/board.py gone NAME --pick N --show board,tracker   #
 python3 scripts/draft-board/board.py mine NAME --pick N --show board,tracker   # yours
 ```
 
-`mine` ticks `GONE` as well, as the sheet asks you to. To choose between players, type them
-into the Compare picks slots beside the tracker, or ask the local board:
+`gone` is the local board's own log of other managers' picks. The sheet has no `GONE` column
+([ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)), so verify never compares it, and
+`Left @pos` lives only here. On the sheet, choosing between players is `CMP`: tick it beside
+each one and read Compare picks on the tracker. Ticking `MINE` for your pick clears every
+`CMP`, and so does the **Clear all** box beside the panel. A player another manager takes stays
+in the panel until you untick him. The local board answers the same question with:
 
 ```bash
 python3 scripts/draft-board/board.py compare NAME NAME NAME   # ranked on expected categories won
 ```
 
-Each candidate's column is the tracker as it would read with him ticked next. The slots are not
-draft state: clear them or type over them as you like. **Never run `Refresh data`,
+Each candidate's column is the tracker as it would read with him ticked next. `CMP` is not
+draft state: tick and clear it as you like. **Never run `Refresh data`,
 `build_data.py` or `board.py rebase` during a live draft**: either board would move under the
 picks already recorded. The output of `board.py` is provider data and never belongs in `docs/`
 or `tests/`.

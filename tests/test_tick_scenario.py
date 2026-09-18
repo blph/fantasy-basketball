@@ -49,13 +49,14 @@ def put(pull: dict, sheet: str, col: int, row: int, value) -> None:
 def test_counts_and_inherited_ticks():
     pull = blank_pull()
     put(pull, "Draft Board", D["mine"]["index"], FIRST, True)
-    put(pull, "Draft Board", D["drafted"]["index"], FIRST + 1, True)
+    put(pull, "Draft Board", D["cmp"]["index"], FIRST + 1, True)
     put(pull, "Category Tracker", T["columns"]["punted"], T["first_cat_row"] + 2, True)
     sheet = VL._Pull(pull)
-    assert TS.counts(sheet, LAYOUT) == {"mine": 1, "gone": 1, "punted": 1, "slots": 0}
+    assert TS.counts(sheet, LAYOUT) == {"mine": 1, "cmp": 1, "punted": 1, "slots": 0,
+                                        "clear": 0}
     punt = PS.col_letter(T["columns"]["punted"])
     assert TS.ticked_cells(sheet, LAYOUT) == [
-        ("Draft Board", f"{D['drafted']['letter']}{FIRST + 1}"),
+        ("Draft Board", f"{D['cmp']['letter']}{FIRST + 1}"),
         ("Draft Board", f"{D['mine']['letter']}{FIRST}"),
         ("Category Tracker", f"{punt}{T['first_cat_row'] + 2}")]
 
@@ -63,46 +64,22 @@ def test_counts_and_inherited_ticks():
 C = T["compare"]
 
 
-def fill_source(pull: dict, names: list[str]) -> None:
-    for i, name in enumerate(names):
-        put(pull, "Category Tracker", C["source"]["col"], C["source"]["first_row"] + i, name)
-
-
-def test_inherited_slots_are_counted_and_cleared_as_one_range():
+def test_filled_slots_and_a_stuck_clear_box_are_counted():
     pull = blank_pull()
-    put(pull, "Category Tracker", C["slots"][2]["index"], C["slot_row"], "Player 9")
-    sheet = VL._Pull(pull)
-    assert TS.counts(sheet, LAYOUT)["slots"] == 1
-    first, last = C["slots"][0]["letter"], C["slots"][-1]["letter"]
-    assert TS.slot_range(LAYOUT) == ("Category Tracker",
-                                     f"{first}{C['slot_row']}:{last}{C['slot_row']}")
+    for s in C["slots"][:2]:
+        put(pull, "Category Tracker", s["index"], C["slot_row"], "Player 9")
+    col, row, _, _ = PS.parse_a1(C["clear"])
+    put(pull, "Category Tracker", col, row, True)
+    got = TS.counts(VL._Pull(pull), LAYOUT)
+    assert (got["slots"], got["clear"]) == (2, 1)
 
 
-def test_compare_picks_spreads_three_repeats_one_and_takes_a_fifth():
-    pull = blank_pull()
-    fill_source(pull, [f"Player {r}" for r in range(FIRST + 20, FIRST + 40)])
-    typed, gone_row = TS.compare_picks(VL._Pull(pull), LAYOUT)
-    assert typed == [f"Player {FIRST + 20}", f"Player {FIRST + 25}", f"Player {FIRST + 30}",
-                     f"Player {FIRST + 20}", f"Player {FIRST + 23}"]
-    assert gone_row == FIRST + 23                     # the Draft Board row showing the fifth
-    assert len(typed) == len(C["slots"])
-
-
-def test_compare_picks_needs_a_long_enough_dropdown():
-    pull = blank_pull()
-    fill_source(pull, ["Player 30", "Player 31"])
-    with pytest.raises(TS.StepFailed, match="dropdown"):
-        TS.compare_picks(VL._Pull(pull), LAYOUT)
-
-
-def test_slots_that_did_not_take_the_typed_name_fail_step_f():
-    pull = blank_pull()
-    typed = ["Player 30", "Player 35", "Player 40", "Player 30", "Player 33"]
-    for s, name in zip(C["slots"], typed, strict=True):
-        put(pull, "Category Tracker", s["index"], C["slot_row"], name)
-    assert TS.slots_landed(VL._Pull(pull), LAYOUT, typed) is None
-    put(pull, "Category Tracker", C["slots"][1]["index"], C["slot_row"], "Player 351")
-    assert "slot 2" in TS.slots_landed(VL._Pull(pull), LAYOUT, typed)
+def test_the_cmp_rows_straddle_mine_and_overflow_the_panel():
+    # Two of them sit on rows step a ticks MINE, so the panel sees six and shows five.
+    mine = set(range(FIRST, FIRST + 14))
+    assert len(TS.CMP_ROWS) == 8 and len(mine.intersection(TS.CMP_ROWS)) == 2
+    assert len(set(TS.CMP_ROWS) - mine) > len(C["slots"])
+    assert not set(TS.CLEAR_ROWS) & (mine | set(TS.CMP_ROWS) | {TS.MINE_ROW})
 
 
 def test_clean_rows_come_from_the_bottom_and_skip_anything_touched():
@@ -118,7 +95,7 @@ def test_clean_rows_come_from_the_bottom_and_skip_anything_touched():
 def test_too_few_clean_rows_stops_the_step():
     pull = blank_pull()
     for row in range(FIRST, LAST):
-        put(pull, "Draft Board", D["drafted"]["index"], row, True)
+        put(pull, "Draft Board", D["cmp"]["index"], row, True)
     with pytest.raises(TS.StepFailed, match="fewer than two"):
         TS.clean_rows(VL._Pull(pull), LAYOUT)
 

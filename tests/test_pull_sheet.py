@@ -115,7 +115,6 @@ class TestPlan:
         first, last = c["slots"][0]["letter"], c["slots"][-1]["letter"]
         h0, h1 = PS.col_letter(c["slots"][0]["hidden"]), PS.col_letter(c["slots"][-1]["hidden"])
         cat0, cat1 = t["first_cat_row"], t["first_cat_row"] + 7
-        src = c["source"]
         want = {
             f"{first}{c['slot_row']}:{last}{c['slot_row']}": "string",
             f"{first}{c['board_row']}:{last}{c['board_row']}": "number",
@@ -123,10 +122,10 @@ class TestPlan:
             f"{first}{cat0}:{last}{cat1}": "string",
             f"{first}{c['expected_row']}:{last}{c['expected_row']}": "number",
             f"{first}{c['gap_row']}:{last}{c['gap_row']}": "number",
-            f"{h0}{c['rank_row']}:{h1}{c['rank_row']}": "string",
             f"{h0}{cat0}:{h1}{cat1}": "number",
-            f"{src['letter']}{src['first_row']}:{src['letter']}{src['rows']}": "string",
             c["expected_now"]: "number",
+            c["note"]: "string",
+            c["clear"]: "boolean",
         }
         ranges = by_name(PS.plan_ranges(LAYOUT))
         for a1, kind in want.items():
@@ -149,9 +148,9 @@ class TestPlan:
                 seen += list(range(c1, c2 + 1))
         assert sorted(seen) == sorted(c["index"] for c in cols.values())
 
-    def test_gone_and_mine_are_a_boolean_range(self):
+    def test_cmp_and_mine_are_a_boolean_range(self):
         cols = LAYOUT["tabs"]["Draft Board"]["columns"]
-        a1 = (f"{cols['drafted']['letter']}{LAYOUT['first_row']}:"
+        a1 = (f"{cols['cmp']['letter']}{LAYOUT['first_row']}:"
               f"{cols['mine']['letter']}{LAYOUT['last_row']}")
         assert by_name(PS.plan_ranges(LAYOUT))[f"Draft Board!{a1}"]["type"] == "boolean"
 

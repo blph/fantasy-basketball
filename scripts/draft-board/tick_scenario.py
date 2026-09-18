@@ -9,10 +9,11 @@ run-code`, and after every step downloads the copy (pull_sheet.pull) and runs th
 `verify.py --local` comparison in process. Every cell is checked at every step. The copy is
 deleted at the end, pass or fail.
 
-Steps: copy; untick anything inherited (Space, never Delete) and empty the Compare picks slots
-(Delete); a. MINE 8 then 14 (the tracker's cap); b. GONE on ten spread rows, two of them MINE;
-c. one punted category, then two; f. five names typed into the Compare picks slots from their
-own dropdown -- three spread down it, a repeat, and a fifth then ticked GONE; d. a new
+Steps: copy; untick anything inherited (Space, never Delete); a. MINE 8 then 14 (the tracker's
+cap); b. CMP on eight spread rows, two of them MINE, so Compare picks shows five of six and says
+so; c. one punted category, then two; f. the Clear all box beside Compare picks, which must
+untick every CMP and itself; g. CMP on three rows, then MINE on a fifteenth, which must clear
+them (ADR-0028); d. a new
 Sort by and Rebuild & re-sort (the copy's first script run, so Google asks to authorise it);
 e. two swapped Board names on clean rows and a hand value (GP Y-1) on one of the swapped rows,
 then Refresh data -- the reordering path. Verify compares My GP on every row, so its pass is the
@@ -24,7 +25,7 @@ sheet: Board W and Z sit in hidden columns, and the Name Box lands on the next v
 Two tiers, because steps d and e each cost a full Apps Script execution on the copy and that is
 most of the wall-clock (ADR-0025):
 
-  ticks  steps a-c and f. The default. No consent, no script run, no menu.
+  ticks  steps a-c, f and g. The default. No consent, no script run, no menu.
   full   adds d and e. `--full`, and it needs `--allow-consent`.
 
 `--allow-consent` is the owner's approval, given before the run, to click Allow on the copy's
@@ -60,7 +61,9 @@ import verify_local as VL  # noqa: E402
 WATCHED = ("scripts/draft-board/Build.gs", "scripts/draft-board/board_engine.py")
 ENGINE = "scripts/draft-board/board_engine.py"
 LAST = BS.ROOT / "pulls" / "last-scenario"
-GONE_ROWS = (5, 9, 25, 40, 60, 80, 100, 130, 160, 190)  # 5 and 9 are MINE too
+CMP_ROWS = (5, 9, 25, 40, 60, 80, 100, 130)   # 5 and 9 are MINE too: six reach the panel
+CLEAR_ROWS = (150, 160, 170)                   # CMP ticks a MINE tick must then clear
+MINE_ROW = 190
 NEW_SORT = "HBP · DURH"
 OVERRIDE = 50
 
@@ -152,58 +155,20 @@ def counts(sheet: VL._Pull, layout: dict) -> dict:
 
     cats = range(t["first_cat_row"], t["first_cat_row"] + ncat)
     c = t["compare"]
+    col, row, _, _ = PS.parse_a1(c["clear"])
     return {"mine": ticked("Draft Board", d["mine"]["index"], rows),
-            "gone": ticked("Draft Board", d["drafted"]["index"], rows),
+            "cmp": ticked("Draft Board", d["cmp"]["index"], rows),
             "punted": ticked("Category Tracker", t["columns"]["punted"], cats),
             "slots": sum(1 for s in c["slots"]
-                         if VL._text(sheet.cell("Category Tracker", s["index"], c["slot_row"])))}
-
-
-def slot_range(layout: dict) -> tuple[str, str]:
-    """(tab, A1) of the five Compare picks slots, cleared as one range."""
-    c = layout["tabs"]["Category Tracker"]["compare"]
-    row = c["slot_row"]
-    return "Category Tracker", f"{c['slots'][0]['letter']}{row}:{c['slots'][-1]['letter']}{row}"
-
-
-def compare_picks(sheet: VL._Pull, layout: dict) -> tuple[list[str], int]:
-    """Five names for step f, taken from the slots' own dropdown, and a Draft Board row to tick.
-
-    Three spread down the list, a repeat of the first, and a fifth that step f then ticks GONE:
-    every status but "not on board", which the dropdown refuses to take.
-    """
-    c = layout["tabs"]["Category Tracker"]["compare"]
-    src = c["source"]
-    listed = [VL._text(sheet.cell("Category Tracker", src["col"], src["first_row"] + i))
-              for i in range(src["rows"])]
-    available = [n for n in listed if n]
-    if len(available) < 11:
-        raise StepFailed(f"the slots' dropdown lists {len(available)} players, fewer than 11")
-    typed = [available[0], available[5], available[10], available[0], available[3]]
-    player = layout["tabs"]["Draft Board"]["columns"]["player"]["index"]
-    for r in range(layout["first_row"], layout["last_row"] + 1):
-        if VL._text(sheet.cell("Draft Board", player, r)) == typed[-1]:
-            return typed, r
-    raise StepFailed("a player the dropdown offers is not on the Draft Board")
-
-
-def slots_landed(sheet: VL._Pull, layout: dict, typed: list[str]) -> str | None:
-    """None when every slot holds what was typed into it, else which did not.
-
-    Verify reads the slots back as input, so a dropdown that committed a different name than
-    the one typed would still pass it.
-    """
-    c = layout["tabs"]["Category Tracker"]["compare"]
-    wrong = [i + 1 for i, (s, name) in enumerate(zip(c["slots"], typed, strict=True))
-             if VL._text(sheet.cell("Category Tracker", s["index"], c["slot_row"])) != name]
-    return f"slot {', slot '.join(map(str, wrong))} did not take the name typed" if wrong else None
+                         if VL._text(sheet.cell("Category Tracker", s["index"], c["slot_row"]))),
+            "clear": ticked("Category Tracker", col, (row,))}
 
 
 def ticked_cells(sheet: VL._Pull, layout: dict) -> list[tuple[str, str]]:
     """(tab, A1) of every tick the copy inherited."""
     d, t = layout["tabs"]["Draft Board"]["columns"], layout["tabs"]["Category Tracker"]
     out = [("Draft Board", f"{d[k]['letter']}{r}")
-           for k in ("drafted", "mine") for r in range(layout["first_row"], layout["last_row"] + 1)
+           for k in ("cmp", "mine") for r in range(layout["first_row"], layout["last_row"] + 1)
            if VL._v(sheet.cell("Draft Board", d[k]["index"], r)) is True]
     col = t["columns"]["punted"]
     for i in range(len(layout["tabs"]["Settings"]["weights"])):
@@ -225,7 +190,7 @@ def clean_rows(sheet: VL._Pull, layout: dict) -> tuple[int, str, int, str]:
     touched = set()
     for r in range(first, last + 1):
         gp, my = VL._num(draft("projGp", r)), VL._num(draft("myGp", r))
-        if (VL._v(draft("drafted", r)) is True or VL._v(draft("mine", r)) is True
+        if (VL._v(draft("cmp", r)) is True or VL._v(draft("mine", r)) is True
                 or VL._text(draft("notes", r)) or VL._v(draft("xrank", r)) is not None
                 or gp is None or my is None or abs(gp - my) > 1e-9):
             touched.add(VL._text(draft("player", r)))
@@ -346,12 +311,6 @@ class Browser:
                  " await copy.keyboard.press('Space'); await copy.waitForTimeout(200); }"
                  " return '{}';", copy=self.copy_id, live=self.live_id, cells=cells)
 
-    def clear(self, cells: list[tuple[str, str]]) -> None:
-        """Delete on each cell or range. Never on a checkbox, which Delete would remove."""
-        self.run("for (const [tab, a1] of A.cells) { await nameBox(copy, tab, a1);"
-                 " await copy.keyboard.press('Delete'); await copy.waitForTimeout(300); }"
-                 " return '{}';", copy=self.copy_id, live=self.live_id, cells=cells)
-
     def type_into(self, entries: list[tuple[str, str, str]]) -> None:
         self.run("for (const [tab, a1, text] of A.entries) { await nameBox(copy, tab, a1);"
                  " await copy.keyboard.type(text); await copy.keyboard.press('Enter');"
@@ -467,7 +426,7 @@ class Scenario:
         # Mid-step e the Board's names are swapped on purpose, which the comparable check
         # refuses by design; that pull only proves the edits landed.
         code, lines = VL.diff_local(self.snapshot, out, self.layout) if verify else (0, [])
-        print(f"step {step:<10} mine={got['mine']:<3} gone={got['gone']:<3} "
+        print(f"step {step:<10} mine={got['mine']:<3} cmp={got['cmp']:<3} "
               f"punted={got['punted']} slots={got['slots']}  "
               f"pull {time.monotonic() - started:.1f}s  verify exit {code}", flush=True)
         if code != 0:
@@ -483,16 +442,12 @@ class Scenario:
 
         sheet = self.check("copy")
         inherited = ticked_cells(sheet, L)
-        slots = counts(sheet, L)["slots"]
-        if inherited or slots:
+        if inherited:
             # Only re-pull when something was actually toggled. A pull is one download
             # of the whole workbook, so re-proving a state this step just verified costs a
             # full download for nothing (ADR-0025).
-            if inherited:
-                self.b.toggle(inherited)
-            if slots:
-                self.b.clear([slot_range(L)])
-            self.check("cleared", {"mine": 0, "gone": 0, "punted": 0, "slots": 0})
+            self.b.toggle(inherited)
+            self.check("cleared", {"mine": 0, "cmp": 0, "punted": 0, "slots": 0})
 
         mine = d["mine"]["letter"]
         self.b.toggle([("Draft Board", f"{mine}{first}:{mine}{first + 7}")])
@@ -500,36 +455,34 @@ class Scenario:
         self.b.toggle([("Draft Board", f"{mine}{first + 8}:{mine}{first + 13}")])
         self.check("a mine 14", {"mine": 14})
 
-        self.b.toggle([("Draft Board", f"{d['drafted']['letter']}{r}") for r in GONE_ROWS])
-        self.check("b gone 10", {"gone": 10, "mine": 14})
+        cmp = d["cmp"]["letter"]
+        self.b.toggle([("Draft Board", f"{cmp}{r}") for r in CMP_ROWS])
+        self.check("b cmp 8", {"cmp": 8, "mine": 14, "slots": 5})
 
         self.b.toggle([("Category Tracker", f"{punt}{t['first_cat_row']}")])
         self.check("c punt 1", {"punted": 1})
         self.b.toggle([("Category Tracker", f"{punt}{t['first_cat_row'] + 3}")])
-        sheet = self.check("c punt 2", {"punted": 2})
+        self.check("c punt 2", {"punted": 2})
 
-        # Compare picks (ADR-0027): the slots are typed through their own dropdowns, then one
-        # candidate is taken by someone else, so the panel has to rank three, flag a repeat
-        # and drop a player gone since he was typed -- at fourteen picks, with two punts.
-        typed, gone_row = compare_picks(sheet, L)
-        c = t["compare"]
-        self.b.type_into([("Category Tracker", f"{s['letter']}{c['slot_row']}", name)
-                          for s, name in zip(c["slots"], typed, strict=True)])
-        self.b.toggle([("Draft Board", f"{d['drafted']['letter']}{gone_row}")])
-        gone = len(GONE_ROWS) + 1
-        sheet = self.check("f compare", {"slots": len(typed), "gone": gone})
-        why = slots_landed(sheet, L, typed)
-        if why:
-            raise StepFailed(f"step f: {why}")
+        # The two routes that clear CMP (ADR-0028), both through the simple onEdit trigger,
+        # which runs on a copy with no authorisation. The Clear all box first; it has to
+        # untick itself as well as every CMP.
+        self.b.toggle([("Category Tracker", t["compare"]["clear"])])
+        self.check("f clear all", {"cmp": 0, "slots": 0, "clear": 0, "mine": 14})
+        # Then a MINE tick, which ends the comparison it was made from.
+        self.b.toggle([("Draft Board", f"{cmp}{r}") for r in CLEAR_ROWS])
+        self.check("g cmp 3", {"cmp": 3, "slots": 3})
+        self.b.toggle([("Draft Board", f"{mine}{MINE_ROW}")])
+        self.check("g mine", {"cmp": 0, "slots": 0, "mine": 15})
 
         if not full:
             # The tick tier ends here. Steps d and e each cost a full Apps Script run on the
             # copy, which is most of the wall-clock, and neither is reachable from a tick.
             return
 
-        self.b.type_into([("Draft Board", f"{d['drafted']['letter']}1", NEW_SORT)])
+        self.b.type_into([("Draft Board", f"{d['cmp']['letter']}1", NEW_SORT)])
         self.b.draft_menu("Rebuild & re-sort", "^Sorted by ", allow)
-        sheet = self.check("d re-sort", {"mine": 14, "gone": gone, "punted": 2})
+        sheet = self.check("d re-sort", {"mine": 15, "cmp": 0, "punted": 2})
         why = sort_applied(sheet, L, self.lines, NEW_SORT)
         if why:
             raise StepFailed(f"step d: {why}")
@@ -542,7 +495,7 @@ class Scenario:
                    ("Board", f"{b['gp1']['letter']}{ra}", str(OVERRIDE))]
         self.b.type_into(entries)
         for attempt in (1, 2):
-            typed = self.check("e typed", {"mine": 14, "gone": gone, "punted": 2},
+            typed = self.check("e typed", {"mine": 15, "cmp": 0, "punted": 2},
                                verify=False)
             landed = (VL._text(typed.cell("Board", b["player"]["index"], ra)) == nb,
                       VL._text(typed.cell("Board", b["player"]["index"], rb)) == na,
@@ -554,7 +507,7 @@ class Scenario:
                                  f"(swap a, swap b, override) = {landed}")
             self.b.type_into([e for e, ok in zip(entries, landed, strict=True) if not ok])
         self.b.draft_menu("Refresh data", "Calculation tabs rewritten", allow)
-        sheet = self.check("e refresh", {"mine": 14, "gone": gone, "punted": 2})
+        sheet = self.check("e refresh", {"mine": 15, "cmp": 0, "punted": 2})
         why = hand_value_followed(sheet, L, nb, na, OVERRIDE)
         if why:
             raise StepFailed(f"step e: {why}")

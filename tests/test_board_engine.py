@@ -41,7 +41,7 @@ class TestOrderAndRank:
     def test_player_state_fills_defaults_and_inserts_nothing(self):
         state = E.empty_state()
         assert E.player_state(state, "nobody") == {
-            "name": "", "gone": False, "mine": False, "pick": None, "notes": "",
+            "name": "", "gone": False, "mine": False, "cmp": False, "pick": None, "notes": "",
             "my_gp": None, "xrank": None, "gp1": None, "gp2": None, "gp3": None}
         assert state["players"] == {}
         state["players"]["somebody"] = {"gone": True}
@@ -194,13 +194,15 @@ class TestRowFields:
         snap = make_snapshot(n=3)
         snap["players"][1].update(team="BBB", pos="SF,PF", inj="HIGH")
         state = E.empty_state()
-        tick(state, snap, 1, gone=True, mine=True, notes="a note", xrank=7)
+        tick(state, snap, 1, gone=True, mine=True, cmp=True, notes="a note", xrank=7)
         row = rows_for(snap, state)[1]
         assert (row["key"], row["name"]) == (snap["players"][1]["key"], snap["players"][1]["name"])
         assert (row["team"], row["pos"], row["inj"]) == ("BBB", "SF,PF", "HIGH")
         assert (row["gone"], row["mine"], row["notes"], row["xrank"]) == (True, True, "a note", 7)
+        assert row["cmp"] is True and rows_for(snap, state)[0]["cmp"] is False
         assert set(row) == {
-            "row", "key", "name", "team", "pos", "inj", "gone", "mine", "rank", "tier", "rnd",
+            "row", "key", "name", "team", "pos", "inj", "gone", "mine", "cmp", "rank", "tier",
+            "rnd",
             "sel", "drop", "med", "brk", "gap", "adp", "xrank", "notes", "gp", "my_gp",
             "gp_flag", "gp_warn", "best_build", "strengths", "secondary", "weaknesses",
             "left_at_pos",
@@ -638,14 +640,42 @@ class TestCompare:
         assert (slot["rank"], slot["gap"]) == (1, 0.0)
         assert got["slots"][1]["status"] == ""
 
-    def test_available_is_the_dropdown_list_in_rank_order(self):
-        snap = make_snapshot(n=8)
+    def test_cmp_ticks_fill_the_slots_in_rank_order_without_mine(self):
+        snap = make_snapshot(n=12)
         state = E.empty_state()
-        tick(state, snap, 0, mine=True)
-        tick(state, snap, 5, gone=True)
-        rows = rows_for(snap, state, row_order=[7, 6, 5, 4, 3, 2, 1, 0])
-        got = E.compare(snap, state, snap["settings"], E.DEFAULT_SORT, [], rows=rows)
-        assert got["available"] == [name(snap, i) for i in (1, 2, 3, 4, 6, 7)]
+        for i in (9, 2, 6):
+            tick(state, snap, i, cmp=True)
+        tick(state, snap, 4, cmp=True, mine=True)          # taken: out of the comparison
+        rows = rows_for(snap, state, row_order=list(reversed(range(12))))
+        got = E.compare(snap, state, snap["settings"], E.DEFAULT_SORT, rows=rows)
+        assert [s["name"] for s in got["slots"]] == [name(snap, i) for i in (2, 6, 9)] + ["", ""]
+        assert [s["status"] for s in got["slots"]] == ["ok", "ok", "ok", "", ""]
+        assert (got["ticked"], got["note"]) == (3, "")
+
+    def test_more_than_five_ticked_compares_the_best_five_and_says_so(self):
+        snap = make_snapshot(n=12)
+        state = E.empty_state()
+        for i in (11, 0, 7, 3, 9, 5, 1):
+            tick(state, snap, i, cmp=True)
+        got = E.compare(snap, state, snap["settings"], E.DEFAULT_SORT)
+        assert [s["name"] for s in got["slots"]] == [name(snap, i) for i in (0, 1, 3, 5, 7)]
+        assert (got["ticked"], got["note"]) == (7, "Top 5 of 7 ticked, by board #")
+
+    def test_no_cmp_ticks_leave_five_empty_slots(self):
+        snap = make_snapshot(n=12)
+        got = E.compare(snap, E.empty_state(), snap["settings"], E.DEFAULT_SORT)
+        assert [s["name"] for s in got["slots"]] == [""] * 5
+        assert all(s["rank"] is None for s in got["slots"])
+        assert (got["ticked"], got["note"]) == (0, "")
+
+    def test_typed_candidates_are_never_padded_or_noted(self):
+        snap = make_snapshot(n=12)
+        state = E.empty_state()
+        for i in range(7):
+            tick(state, snap, i, cmp=True)
+        got = compare_for(snap, state, [name(snap, 10)])
+        assert [s["name"] for s in got["slots"]] == [name(snap, 10)]
+        assert got["ticked"] == 7
 
     def test_pct_text_rounds_half_up_on_fifteen_digits_like_sheets(self):
         assert E.pct_text(0.285) == "29%"          # 28.499999999999996 in binary

@@ -43,10 +43,10 @@
           "letter": "G",
           "label": "INJ"
         },
-        "drafted": {
+        "cmp": {
           "index": 8,
           "letter": "H",
-          "label": "GONE"
+          "label": "CMP"
         },
         "mine": {
           "index": 9,
@@ -213,194 +213,189 @@
           "letter": "AO",
           "label": "▼ Weaknesses"
         },
-        "posLeft": {
+        "notes": {
           "index": 42,
           "letter": "AP",
-          "label": "Left\n@pos"
-        },
-        "notes": {
-          "index": 43,
-          "letter": "AQ",
           "label": "Notes"
         },
         "hFgm": {
-          "index": 44,
-          "letter": "AR",
+          "index": 43,
+          "letter": "AQ",
           "label": "FGM"
         },
         "hFga": {
-          "index": 45,
-          "letter": "AS",
+          "index": 44,
+          "letter": "AR",
           "label": "FGA"
         },
         "hFtm": {
-          "index": 46,
-          "letter": "AT",
+          "index": 45,
+          "letter": "AS",
           "label": "FTM"
         },
         "hFta": {
-          "index": 47,
-          "letter": "AU",
+          "index": 46,
+          "letter": "AT",
           "label": "FTA"
         },
         "h3": {
-          "index": 48,
-          "letter": "AV",
+          "index": 47,
+          "letter": "AU",
           "label": "3PM"
         },
         "hPts": {
-          "index": 49,
-          "letter": "AW",
+          "index": 48,
+          "letter": "AV",
           "label": "PTS"
         },
         "hReb": {
-          "index": 50,
-          "letter": "AX",
+          "index": 49,
+          "letter": "AW",
           "label": "REB"
         },
         "hAst": {
-          "index": 51,
-          "letter": "AY",
+          "index": 50,
+          "letter": "AX",
           "label": "AST"
         },
         "hStl": {
-          "index": 52,
-          "letter": "AZ",
+          "index": 51,
+          "letter": "AY",
           "label": "STL"
         },
         "hBlk": {
-          "index": 53,
-          "letter": "BA",
+          "index": 52,
+          "letter": "AZ",
           "label": "BLK"
         },
         "dh:FG%": {
-          "index": 54,
-          "letter": "BB",
+          "index": 53,
+          "letter": "BA",
           "label": "dh FG%"
         },
         "dh:FT%": {
-          "index": 55,
-          "letter": "BC",
+          "index": 54,
+          "letter": "BB",
           "label": "dh FT%"
         },
         "dh:3PM": {
-          "index": 56,
-          "letter": "BD",
+          "index": 55,
+          "letter": "BC",
           "label": "dh 3PM"
         },
         "dh:PTS": {
-          "index": 57,
-          "letter": "BE",
+          "index": 56,
+          "letter": "BD",
           "label": "dh PTS"
         },
         "dh:REB": {
-          "index": 58,
-          "letter": "BF",
+          "index": 57,
+          "letter": "BE",
           "label": "dh REB"
         },
         "dh:AST": {
-          "index": 59,
-          "letter": "BG",
+          "index": 58,
+          "letter": "BF",
           "label": "dh AST"
         },
         "dh:STL": {
-          "index": 60,
-          "letter": "BH",
+          "index": 59,
+          "letter": "BG",
           "label": "dh STL"
         },
         "dh:BLK": {
-          "index": 61,
-          "letter": "BI",
+          "index": 60,
+          "letter": "BH",
           "label": "dh BLK"
         },
         "d:FG%": {
-          "index": 62,
-          "letter": "BJ",
+          "index": 61,
+          "letter": "BI",
           "label": "d FG%"
         },
         "d:FT%": {
-          "index": 63,
-          "letter": "BK",
+          "index": 62,
+          "letter": "BJ",
           "label": "d FT%"
         },
         "d:3PM": {
-          "index": 64,
-          "letter": "BL",
+          "index": 63,
+          "letter": "BK",
           "label": "d 3PM"
         },
         "d:PTS": {
-          "index": 65,
-          "letter": "BM",
+          "index": 64,
+          "letter": "BL",
           "label": "d PTS"
         },
         "d:REB": {
-          "index": 66,
-          "letter": "BN",
+          "index": 65,
+          "letter": "BM",
           "label": "d REB"
         },
         "d:AST": {
-          "index": 67,
-          "letter": "BO",
+          "index": 66,
+          "letter": "BN",
           "label": "d AST"
         },
         "d:STL": {
-          "index": 68,
-          "letter": "BP",
+          "index": 67,
+          "letter": "BO",
           "label": "d STL"
         },
         "d:BLK": {
-          "index": 69,
-          "letter": "BQ",
+          "index": 68,
+          "letter": "BP",
           "label": "d BLK"
         },
         "rank:BMP:durh": {
-          "index": 70,
-          "letter": "BR",
+          "index": 69,
+          "letter": "BQ",
           "label": "BMP DURH #"
         },
         "rank:BMP:zsh": {
-          "index": 71,
-          "letter": "BS",
+          "index": 70,
+          "letter": "BR",
           "label": "BMP ZSH #"
         },
         "rank:BMP:zsc": {
-          "index": 72,
-          "letter": "BT",
+          "index": 71,
+          "letter": "BS",
           "label": "BMP ZSC #"
         },
         "rank:HBP:durh": {
-          "index": 73,
-          "letter": "BU",
+          "index": 72,
+          "letter": "BT",
           "label": "HBP DURH #"
         },
         "rank:HBP:zsh": {
-          "index": 74,
-          "letter": "BV",
+          "index": 73,
+          "letter": "BU",
           "label": "HBP ZSH #"
         },
         "rank:HBP:zsc": {
-          "index": 75,
-          "letter": "BW",
+          "index": 74,
+          "letter": "BV",
           "label": "HBP ZSC #"
         },
         "rank:BMP-ALT:durh": {
-          "index": 76,
-          "letter": "BX",
+          "index": 75,
+          "letter": "BW",
           "label": "BMP-ALT DURH #"
         },
         "rank:BMP-ALT:zsh": {
-          "index": 77,
-          "letter": "BY",
+          "index": 76,
+          "letter": "BX",
           "label": "BMP-ALT ZSH #"
         },
         "rank:BMP-ALT:zsc": {
-          "index": 78,
-          "letter": "BZ",
+          "index": 77,
+          "letter": "BY",
           "label": "BMP-ALT ZSC #"
         },
         "rowCheck": {
-          "index": 79,
-          "letter": "CA",
+          "index": 78,
+          "letter": "BZ",
           "label": "row check"
         }
       }
@@ -1810,15 +1805,12 @@
         "slot_row": 6,
         "expected_row": 15,
         "gap_row": 16,
-        "source": {
-          "col": 19,
-          "letter": "S",
-          "first_row": 1,
-          "rows": 200
-        },
+        "note": "H3",
+        "clear": "K1",
         "expected_now": "E15",
         "labels": {
           "H1": "Compare picks",
+          "J1": "Clear all",
           "H4": "Board #",
           "H6": "If I take",
           "H15": "Exp. cats",
@@ -1926,37 +1918,37 @@
     "B_PLAYER": "Board!B4:B203",
     "CAT_BAND": "Settings!B10",
     "CAT_BAND_SEC": "Settings!B11",
-    "DB_AST": "'Draft Board'!AY4:AY203",
-    "DB_BLK": "'Draft Board'!BA4:BA203",
-    "DB_DH_AST": "'Draft Board'!BG4:BG203",
-    "DB_DH_BLK": "'Draft Board'!BI4:BI203",
-    "DB_DH_FGPCT": "'Draft Board'!BB4:BB203",
-    "DB_DH_FTPCT": "'Draft Board'!BC4:BC203",
-    "DB_DH_PTS": "'Draft Board'!BE4:BE203",
-    "DB_DH_REB": "'Draft Board'!BF4:BF203",
-    "DB_DH_STL": "'Draft Board'!BH4:BH203",
-    "DB_DH_TPM": "'Draft Board'!BD4:BD203",
-    "DB_D_AST": "'Draft Board'!BO4:BO203",
-    "DB_D_BLK": "'Draft Board'!BQ4:BQ203",
-    "DB_D_FGPCT": "'Draft Board'!BJ4:BJ203",
-    "DB_D_FTPCT": "'Draft Board'!BK4:BK203",
-    "DB_D_PTS": "'Draft Board'!BM4:BM203",
-    "DB_D_REB": "'Draft Board'!BN4:BN203",
-    "DB_D_STL": "'Draft Board'!BP4:BP203",
-    "DB_D_TPM": "'Draft Board'!BL4:BL203",
-    "DB_FGA": "'Draft Board'!AS4:AS203",
-    "DB_FGM": "'Draft Board'!AR4:AR203",
-    "DB_FTA": "'Draft Board'!AU4:AU203",
-    "DB_FTM": "'Draft Board'!AT4:AT203",
-    "DB_GONE": "'Draft Board'!H4:H203",
+    "DB_AST": "'Draft Board'!AX4:AX203",
+    "DB_BLK": "'Draft Board'!AZ4:AZ203",
+    "DB_CMP": "'Draft Board'!H4:H203",
+    "DB_DH_AST": "'Draft Board'!BF4:BF203",
+    "DB_DH_BLK": "'Draft Board'!BH4:BH203",
+    "DB_DH_FGPCT": "'Draft Board'!BA4:BA203",
+    "DB_DH_FTPCT": "'Draft Board'!BB4:BB203",
+    "DB_DH_PTS": "'Draft Board'!BD4:BD203",
+    "DB_DH_REB": "'Draft Board'!BE4:BE203",
+    "DB_DH_STL": "'Draft Board'!BG4:BG203",
+    "DB_DH_TPM": "'Draft Board'!BC4:BC203",
+    "DB_D_AST": "'Draft Board'!BN4:BN203",
+    "DB_D_BLK": "'Draft Board'!BP4:BP203",
+    "DB_D_FGPCT": "'Draft Board'!BI4:BI203",
+    "DB_D_FTPCT": "'Draft Board'!BJ4:BJ203",
+    "DB_D_PTS": "'Draft Board'!BL4:BL203",
+    "DB_D_REB": "'Draft Board'!BM4:BM203",
+    "DB_D_STL": "'Draft Board'!BO4:BO203",
+    "DB_D_TPM": "'Draft Board'!BK4:BK203",
+    "DB_FGA": "'Draft Board'!AR4:AR203",
+    "DB_FGM": "'Draft Board'!AQ4:AQ203",
+    "DB_FTA": "'Draft Board'!AT4:AT203",
+    "DB_FTM": "'Draft Board'!AS4:AS203",
     "DB_MINE": "'Draft Board'!I4:I203",
     "DB_PLAYER": "'Draft Board'!D4:D203",
     "DB_POS": "'Draft Board'!F4:F203",
-    "DB_PTS": "'Draft Board'!AW4:AW203",
+    "DB_PTS": "'Draft Board'!AV4:AV203",
     "DB_RANK": "'Draft Board'!A4:A203",
-    "DB_REB": "'Draft Board'!AX4:AX203",
-    "DB_STL": "'Draft Board'!AZ4:AZ203",
-    "DB_TPM": "'Draft Board'!AV4:AV203",
+    "DB_REB": "'Draft Board'!AW4:AW203",
+    "DB_STL": "'Draft Board'!AY4:AY203",
+    "DB_TPM": "'Draft Board'!AU4:AU203",
     "DISAGREE_GAP": "Settings!B12",
     "HBP_ADP": "HBP!P4:P203",
     "HBP_DURH": "HBP!Q4:Q203",

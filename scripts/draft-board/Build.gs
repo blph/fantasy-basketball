@@ -9,7 +9,7 @@
  * arrives here in Data.gs as a number. ADR-0016 records why: DURANT H2H needs a pool
  * iterated to a fixed point, and Sheets cannot express a fixed point without a circular
  * reference. What stays a live formula is everything that has to react during a draft —
- * rank, tier, round, GAP, the category profile, Left @pos, and the Category Tracker.
+ * rank, tier, round, GAP, the category profile, and the Category Tracker.
  *
  * So: changing a weight on Settings does NOT recalculate the board. Re-run the pipeline.
  * Those cells are grey rather than input-yellow for exactly that reason.
@@ -94,9 +94,13 @@ var COLOR = {
   // here" and "the projection is guessing" have to be distinguishable at 9pt.
   warnBg:   '#FFECC7',
   warnText: '#7A5B00',
-  drafted:  '#EDEFF1',
   mineBg:   '#E6F4EA',
   mineText: '#137333',
+  // CMP: "on my shortlist". A clear periwinkle, deliberately stronger than the three source
+  // bands (#EDF1F8, #EAF3F3, #F1EDF7), which sit a few hex points apart from each other and
+  // would swallow a pale blue.
+  cmpBg:    '#D6E0FF',
+  cmpText:  '#1A2B6D',
   active:   '#FFFDF6',
 
   srcBmp: '#334E7A', srcBmpOff: '#8B99B4', srcBmpBand: '#EDF1F8',
@@ -201,10 +205,11 @@ var V_LAST = V.last;
  */
 var D = (function () {
   var m = { rank: 1, tier: 2, round: 3, player: 4, team: 5, pos: 6, inj: 7 };
-  // Gone and Mine live inside the frozen pane. They are the only two cells written during
+  // CMP and Mine live inside the frozen pane. They are the only two cells written during
   // a draft, and at the right-hand edge they scrolled off the moment any value column was
-  // in view.
-  m.drafted = 8; m.mine = 9;
+  // in view. CMP took GONE's place (ADR-0028): tick it beside the players you are deciding
+  // between, and they fill Compare picks on the tracker.
+  m.cmp = 8; m.mine = 9;
   var c = 10;
   for (var s = 0; s < SOURCES.length; s++) {
     for (var k = 0; k < VALUE_KINDS.length; k++) {
@@ -223,9 +228,10 @@ var D = (function () {
   // Split from one 240px string: strengths are scanned when the tracker says a category
   // is contested, and weaknesses can carry a pale fill so damage reads without being read.
   // Secondary sits between them, so the two green columns read as one thing and the whole
-  // block stays inside the D.best -> D.posLeft writeGrid span.
+  // block stays inside the D.best -> D.weaknesses writeGrid span. Left @pos, which counted
+  // the players GONE had not struck off, left the sheet with GONE (ADR-0028).
   m.strengths = c++; m.secondary = c++; m.weaknesses = c++;
-  m.posLeft = c++; m.notes = c++;
+  m.notes = c++;
   // Hidden feed. The tracker and the profile read these rather than reaching across to a
   // calculation tab, so they follow whichever projection is selected.
   m.hFgm = c++; m.hFga = c++; m.hFtm = c++; m.hFta = c++;
@@ -480,7 +486,7 @@ function buildDraftBoard() {
   var priorDraft = readCheckState(ss.getSheetByName('Draft Board'));
   var draft    = sheetByName(ss, 'Draft Board', D_LAST, RN);
   var punts    = sheetByName(ss, 'Punts', PUNTS.length * 6, 60);
-  var tracker  = sheetByName(ss, TRACKER_TAB, CMP_SRC_COL, 60);
+  var tracker  = sheetByName(ss, TRACKER_TAB, CMP_HID0 + CMP_SLOTS - 1, 60);
   var readme   = sheetByName(ss, 'README', 3, 70);
 
   _guard('Board',    function () { writeBoardData(board); writeBoardFormulas(board); });
@@ -907,7 +913,7 @@ function step4_DraftBoard() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   _guard('Draft Board', function () {
     // Read the draft state before sheetByName wipes the tab, or the rebuild silently
-    // discards every GONE and MINE tick.
+    // discards every CMP and MINE tick.
     var prior = readCheckState(ss.getSheetByName('Draft Board'));
     var sh = sheetByName(ss, 'Draft Board', D_LAST, RN);
     buildDraftTab(ss, sh, ss.getSheetByName('Board'), prior);
@@ -916,7 +922,7 @@ function step4_DraftBoard() {
 function step5_Rest() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   _guard('Punts',   function () { buildPuntsTab(sheetByName(ss, 'Punts', PUNTS.length * 6, 60)); });
-  _guard('Tracker', function () { buildTrackerTab(sheetByName(ss, TRACKER_TAB, CMP_SRC_COL, 60)); });
+  _guard('Tracker', function () { buildTrackerTab(sheetByName(ss, TRACKER_TAB, CMP_HID0 + CMP_SLOTS - 1, 60)); });
   _guard('README',  function () { buildReadme(sheetByName(ss, 'README', 3, 70)); });
   _guard('Tidy', function () {
     var order = ['Draft Board'];
@@ -1192,7 +1198,7 @@ function defineNames(ss) {
   names.DB_PLAYER = colRange(db, D.player);
   names.DB_POS = colRange(db, D.pos);
   names.DB_MINE = colRange(db, D.mine);
-  names.DB_GONE = colRange(db, D.drafted);
+  names.DB_CMP = colRange(db, D.cmp);
   names.DB_FGM = colRange(db, D.hFgm); names.DB_FGA = colRange(db, D.hFga);
   names.DB_FTM = colRange(db, D.hFtm); names.DB_FTA = colRange(db, D.hFta);
   var raw = [D.h3, D.hPts, D.hReb, D.hAst, D.hStl, D.hBlk];
@@ -1205,9 +1211,13 @@ function defineNames(ss) {
     names['DB_D_' + catKey(CAT_LABELS[c])] = colRange(db, D.d0 + c);
   }
 
+  // DB_GONE named the column CMP took over (ADR-0028). Left behind, it would point at CMP
+  // under GONE's name.
+  var retired = { DB_GONE: true };
   var existing = ss.getNamedRanges();
   for (var e = 0; e < existing.length; e++) {
-    if (names[existing[e].getName()]) existing[e].remove();
+    var nm = existing[e].getName();
+    if (names[nm] || retired[nm]) existing[e].remove();
   }
   for (var n in names) if (names.hasOwnProperty(n)) ss.setNamedRange(n, ss.getRange(names[n]));
 }
@@ -1244,7 +1254,7 @@ function boardOrder(ss, si, ki) {
  * `prior` is the draft state captured BEFORE the sheet was cleared. It has to be passed in
  * rather than read here: every caller that rebuilds from scratch goes through
  * `sheetByName`, which wipes the tab, so reading it at this point would find nothing and
- * silently lose every GONE and MINE tick. `Rebuild & re-sort` passes the live sheet and
+ * silently lose every CMP and MINE tick. `Rebuild & re-sort` passes the live sheet and
  * omits it, which is why re-sorting has always kept the state and a rebuild has not.
  */
 function buildDraftTab(ss, sh, board, prior) {
@@ -1332,7 +1342,6 @@ function buildDraftTab(ss, sh, board, prior) {
     row[D.gpFlag] = bref(B.gpCheck);
     row[D.best] = bestBuildFormula(n, r);
     profileFormulas(row, r);
-    row[D.posLeft] = posLeftFormula(r);
 
     // The feeds follow the SELECTED projection, so the tracker measures your roster on the
     // same numbers the board is ranking by.
@@ -1358,10 +1367,10 @@ function buildDraftTab(ss, sh, board, prior) {
 
   writeGrid(sh, f, 1, D.mine - 1);
   writeGrid(sh, f, dValue(0, 0), D.gap);
-  writeGrid(sh, f, D.best, D.posLeft);
+  writeGrid(sh, f, D.best, D.weaknesses);
   writeGrid(sh, f, D.notes, D_LAST);
 
-  sh.getRange(R0, D.drafted, POOL_ROWS, 2).insertCheckboxes();
+  sh.getRange(R0, D.cmp, POOL_ROWS, 2).insertCheckboxes();
   restoreCheckState(sh, names, prior);
   formatDraftTab(sh, si, ki);
   drawTierBreaks(sh);
@@ -1380,8 +1389,8 @@ function writeDraftHeaders(sh, si, ki) {
     sh.getRange(1, 2 + s * 2).setValue(SOURCES[s].label)
       .setFontSize(8).setFontWeight('bold').setFontColor(COLOR.identity);
   }
-  sh.getRange(1, D.drafted, 1, 2).merge();
-  sh.getRange(1, D.drafted).setValue(sortLabel(si, ki))
+  sh.getRange(1, D.cmp, 1, 2).merge();
+  sh.getRange(1, D.cmp).setValue(sortLabel(si, ki))
     .setBackground(COLOR.inputBg).setFontColor(COLOR.inputText)
     .setFontSize(10).setFontWeight('bold').setHorizontalAlignment('center')
     .setDataValidation(SpreadsheetApp.newDataValidation()
@@ -1391,7 +1400,7 @@ function writeDraftHeaders(sh, si, ki) {
   for (var c = 1; c <= D_LAST; c++) head[c] = '';
   head[D.rank] = '#'; head[D.tier] = 'TIER'; head[D.round] = 'RND';
   head[D.player] = 'Player'; head[D.team] = 'Tm'; head[D.pos] = 'Pos'; head[D.inj] = 'INJ';
-  head[D.drafted] = 'GONE'; head[D.mine] = 'MINE';
+  head[D.cmp] = 'CMP'; head[D.mine] = 'MINE';
   for (var s2 = 0; s2 < SOURCES.length; s2++) {
     for (var k2 = 0; k2 < VALUE_KINDS.length; k2++) {
       head[dValue(s2, k2)] = VALUE_KINDS[k2].label;
@@ -1405,7 +1414,7 @@ function writeDraftHeaders(sh, si, ki) {
   head[D.best] = 'Best build';
   head[D.strengths] = '▲ Strengths'; head[D.secondary] = '△ Secondary';
   head[D.weaknesses] = '▼ Weaknesses';
-  head[D.posLeft] = 'Left\n@pos'; head[D.notes] = 'Notes';
+  head[D.notes] = 'Notes';
   for (var f = 0; f < CAT_LABELS.length; f++) {
     head[D.dh0 + f] = 'dh ' + CAT_LABELS[f];
     head[D.d0 + f] = 'd ' + CAT_LABELS[f];
@@ -1493,23 +1502,6 @@ function profileFormulas(row, r) {
     + 'IF(w="","—","▼ "&w)))';
 }
 
-/**
- * How many players still competing for a slot THIS player can fill.
- *
- * A scarcity tiebreak, not a valuation: position stays out of the value entirely. Both
- * sides have to be multi-eligible -- a PF,C candidate counts toward centres, and a PF,C
- * subject has his centre scarcity measured too. Matching only the first-listed position
- * answered a narrower question, turning his own eligibility into a single slot.
- *
- * The one column that needs the GONE boxes ticked for other managers' picks.
- */
-function posLeftFormula(r) {
-  var tC = a1col(D.tier), pC = a1col(D.pos), gC = a1col(D.drafted);
-  function dcol(c) { return '$' + c + '$' + R0 + ':$' + c + '$' + RN; }
-  return '=IF($' + tC + r + '="","",SUMPRODUCT((' + dcol(tC) + '=$' + tC + r + ')*('
-       + dcol(gC) + '=FALSE)*REGEXMATCH(' + dcol(pC) + ',SUBSTITUTE($' + pC + r + ',",","|"))))';
-}
-
 function writeGrid(sh, grid, c1, c2) {
   var out = [];
   for (var i = 0; i < grid.length; i++) out.push(grid[i].slice(c1 - 1, c2));
@@ -1523,17 +1515,21 @@ function writeGrid(sh, grid, c1, c2) {
 }
 
 /**
- * Where Player / Gone / Mine / Notes / Injuries sit on the sheet AS IT CURRENTLY STANDS,
- * read from its own header row rather than from the D map.
+ * Where Player / CMP / Mine / Notes sit on the sheet AS IT CURRENTLY STANDS, read from its
+ * own header row rather than from the D map.
  *
  * This is the whole point: it runs against the OLD sheet while the rest of the build uses
- * the NEW map. Insert a column ahead of Gone and the two disagree by one, so the old Mine
- * column is read as Gone -- the draft state silently corrupted rather than merely wiped,
+ * the NEW map. Insert a column ahead of CMP and the two disagree by one, so the old Mine
+ * column is read as CMP -- the draft state silently corrupted rather than merely wiped,
  * on the two controls used on the clock.
+ *
+ * CMP alone has no fallback. Before ADR-0028 its column was GONE, so on the first rebuild
+ * after the change the map's position holds GONE ticks; reading them would tick CMP beside
+ * every player marked gone. A sheet that does not say CMP has no CMP to carry.
  */
 function draftHeaderCols(sh) {
-  var want = { Player: D.player, GONE: D.drafted, MINE: D.mine, Notes: D.notes };
-  var out = { Player: D.player, GONE: D.drafted, MINE: D.mine, Notes: D.notes };
+  var want = { Player: D.player, CMP: D.cmp, MINE: D.mine, Notes: D.notes };
+  var out = { Player: D.player, CMP: null, MINE: D.mine, Notes: D.notes };
   try {
     var wide = Math.min(sh.getMaxColumns(), D_LAST + 8);
     // The header row moved when the control strip landed, so look at both.
@@ -1569,13 +1565,13 @@ function readCheckState(sh) {
     // construction. Capturing it here would restore a literal over that formula and
     // freeze the tier at whatever it was the day of the last re-sort -- with no #REF!,
     // no error, and a value that looks perfectly ordinary.
-    var gone  = sh.getRange(R0, at.GONE,  n, 1).getValues();
+    var cmp   = at.CMP ? sh.getRange(R0, at.CMP, n, 1).getValues() : null;
     var mine  = sh.getRange(R0, at.MINE,  n, 1).getValues();
     var notes = sh.getRange(R0, at.Notes, n, 1).getValues();
     for (var i = 0; i < n; i++) {
       if (names[i][0]) {
         state[names[i][0]] = {
-          gone: gone[i][0] === true, mine: mine[i][0] === true,
+          cmp: cmp ? cmp[i][0] === true : false, mine: mine[i][0] === true,
           notes: notes[i][0] || ''
         };
       }
@@ -1587,11 +1583,11 @@ function readCheckState(sh) {
 /**
  * Put the draft state back, by name.
  *
- * Written column by column rather than as one span: Gone and Mine now sit in the frozen
+ * Written column by column rather than as one span: CMP and Mine sit in the frozen
  * pane and Notes at the far right, so there is no contiguous block to write.
  */
 function restoreCheckState(sh, names, prior) {
-  var cols = [[D.drafted, 'gone', false], [D.mine, 'mine', false],
+  var cols = [[D.cmp, 'cmp', false], [D.mine, 'mine', false],
               [D.notes, 'notes', '']];
   for (var c = 0; c < cols.length; c++) {
     var col = cols[c][0], key = cols[c][1], blank = cols[c][2];
@@ -1792,7 +1788,7 @@ function formatDraftTab(sh, si, ki) {
   var activeCol = dValue(si, ki);
 
   blockHeader(sh, D.rank, D.inj, 'WHO', COLOR.identity);
-  blockHeader(sh, D.drafted, D.mine, 'CLOCK', COLOR.value);
+  blockHeader(sh, D.cmp, D.mine, 'CLOCK', COLOR.value);
   for (var s = 0; s < SOURCES.length; s++) {
     blockHeader(sh, dSpanStart(s), dSpanStart(s) + SPAN - 1,
                 SOURCES[s].label, s === si ? SOURCES[s].head : SOURCES[s].off);
@@ -1802,7 +1798,7 @@ function formatDraftTab(sh, si, ki) {
   blockHeader(sh, D.adp, D.gap, 'MARKET', COLOR.market);
   blockHeader(sh, D.best, D.best, 'BUILD', COLOR.punt);
   blockHeader(sh, D.strengths, D.weaknesses, 'PROFILE', COLOR.transform);
-  blockHeader(sh, D.posLeft, D.notes, 'DRAFT DAY', COLOR.identity);
+  blockHeader(sh, D.notes, D.notes, 'DRAFT DAY', COLOR.identity);
   blockHeader(sh, D.hFgm, D_LAST, 'HELPERS — DO NOT READ', COLOR.notes);
 
   sh.getRange(HDR, 1, 1, D_LAST)
@@ -1810,10 +1806,10 @@ function formatDraftTab(sh, si, ki) {
     .setHorizontalAlignment('center').setVerticalAlignment('middle');
   // Repaint each header cell in its own block colour.
   var paint = [
-    [D.rank, D.inj, COLOR.identity], [D.drafted, D.mine, COLOR.value],
+    [D.rank, D.inj, COLOR.identity], [D.cmp, D.mine, COLOR.value],
     [D.sel, D.brk, COLOR.z], [D.projGp, D.gpFlag, COLOR.avail],
     [D.adp, D.gap, COLOR.market], [D.best, D.best, COLOR.punt],
-    [D.strengths, D.weaknesses, COLOR.transform], [D.posLeft, D.notes, COLOR.identity],
+    [D.strengths, D.weaknesses, COLOR.transform], [D.notes, D.notes, COLOR.identity],
     [D.hFgm, D_LAST, COLOR.notes]
   ];
   paint.forEach(function (p) {
@@ -1836,7 +1832,7 @@ function formatDraftTab(sh, si, ki) {
   sh.setColumnWidth(D.rank, 34); sh.setColumnWidth(D.tier, 36);
   sh.setColumnWidth(D.round, 34); sh.setColumnWidth(D.player, 168);
   sh.setColumnWidth(D.team, 40); sh.setColumnWidth(D.pos, 68); sh.setColumnWidth(D.inj, INJ_WIDTH);
-  sh.setColumnWidth(D.drafted, 46); sh.setColumnWidth(D.mine, 46);
+  sh.setColumnWidth(D.cmp, 46); sh.setColumnWidth(D.mine, 46);
   for (var s3 = 0; s3 < SOURCES.length; s3++) {
     for (var k3 = 0; k3 < VALUE_KINDS.length; k3++) {
       var vc = dValue(s3, k3);
@@ -1857,7 +1853,7 @@ function formatDraftTab(sh, si, ki) {
   // multi-category players the column exists to find.
   sh.setColumnWidth(D.strengths, 200); sh.setColumnWidth(D.secondary, 190);
   sh.setColumnWidth(D.weaknesses, 190);
-  sh.setColumnWidth(D.posLeft, 50); sh.setColumnWidth(D.notes, 300);
+  sh.setColumnWidth(D.notes, 300);
 
   sh.getRange(R0, 1, POOL_ROWS, D_LAST).setFontSize(10).setVerticalAlignment('middle');
   sh.getRange(R0, D.player, POOL_ROWS, 1).setFontSize(11).setFontWeight('bold');
@@ -1952,19 +1948,21 @@ function disagreeGap() {
 function addDraftRules(sh, si, ki, activeCol, gap) {
   var rowsAll = sh.getRange(R0, 1, POOL_ROWS, D.notes);
 
-  // MINE before GONE. First match wins, and the old order rendered a player who was both
-  // as grey and struck through -- while the mine rule's explicit setStrikethrough(false)
-  // showed that was not the intent.
+  // MINE before CMP. First match wins, so a player you have taken reads as yours whatever
+  // else is ticked beside him.
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied('=$' + a1col(D.mine) + R0 + '=TRUE')
     .setBackground(COLOR.mineBg).setFontColor(COLOR.mineText).setStrikethrough(false)
     .setRanges([rowsAll]).build());
+  // A CMP row tints its identity cells, rank through Pos, so the shortlist stands out while
+  // you scan. Not INJ: the risk tier is part of the decision being compared, and a tint there
+  // would hide its colour.
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied('=$' + a1col(D.drafted) + R0 + '=TRUE')
-    .setBackground(COLOR.drafted).setFontColor(COLOR.muted).setStrikethrough(true)
-    .setRanges([rowsAll]).build());
+    .whenFormulaSatisfied('=$' + a1col(D.cmp) + R0 + '=TRUE')
+    .setBackground(COLOR.cmpBg).setFontColor(COLOR.cmpText)
+    .setRanges([sh.getRange(R0, 1, POOL_ROWS, D.inj - 1)]).build());
 
-  // After the MINE and GONE rules above, which win on first match. A HIGH tier losing its
+  // After the MINE and CMP rules above, which win on first match. A HIGH tier losing its
   // red once the player is yours is correct: the risk was priced at the pick, and from
   // then on the row's only job is to say "mine".
   injuryRules(sh, D.inj);
@@ -2027,7 +2025,6 @@ function addDraftRules(sh, si, ki, activeCol, gap) {
   }
   bands.push(sh.getRange(R0, D.drop, POOL_ROWS, D.best - D.drop + 1));
   bands.push(sh.getRange(R0, D.strengths, POOL_ROWS, D.secondary - D.strengths + 1));
-  bands.push(sh.getRange(R0, D.posLeft, POOL_ROWS, 1));
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied('=ISEVEN(ROW())')
     .setBackground(COLOR.band).setRanges(bands).build());
@@ -2172,22 +2169,24 @@ var TRACK_WIN_COL = 5;    // Win %
 var TRACK_READ_COL = 6;   // Read
 
 /**
- * Compare picks (ADR-0027): up to five candidates, each scored as the tracker would read with
- * him ticked MINE. One column per candidate, read across the tracker's own category rows, so
- * E7 and I7 are the same category before and after. Every column is an offset from Punted.
+ * Compare picks (ADR-0027, ADR-0028): the players ticked CMP on the Draft Board, best board #
+ * first, each scored as the tracker would read with him ticked MINE. One column per
+ * candidate, read across the tracker's own category rows, so E7 and I7 are the same category
+ * before and after. Every column is an offset from Punted.
  *
  *   H       labels            I:M     the five slots and what each would do
- *   N:R     hidden, one per slot: its status (row 5) and its Win′ per category
- *   S       hidden, the slots' dropdown source: every player not GONE or MINE, by board #
+ *   N:R     hidden, one per slot: its Win′ per category
+ *   J1:K1   "Clear all" and its box, which onEdit answers by unticking every CMP
  */
 var CMP_SLOTS = 5;
 var CMP_LABEL_COL = TRACK_PUNT_COL + 1;
 var CMP_C0 = CMP_LABEL_COL + 1;
 var CMP_HID0 = CMP_C0 + CMP_SLOTS;
-var CMP_SRC_COL = CMP_HID0 + CMP_SLOTS;
+var CMP_CLEAR_COL = CMP_C0 + 2;                         // its label sits just left of it
 var CMP_SLOT_ROW = TRACKER_R0 - 1;                      // the tracker's header row
-var CMP_RANK_ROW = CMP_SLOT_ROW - 1;                    // rank, or why a slot is not ranked
+var CMP_RANK_ROW = CMP_SLOT_ROW - 1;                    // 1st to 5th
 var CMP_BOARD_ROW = CMP_SLOT_ROW - 2;                   // the candidate's board #
+var CMP_NOTE_ROW = CMP_SLOT_ROW - 3;                    // "Top 5 of 7 ticked", or blank
 var CMP_EXP_ROW = TRACKER_R0 + CAT_LABELS.length;       // expected categories won
 var CMP_GAP_ROW = CMP_EXP_ROW + 1;                      // behind the best candidate
 var CMP_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th'];
@@ -2321,7 +2320,8 @@ function buildTrackerTab(sh) {
 }
 
 /**
- * Compare picks, beside the tracker (ADR-0027). Each slot is the tracker recomputed with that
+ * Compare picks, beside the tracker (ADR-0027, ADR-0028). The slots are the players ticked CMP
+ * on the Draft Board and not MINE, best board # first. Each is the tracker recomputed with that
  * player ticked MINE: n + 1 players, the benchmark cut at MIN(Q, TEAMS × (n + 1)), the same K
  * and the same cutoffs. So a slot's column is exactly what the tracker reads after the pick.
  *
@@ -2331,8 +2331,8 @@ function buildTrackerTab(sh) {
  * TEAMS players with every pick, so a change against now can read negative for every
  * candidate at once.
  *
- * The slots are five single-select dropdowns rather than one multi-select, because Apps Script
- * cannot create a multi-select dropdown and a Full rebuild clears every validation on this tab.
+ * More than CMP_SLOTS ticked compares the best CMP_SLOTS by board #, and the note row says so:
+ * a candidate dropped without a word would read as one the board never saw.
  *
  * Per-cell formulas only, the same as the tracker: no LET, and no IF handed to an array
  * function. Every comparison that can meet a blank is masked with ISNUMBER, because Sheets
@@ -2348,15 +2348,24 @@ function buildComparePanel(sh, n) {
   var exps = '$' + L(CMP_C0) + '$' + CMP_EXP_ROW + ':$' + L(cLast) + '$' + CMP_EXP_ROW;
   var boards = '$' + L(CMP_C0) + '$' + CMP_BOARD_ROW + ':$' + L(cLast) + '$' + CMP_BOARD_ROW;
   var ordinals = CMP_ORDINALS.map(function (o) { return '"' + o + '"'; }).join(',');
+  var ticked = 'SUMPRODUCT((DB_CMP=TRUE)*(DB_MINE<>TRUE))';
 
   sh.getRange(1, CMP_LABEL_COL).setValue('Compare picks')
     .setFontSize(14).setFontWeight('bold').setFontColor(COLOR.identity);
+  // A checkbox as a button: onEdit unticks every CMP, then this box. The menu's Clear compare
+  // does the same, for the day a simple trigger does not fire.
+  sh.getRange(1, CMP_CLEAR_COL - 1).setValue('Clear all');
+  sh.getRange(1, CMP_CLEAR_COL).insertCheckboxes();
   sh.getRange(2, CMP_LABEL_COL).setValue(
-    'Each column is this tracker as it would read after you take that player, ranked on the '
-    + 'categories you would expect to win each week. A glyph marks a category whose Read '
-    + 'would change; players taken since drop out on their own.')
+    'Tick CMP on the Draft Board beside the players you are deciding between. Each column is '
+    + 'this tracker as it would read after you take that player, ranked on the categories you '
+    + 'would expect to win each week; a glyph marks a category whose Read would change. Clear '
+    + 'all, or tick MINE, and the ticks clear.')
     .setFontSize(9).setFontColor(COLOR.muted).setWrap(true).setVerticalAlignment('top');
   sh.getRange(2, CMP_LABEL_COL, 1, CMP_SLOTS + 1).merge();
+  sh.getRange(CMP_NOTE_ROW, CMP_LABEL_COL).setFormula(
+    '=IF(' + ticked + '>' + CMP_SLOTS + ',"Top ' + CMP_SLOTS + ' of "&' + ticked
+    + '&" ticked, by board #","")');
 
   sh.getRange(CMP_BOARD_ROW, CMP_LABEL_COL).setValue('Board #');
   sh.getRange(CMP_SLOT_ROW, CMP_LABEL_COL).setValue('If I take');
@@ -2372,70 +2381,53 @@ function buildComparePanel(sh, n) {
     '=IF(' + n + '=0,"",SUMIFS($' + L(TRACK_WIN_COL) + '$' + r0 + ':$' + L(TRACK_WIN_COL) + '$'
     + rN + ',' + puntRange + ',FALSE))');
 
-  // The dropdown's source: everyone still available, best first, so opening a slot without
-  // typing shows the top of the board. Typing into a slot narrows it; that is the search.
-  sh.getRange(1, CMP_SRC_COL).setFormula(
-    '=IFERROR(INDEX(SORT(FILTER({DB_RANK,DB_PLAYER},DB_GONE<>TRUE,DB_MINE<>TRUE,'
-    + 'DB_PLAYER<>""),1,TRUE),0,2),"")');
-  // Reject a partial name rather than keep it: a slot holding "brid" would read "not on
-  // board" and cost a look on the clock. A name drafted after it was entered stays put --
-  // validation only checks at entry -- and its status row says so.
-  sh.getRange(CMP_SLOT_ROW, CMP_C0, 1, CMP_SLOTS).setDataValidation(
-    SpreadsheetApp.newDataValidation()
-      .requireValueInRange(sh.getRange(1, CMP_SRC_COL, POOL_ROWS, 1), true)
-      .setAllowInvalid(false)
-      .setHelpText('Type part of a name, then pick from the list.')
-      .build());
-
   for (var s = 0; s < CMP_SLOTS; s++) {
     var c = CMP_C0 + s, h = CMP_HID0 + s;
     var name = L(c) + '$' + CMP_SLOT_ROW;
     var match = 'MATCH(' + name + ',DB_PLAYER,0)';
-    var status = L(h) + '$' + CMP_RANK_ROW;
     var total = L(c) + '$' + CMP_EXP_ROW;
 
-    // In the order the engine checks them. MATCH is case-insensitive, like the sheet's own
-    // lookup everywhere else.
-    var repeat = s === 0 ? '"ok"'
-      : 'IF(ISNUMBER(MATCH(' + name + ',$' + L(CMP_C0) + '$' + CMP_SLOT_ROW + ':$' + L(c - 1)
-        + '$' + CMP_SLOT_ROW + ',0)),"repeat","ok")';
-    sh.getRange(CMP_RANK_ROW, h).setFormula(
-      '=IF(' + name + '="","",IF(ISNA(' + match + '),"not on board",IF(INDEX(DB_MINE,' + match
-      + '),"mine",IF(INDEX(DB_GONE,' + match + '),"gone",' + repeat + '))))');
-
+    // The (s+1)th CMP tick by board #. A MINE tick takes a player out: he is no longer a
+    // choice, and the tracker already counts him.
+    sh.getRange(CMP_SLOT_ROW, c).setFormula(
+      '=IFERROR(INDEX(SORT(FILTER({DB_RANK,DB_PLAYER},DB_CMP=TRUE,DB_MINE<>TRUE),1,TRUE),'
+      + (s + 1) + ',2),"")');
     sh.getRange(CMP_BOARD_ROW, c).setFormula(
       '=IF(' + name + '="","",IFERROR(INDEX(DB_RANK,' + match + '),""))');
     // Rank on Expected cats, ties to the lower board #. SUMPRODUCT rather than COUNTIF: a
     // COUNTIF criterion is text, which cuts the total to 15 digits.
     sh.getRange(CMP_RANK_ROW, c).setFormula(
-      '=IF(' + status + '="","",IF(' + status + '<>"ok",' + status + ',CHOOSE(1'
+      '=IF(' + name + '="","",CHOOSE(1'
       + '+SUMPRODUCT(ISNUMBER(' + exps + ')*(' + exps + '>' + total + '))'
       + '+SUMPRODUCT(ISNUMBER(' + exps + ')*(' + exps + '=' + total + ')*(' + boards + '<'
-      + L(c) + '$' + CMP_BOARD_ROW + ')),' + ordinals + ')))');
+      + L(c) + '$' + CMP_BOARD_ROW + ')),' + ordinals + '))');
 
     for (var k = 0; k < CAT_LABELS.length; k++) {
       var r = r0 + k, key = catKey(CAT_LABELS[k]), dh = 'DB_DH_' + key;
       var win = L(h) + r;
       sh.getRange(r, h).setFormula(
-        '=IF(' + status + '<>"ok","",NORMSDIST((SUMIF(DB_MINE,TRUE,' + dh + ')+INDEX(' + dh + ','
+        '=IF(' + name + '="","",NORMSDIST((SUMIF(DB_MINE,TRUE,' + dh + ')+INDEX(' + dh + ','
         + match + ')-' + n1 + '*AVERAGE(FILTER(' + dh + ',' + drafted + ')))/SQRT' + n1
         + '*K_' + key + '))');
       // The Read this category would have, tested in the tracker's own order.
       var after = 'IF($' + punt + r + '=TRUE,"— PUNTED",IF(' + win + '>=BANK_WIN,"■ BANKED",IF('
         + win + '>=STRONG_WIN,"▲ STRONG",IF(' + win + '<=WEAK_WIN,"▼ WEAK","● CONTESTED"))))';
       sh.getRange(r, c).setFormula(
-        '=IF(' + status + '<>"ok","",TEXT(' + win + ',"0%")&IF(' + after + '=$'
+        '=IF(' + name + '="","",TEXT(' + win + ',"0%")&IF(' + after + '=$'
         + L(TRACK_READ_COL) + r + ',""," "&LEFT(' + after + ',1)))');
     }
 
     sh.getRange(CMP_EXP_ROW, c).setFormula(
-      '=IF(' + status + '<>"ok","",SUMIFS(' + L(h) + '$' + r0 + ':' + L(h) + '$' + rN + ','
+      '=IF(' + name + '="","",SUMIFS(' + L(h) + '$' + r0 + ':' + L(h) + '$' + rN + ','
       + puntRange + ',FALSE))');
     sh.getRange(CMP_GAP_ROW, c).setFormula(
-      '=IF(' + status + '<>"ok","",' + total + '-MAX(' + exps + '))');
+      '=IF(' + name + '="","",' + total + '-MAX(' + exps + '))');
   }
 
-  sh.hideColumns(CMP_HID0, CMP_SRC_COL - CMP_HID0 + 1);
+  // Hiding persists through clear(), so a layout that hid more columns than this one would
+  // leave them hidden. Show everything, then hide the block.
+  sh.showColumns(1, sh.getMaxColumns());
+  sh.hideColumns(CMP_HID0, CMP_SLOTS);
 }
 
 function formatTracker(sh) {
@@ -2496,10 +2488,17 @@ function formatTracker(sh) {
 
 function formatComparePanel(sh) {
   var L = a1col, rows = CAT_LABELS.length, r0 = TRACKER_R0, c0 = CMP_C0, ns = CMP_SLOTS;
-  // 132 px holds a 19-character name beside the dropdown arrow; longer ones clip at the end,
+  // 132 px holds a name of about 20 characters in bold 9 pt; a longer one clips at the end,
   // where the first name and most of the surname are already showing.
   sh.setColumnWidth(CMP_LABEL_COL, 56);
   for (var s = 0; s < ns; s++) sh.setColumnWidth(c0 + s, 132);
+
+  // "Compare picks  ...  Clear all ☐": the label hugs the box from the left.
+  sh.getRange(1, CMP_CLEAR_COL - 1).setFontSize(9).setFontColor(COLOR.muted)
+    .setHorizontalAlignment('right').setVerticalAlignment('middle');
+  sh.getRange(1, CMP_CLEAR_COL).setHorizontalAlignment('left').setVerticalAlignment('middle');
+  sh.getRange(CMP_NOTE_ROW, CMP_LABEL_COL).setFontSize(9).setFontStyle('italic')
+    .setFontColor(COLOR.warnText);
 
   sh.getRange(CMP_BOARD_ROW, CMP_LABEL_COL, CMP_GAP_ROW - CMP_BOARD_ROW + 1, 1)
     .setFontSize(9).setFontColor(COLOR.muted);
@@ -2508,8 +2507,9 @@ function formatComparePanel(sh) {
     .setFontColor(COLOR.muted).setHorizontalAlignment('center');
   sh.getRange(CMP_RANK_ROW, c0, 1, ns).setFontSize(10).setFontWeight('bold')
     .setHorizontalAlignment('center');
-  sh.getRange(CMP_SLOT_ROW, c0, 1, ns).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText)
-    .setFontSize(9);
+  // Filled from the CMP ticks, so no input colours: these are names the board chose.
+  sh.getRange(CMP_SLOT_ROW, c0, 1, ns).setFontColor(COLOR.identity).setFontSize(9)
+    .setFontWeight('bold').setHorizontalAlignment('center');
   sh.getRange(r0, c0, rows, ns).setFontSize(11).setHorizontalAlignment('center')
     .setVerticalAlignment('middle');
   // Expected cats is the one number the ranking is on, so it takes the tracker's largest type.
@@ -2606,17 +2606,19 @@ var README_ROWS = [
    'Pick your sort in the dropdown at the top left, run Draft Board ▸ Rebuild & re-sort, '
    + 'and read down. Learn the top ten of each punt build.'],
   ['On the clock', '',
-   'Tick GONE as players come off the board — for everyone, not just you. Tick MINE for '
-   + 'your own picks. Both live in the frozen pane so they never scroll away.'],
+   'Tick CMP beside the players you are deciding between, and read Compare picks on the '
+   + 'Category Tracker. Tick MINE for your pick, which clears CMP. Both live in the frozen '
+   + 'pane so they never scroll away.'],
   ['After each pick', '',
    'Read the Category Tracker. Spend the next pick on a CONTESTED row, not a STRONG one.'],
   ['', '', ''],
 
   ['THE TWO THINGS THAT ARE NOT AUTOMATIC', '', ''],
-  ['GONE', '',
-   'Nobody else is ticking it for you. Left @pos is wrong if it is not kept up. The '
-   + 'tracker\'s Average team does not read it: that benchmark is the top Teams × MINE '
-   + 'players by rank, capped at Q, whether or not they are ticked.'],
+  ['CMP', '',
+   'Nobody else\'s pick clears it. A player another manager takes stays in Compare picks '
+   + 'until you untick him, tick Clear all beside the panel, or tick MINE on your own pick. '
+   + 'The board does not track other managers\' picks at all: the tracker\'s Average team is '
+   + 'the top Teams × MINE players by rank, capped at Q, whoever took them.'],
   ['Sort by', '',
    'Changing the dropdown does NOT re-sort the board on its own. Run Rebuild & re-sort. '
    + 'Until you do, nothing on the board follows the new choice — the rows, #, tiers and '
@@ -2763,9 +2765,10 @@ var README_ROWS = [
    'DURANT H2H weights turnovers zero, so the board cannot measure them. They are still on '
    + 'the Board tab as a raw number.'],
   ['Compare picks', '',
-   'Type up to five players you are deciding between into the yellow slots beside the '
-   + 'tracker. Each column is this tracker as it would read if you took that player next, and '
-   + 'a glyph marks a category whose Read would change. Anyone taken since drops out.'],
+   'Tick CMP on the Draft Board beside the players you are deciding between. Each column '
+   + 'beside the tracker is the tracker as it would read if you took that player next, and a '
+   + 'glyph marks a category whose Read would change. More than five ticked compares the '
+   + 'best five by board #, and says so.'],
   ['Exp. cats', ' = Σ Win % not punted',
    'The categories you would expect to win each week against an average opponent. Compare '
    + 'picks ranks on it, and vs best is how far each candidate trails the top one.'],
@@ -2781,9 +2784,6 @@ var README_ROWS = [
    + 'and re-run build_data.py; the grey cells on Settings only record what was used. The '
    + 'lambdas and the pool constants are not in any source file at all — they are refitted '
    + 'from Basketball Monster by calibrate_bbm.py on every refresh.'],
-  ['Left @pos', '',
-   'How many un-GONE players in his tier could fill a slot he is eligible for. The one '
-   + 'column that needs everyone\'s picks ticked.'],
   ['MPG', '', 'Carried for context and deliberately not valued — a per-game projection already is the minutes.']
 ];
 
@@ -2822,6 +2822,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Rebuild & re-sort', 'rebuildAndResort')
     .addItem('Apply projection filter', 'applyProjectionFilter')
+    .addItem('Clear compare (untick every CMP)', 'clearCompareMenu')
     .addSeparator()
     .addItem('Full rebuild (from Data.gs)', 'buildDraftBoard')
     .addSeparator()
@@ -2833,7 +2834,7 @@ function onOpen() {
     .addToUi();
 }
 
-/** Re-sort to whatever the dropdown says, keeping GONE / MINE / Notes / Injuries. */
+/** Re-sort to whatever the dropdown says, keeping CMP / MINE / Notes / Injuries. */
 function rebuildAndResort() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   _guard('Re-sort', function () {
@@ -2844,29 +2845,63 @@ function rebuildAndResort() {
 }
 
 /**
- * Show or hide each projection's six value columns from the header checkboxes.
+ * Untick every CMP on the Draft Board, and the Clear all box that asked for it (ADR-0028).
+ * Unticking is all it does: nothing about a player is lost, because CMP is not draft state.
+ */
+function clearCompare(ss) {
+  ss.getRangeByName('DB_CMP').uncheck();
+  var tracker = ss.getSheetByName(TRACKER_TAB);
+  if (tracker) tracker.getRange(1, CMP_CLEAR_COL).uncheck();
+}
+
+function clearCompareMenu() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  clearCompare(ss);
+  ss.toast('Every CMP tick is cleared.', 'Draft Board', 5);
+}
+
+/**
+ * The board's controls that are cells: the projection checkboxes and the sort dropdown on the
+ * Draft Board's control strip, and the two routes that clear CMP -- the Clear all box beside
+ * Compare picks, and any MINE tick, because the comparison was for that pick (ADR-0028).
  *
- * A simple onEdit, not an installable trigger: hiding a column needs no authorisation, so
- * this requires no install step, survives a rebuild, and cannot silently fail to exist.
+ * A simple onEdit, not an installable trigger: none of this needs authorisation, so it
+ * requires no install step, survives a rebuild, and cannot silently fail to exist.
  *
- * It runs on EVERY edit, including each of the ~156 checkbox ticks during a draft, so the
- * range check comes first and returns before doing anything else. A failure here must
+ * It runs on EVERY edit, including each of the ~156 checkbox ticks during a draft, so each
+ * branch checks its range first and returns before doing anything else. A failure here must
  * never surface as an error on someone's edit -- the worst case is a dead checkbox, and
- * the menu item does the same job by hand.
+ * the menu items do the same jobs by hand.
  */
 function onEdit(e) {
   try {
     if (!e || !e.range) return;
-    if (e.range.getRow() !== 1) return;
-    var sh = e.range.getSheet();
-    if (sh.getName() !== 'Draft Board') return;
-    var col = e.range.getColumn();
+    var row = e.range.getRow(), col = e.range.getColumn();
+    var sh = e.range.getSheet(), tab = sh.getName();
+    if (tab === TRACKER_TAB) {
+      if (row === 1 && col === CMP_CLEAR_COL && e.range.getValue() === true) {
+        clearCompare(sh.getParent());
+      }
+      return;
+    }
+    if (tab !== 'Draft Board') return;
+    if (row >= R0) {
+      // A paste arrives as one multi-cell edit with no e.value, so read the MINE cells it
+      // covers. Unticking MINE clears nothing.
+      if (col > D.mine || col + e.range.getNumColumns() - 1 < D.mine) return;
+      var vals = e.range.getValues();
+      for (var v = 0; v < vals.length; v++) {
+        if (vals[v][D.mine - col] === true) { clearCompare(sh.getParent()); return; }
+      }
+      return;
+    }
+    if (row !== 1) return;
     // The sort dropdown on the control strip writes through to SORT_BY, which is what
     // every build actually reads. Without this the control was decorative: it carried a
     // dropdown, the cheat sheet pointed at it, picking a value changed the label -- and
     // Rebuild & re-sort went on sorting by whatever Settings said. A control that
     // silently does nothing is worse than no control, because you believe it.
-    if (col === D.drafted) {
+    if (col === D.cmp) {
       var picked = String(e.range.getValue() || '');
       for (var s = 0; s < SOURCES.length; s++) {
         for (var k = 0; k < VALUE_KINDS.length; k++) {

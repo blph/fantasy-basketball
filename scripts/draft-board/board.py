@@ -827,7 +827,11 @@ def build_parser() -> argparse.ArgumentParser:
                    help="rows per build (default 40 for one build, 10 for all)")
     add("check", "sanity checks and state integrity; the only read that exits non-zero")
 
-    for name, text in (("gone", "tick GONE"), ("mine", "tick MINE and GONE")):
+    # GONE is the local board's own pick log. The sheet dropped the column (ADR-0028), so a
+    # `gone` here is for the agent, and verify.py --local never compares it.
+    for name, text in (("gone", "log another manager's pick (local only; the sheet has no "
+                                "GONE)"),
+                       ("mine", "tick MINE, and log it as gone")):
         p = add(name, text, show)
         p.add_argument("names", nargs="+", metavar="NAME")
         p.add_argument("--undo", action="store_true",

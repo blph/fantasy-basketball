@@ -36,9 +36,9 @@ def letter(n: int) -> str:
 
 
 def draft_keys() -> set[str]:
-    keys = {"rank", "tier", "round", "player", "team", "pos", "inj", "drafted", "mine", "sel",
+    keys = {"rank", "tier", "round", "player", "team", "pos", "inj", "cmp", "mine", "sel",
             "drop", "med", "brk", "projGp", "myGp", "gpFlag", "adp", "xrank", "gap", "best",
-            "strengths", "secondary", "weaknesses", "posLeft", "notes",
+            "strengths", "secondary", "weaknesses", "notes",
             "hFgm", "hFga", "hFtm", "hFta", "h3",
             "hPts", "hReb", "hAst", "hStl", "hBlk", "rowCheck"}
     for src in board_snapshot.SOURCES:
@@ -125,8 +125,10 @@ def test_compare_panel_sits_beside_the_tracker_on_its_category_rows():
     assert len(idx) == 5 and idx == list(range(idx[0], idx[0] + 5))
     assert c["label_col"] == t["columns"]["punted"] + 1 == idx[0] - 1
     assert hidden == list(range(idx[-1] + 1, idx[-1] + 6))
-    assert c["source"] == {"col": hidden[-1] + 1, "letter": letter(hidden[-1] + 1),
-                           "first_row": 1, "rows": LAYOUT["last_row"] - LAYOUT["header_row"]}
+    assert "source" not in c                          # CMP ticks fill the slots (ADR-0028)
+    assert c["note"] == f"{letter(c['label_col'])}{c['board_row'] - 1}"
+    assert c["clear"] == f"{letter(idx[1] + 1)}1"
+    assert c["labels"][f"{letter(idx[1])}1"] == "Clear all"
     assert all(s["letter"] == letter(s["index"]) for s in c["slots"])
     assert c["slot_row"] == t["header_row"]
     assert (c["board_row"], c["rank_row"]) == (c["slot_row"] - 2, c["slot_row"] - 1)

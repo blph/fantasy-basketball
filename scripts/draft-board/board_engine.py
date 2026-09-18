@@ -37,7 +37,8 @@ READS = {"punted": "— PUNTED", "banked": "■ BANKED", "strong": "▲ STRONG",
 
 # What a player row looks like before anyone has touched it. `my_gp: None` means "equals
 # projected GP" -- the seeding formula, not an override.
-_PLAYER_DEFAULTS = {"name": "", "gone": False, "mine": False, "pick": None, "notes": "",
+_PLAYER_DEFAULTS = {"name": "", "gone": False, "mine": False, "cmp": False, "pick": None,
+                    "notes": "",
                     "my_gp": None, "xrank": None, "gp1": None, "gp2": None, "gp3": None}
 
 
@@ -175,7 +176,10 @@ def _profile(name: str, d: dict, labels: list[str], conceded: set, band: float,
 
 
 def _left_at_pos(rows: list[dict]) -> None:
-    """posLeftFormula: same tier, GONE false, and REGEXMATCH(candidate pos, this pos as A|B).
+    """Left @pos: same tier, not gone, and REGEXMATCH(candidate pos, this pos as A|B).
+
+    Local only since ADR-0028. The sheet dropped the column with GONE, because nobody ticks
+    other managers' picks there; an agent logging them with `board.py gone` still can.
 
     Counts the row itself and any MINE row not also ticked GONE -- the formula reads GONE
     only. `re.search` is REGEXMATCH's partial match, so a bare "G" counts every guard and a
@@ -244,6 +248,7 @@ def board_rows(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
         rows.append({
             "row": pl["row"], "key": pl["key"], "name": pl["name"], "team": pl["team"],
             "pos": pl["pos"], "inj": pl["inj"], "gone": ps["gone"], "mine": ps["mine"],
+            "cmp": ps["cmp"],
             "rank": rank[i], "tier": tier[i], "rnd": math.ceil(rank[i] / settings["teams"]),
             "sel": sel[i], "drop": drop[i], "med": med[i], "brk": brk[i],
             "gap": None if pl["adp"] is None else pl["adp"] - rank[i],
@@ -371,8 +376,14 @@ def _ordinal(k: int) -> str:
 
 
 def compare(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
-            candidates: list[str], rows: list[dict] | None = None) -> dict:
+            candidates: list[str] | None = None, rows: list[dict] | None = None,
+            slots: int = 5) -> dict:
     """buildTrackerTab's Compare picks panel, evaluated: one entry per candidate slot.
+
+    With no `candidates`, the slots are the sheet's: every row ticked CMP and not MINE, best
+    board # first, the first `slots` of them, and blank slots after (ADR-0028). `ticked` counts
+    them all, and `note` says so when there are more than `slots`. Named candidates -- what
+    `board.py compare` passes -- are taken as given, never padded.
 
     Each candidate is the tracker as it would read with him ticked MINE -- n + 1 players,
     the benchmark cut at MIN(Q, TEAMS * (n + 1)), the same K and the same cutoffs -- so a
@@ -411,13 +422,19 @@ def compare(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
     for r in rows:
         first.setdefault(r["name"].casefold(), r)
 
-    slots, seen = [], set()
+    ticked = sorted((r for r in rows if r["cmp"] and not r["mine"] and r["name"]),
+                    key=lambda r: r["rank"])
+    if candidates is None:
+        candidates = [r["name"] for r in ticked[:slots]]
+        candidates += [""] * (slots - len(candidates))
+
+    out, seen = [], set()
     for text in candidates:
         slot = {"name": text, "status": "", "board_rank": None, "rank": None, "label": "",
                 "expected": None, "gap": None,
                 "cats": [{"cat": c, "win": None, "read": "", "text": "", "change": None}
                          for c in labels]}
-        slots.append(slot)
+        out.append(slot)
         if text == "":
             continue
         key = text.casefold()
@@ -446,7 +463,7 @@ def compare(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
                          else "better" if win > before else "worse")
         slot["expected"] = _sheet_sum(e["win"] for e in slot["cats"] if e["cat"] in live)
 
-    ranked = [s for s in slots if s["status"] == "ok"]
+    ranked = [s for s in out if s["status"] == "ok"]
     best = max((s["expected"] for s in ranked), default=None)
     for s in ranked:
         s["rank"] = 1 + sum(1 for o in ranked if o["expected"] > s["expected"]) + sum(
@@ -455,12 +472,13 @@ def compare(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
         s["label"] = _ordinal(s["rank"])
         s["gap"] = s["expected"] - best
 
-    available = sorted((r for r in rows if not r["gone"] and not r["mine"] and r["name"]),
-                       key=lambda r: r["rank"])
     return {"n": now["n"], "cutoff": cutoff,
             "now_expected": None if now["n"] == 0
             else _sheet_sum(was[c]["win"] for c in live),
-            "available": [r["name"] for r in available], "slots": slots}
+            "ticked": len(ticked),
+            "note": (f"Top {slots} of {len(ticked)} ticked, by board #"
+                     if len(ticked) > slots else ""),
+            "slots": out}
 
 
 def punts(snapshot: dict, top: int = 40) -> dict[str, list[dict]]:
