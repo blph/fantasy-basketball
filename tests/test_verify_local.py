@@ -67,16 +67,20 @@ def as_cell(value):
 
 
 def fake_pulls(snapshot: dict, state: dict, layout: dict, settings: dict | None = None,
-               row_order: list[int] | None = None) -> dict:
+               row_order: list[int] | None = None, candidates: list[str] | None = None) -> dict:
     """The pull file a correct sheet would produce for this snapshot, state and settings.
 
     `row_order` renders the Draft Board in a displayed order other than the engine's, the way
     a sheet shows it after a tie-break the engine did not make, or before a re-sort.
+    `candidates` fills the Compare picks slots, left to right; the rest stay empty.
     """
     settings = dict(settings or snapshot["settings"])
     sort = state["applied_sort"]
     rows = ENGINE.board_rows(snapshot, state, settings, sort, row_order)
     trk = ENGINE.tracker(snapshot, state, settings, sort, rows=rows)
+    slots = layout["tabs"]["Category Tracker"]["compare"]["slots"]
+    typed = list(candidates or []) + [""] * (len(slots) - len(candidates or []))
+    cmp = ENGINE.compare(snapshot, state, settings, sort, typed, rows=rows)
     chk = ENGINE.checks(snapshot, state)
     tabs, first = layout["tabs"], layout["first_row"]
     by_key = {p["key"]: p for p in snapshot["players"]}
@@ -139,6 +143,24 @@ def fake_pulls(snapshot: dict, state: dict, layout: dict, settings: dict | None 
     if not trk["roster"]:
         put("Category Tracker", t["roster_columns"]["rank"], t["roster_first_row"],
             "Nothing ticked yet")
+
+    c = t["compare"]
+    for a1, label in c["labels"].items():
+        put_a1("Category Tracker", a1, label)
+    put_a1("Category Tracker", c["expected_now"], cmp["now_expected"])
+    for i, name in enumerate(cmp["available"]):
+        put("Category Tracker", c["source"]["col"], c["source"]["first_row"] + i, name)
+    for where, slot in zip(c["slots"], cmp["slots"], strict=True):
+        col, hid = where["index"], where["hidden"]
+        put("Category Tracker", col, c["slot_row"], slot["name"])
+        put("Category Tracker", col, c["board_row"], slot["board_rank"])
+        put("Category Tracker", col, c["rank_row"], slot["label"])
+        put("Category Tracker", hid, c["rank_row"], slot["status"])
+        put("Category Tracker", col, c["expected_row"], slot["expected"])
+        put("Category Tracker", col, c["gap_row"], slot["gap"])
+        for k, entry in enumerate(slot["cats"]):
+            put("Category Tracker", col, t["first_cat_row"] + k, entry["text"])
+            put("Category Tracker", hid, t["first_cat_row"] + k, entry["win"])
 
     p = tabs["Punts"]
     blocks = ENGINE.punts(snapshot, top=p["rows"])
@@ -336,6 +358,67 @@ def test_a_wrong_tracker_read_fails():
              "■ BANKED")
     code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
     assert code == 1 and any("(read)" in line for line in fails(lines))
+
+
+def compare_setup():
+    """A draft in progress with every kind of slot: two candidates, one since taken, a
+    repeat, and an empty slot."""
+    snapshot = make_snapshot()
+    state = drafted_state(snapshot)
+    order = ENGINE.order(snapshot, state["applied_sort"])
+    names = [snapshot["players"][i]["name"] for i in order]
+    typed = [names[8], names[1], names[7], names[8]]          # names[1] is GONE
+    return snapshot, state, typed, fake_pulls(snapshot, state, LAYOUT, candidates=typed)
+
+
+def compare_cell(key: str, slot: int = 0, cat_row: int = 0) -> tuple[int, int]:
+    t = LAYOUT["tabs"]["Category Tracker"]
+    c, where = t["compare"], t["compare"]["slots"][slot]
+    return {"win": (where["hidden"], t["first_cat_row"] + cat_row),
+            "text": (where["index"], t["first_cat_row"] + cat_row),
+            "label": (where["index"], c["rank_row"]),
+            "status": (where["hidden"], c["rank_row"]),
+            "expected": (where["index"], c["expected_row"]),
+            "gap": (where["index"], c["gap_row"]),
+            "board": (where["index"], c["board_row"])}[key]
+
+
+def test_a_compare_panel_that_matches_the_engine_passes():
+    snapshot, state, typed, pulls = compare_setup()
+    got = ENGINE.compare(snapshot, state, snapshot["settings"], state["applied_sort"],
+                         typed + [""])
+    assert [s["status"] for s in got["slots"]] == ["ok", "gone", "ok", "repeat", ""]
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 0, lines
+    assert any(line.startswith("ok:") and "Compare picks" in line for line in lines)
+
+
+def test_a_wrong_compare_cell_fails_by_what_it_is():
+    for key, slot, value in (("win", 0, 0.123), ("text", 2, "50% ▲"), ("label", 0, "2nd"),
+                             ("status", 1, "ok"), ("expected", 2, 1.5), ("gap", 0, -0.5),
+                             ("board", 3, 99)):
+        snapshot, _, _, pulls = compare_setup()
+        set_cell(pulls, "Category Tracker", *compare_cell(key, slot), value)
+        code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+        assert code == 1, key
+        assert any("Compare picks" in line for line in fails(lines)), (key, lines)
+
+
+def test_a_dropdown_source_that_leaves_someone_out_fails():
+    snapshot, _, _, pulls = compare_setup()
+    src = LAYOUT["tabs"]["Category Tracker"]["compare"]["source"]
+    set_cell(pulls, "Category Tracker", src["col"], src["first_row"] + 2, None)
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1
+    assert any("dropdown" in line for line in fails(lines))
+
+
+def test_a_changed_compare_label_is_not_comparable():
+    snapshot, _, _, pulls = compare_setup()
+    a1 = next(iter(LAYOUT["tabs"]["Category Tracker"]["compare"]["labels"]))
+    set_cell(pulls, "Category Tracker", *PS.parse_a1(a1)[:2], "Something else")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 3 and "not running this Build.gs" in lines[0]
 
 
 def test_a_wrong_punt_score_fails():

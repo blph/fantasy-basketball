@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 import re
+from decimal import ROUND_HALF_UP, Decimal
 
 from board_snapshot import KINDS, SOURCES
 
@@ -352,6 +353,114 @@ def tracker(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
     offboard_mine = sum(1 for o in state.get("offboard", []) if o.get("mine"))
     return {"n": n, "benchmark": "by_rank", "cutoff": cutoff, "cats": cats,
             "roster": roster, "offboard_mine": offboard_mine}
+
+
+def pct_text(x: float) -> str:
+    """TEXT(x, "0%"): half up, on the 15 significant digits Sheets keeps, not on the binary.
+
+    0.285 is 28.499999999999996 in binary; the sheet shows it as 29%.
+    """
+    return f"{Decimal(format(x, '.15g')).scaleb(2).quantize(Decimal(1), ROUND_HALF_UP)}%"
+
+
+def _ordinal(k: int) -> str:
+    """The sheet's CHOOSE(rank, "1st", ..., "5th"), for any rank the CLI can reach."""
+    if k % 100 in (11, 12, 13):
+        return f"{k}th"
+    return f"{k}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(k % 10, 'th')}"
+
+
+def compare(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
+            candidates: list[str], rows: list[dict] | None = None) -> dict:
+    """buildTrackerTab's Compare picks panel, evaluated: one entry per candidate slot.
+
+    Each candidate is the tracker as it would read with him ticked MINE -- n + 1 players,
+    the benchmark cut at MIN(Q, TEAMS * (n + 1)), the same K and the same cutoffs -- so a
+    slot's column is exactly what the tracker shows after the pick (ADR-0027). Expected
+    cats sums those win probabilities over the categories not Punted: in a categories
+    league, the expected number of weekly category wins against an average drafted opponent.
+
+    A slot resolves as MATCH does on the sheet: case-insensitively, to the first displayed
+    row. Its status is checked in the sheet's order -- not on board, mine, gone, repeat --
+    and anything but "ok" is left out of the ranking. Ranks run down Expected cats; a tie
+    goes to the lower board #. `text` is the display cell, a glyph added only when the Read
+    would change; `change` is the colour's meaning, and needs a current Win % to compare with.
+    """
+    _check_sort(applied_sort)
+    if rows is None:
+        rows = board_rows(snapshot, state, settings, applied_sort)
+    now = tracker(snapshot, state, settings, applied_sort, rows=rows)
+    by_row = {p["row"]: p for p in snapshot["players"]}
+    src, labels = applied_sort["source"], snapshot["cat_labels"]
+    k_tracker = snapshot["deriv"]["k_tracker"]
+    conceded = set(state.get("conceded", []))
+    live = [c for c in labels if c not in conceded]
+    was = {c["cat"]: c for c in now["cats"]}
+
+    def dh(row: dict, cat: str) -> float:
+        return by_row[row["row"]]["values"][src]["dh"][cat]
+
+    mine = [r for r in rows if r["mine"]]
+    n1 = now["n"] + 1
+    cutoff = min(settings["q"], settings["teams"] * n1)
+    drafted = [r for r in rows if r["rank"] <= cutoff]
+    base = {cat: (_sheet_sum(dh(r, cat) for r in mine),
+                  _sheet_sum(dh(r, cat) for r in drafted) / len(drafted)) for cat in labels}
+
+    first: dict[str, dict] = {}
+    for r in rows:
+        first.setdefault(r["name"].casefold(), r)
+
+    slots, seen = [], set()
+    for text in candidates:
+        slot = {"name": text, "status": "", "board_rank": None, "rank": None, "label": "",
+                "expected": None, "gap": None,
+                "cats": [{"cat": c, "win": None, "read": "", "text": "", "change": None}
+                         for c in labels]}
+        slots.append(slot)
+        if text == "":
+            continue
+        key = text.casefold()
+        row = first.get(key)
+        if row is None:
+            slot["status"] = "not on board"
+        else:
+            slot["board_rank"] = row["rank"]
+            slot["status"] = ("mine" if row["mine"] else "gone" if row["gone"]
+                              else "repeat" if key in seen else "ok")
+        seen.add(key)
+        if slot["status"] != "ok":
+            slot["label"] = slot["status"]
+            continue
+        for entry in slot["cats"]:
+            cat = entry["cat"]
+            mine_sum, bench_avg = base[cat]
+            z = (mine_sum + dh(row, cat) - n1 * bench_avg) / math.sqrt(n1)
+            win = normal_cdf(z * k_tracker[cat])
+            read = _read(cat in conceded, win, settings)
+            changed = read != was[cat]["read"]
+            before = was[cat]["win"]
+            entry.update(win=win, read=read,
+                         text=pct_text(win) + (" " + read[0] if changed else ""),
+                         change=None if not changed or before is None or win == before
+                         else "better" if win > before else "worse")
+        slot["expected"] = _sheet_sum(e["win"] for e in slot["cats"] if e["cat"] in live)
+
+    ranked = [s for s in slots if s["status"] == "ok"]
+    best = max((s["expected"] for s in ranked), default=None)
+    for s in ranked:
+        s["rank"] = 1 + sum(1 for o in ranked if o["expected"] > s["expected"]) + sum(
+            1 for o in ranked
+            if o["expected"] == s["expected"] and o["board_rank"] < s["board_rank"])
+        s["label"] = _ordinal(s["rank"])
+        s["gap"] = s["expected"] - best
+
+    available = sorted((r for r in rows if not r["gone"] and not r["mine"] and r["name"]),
+                       key=lambda r: r["rank"])
+    return {"n": now["n"], "cutoff": cutoff,
+            "now_expected": None if now["n"] == 0
+            else _sheet_sum(was[c]["win"] for c in live),
+            "available": [r["name"] for r in available], "slots": slots}
 
 
 def punts(snapshot: dict, top: int = 40) -> dict[str, list[dict]]:

@@ -5,6 +5,7 @@
     python3 scripts/draft-board/board.py board --available --top 20
     python3 scripts/draft-board/board.py mine "Player Name" --pick 7 --show board,tracker
     python3 scripts/draft-board/board.py player "Name" "Other Name" --full
+    python3 scripts/draft-board/board.py compare "Name" "Other Name" "Third Name"
 
 Reads the snapshot `build_data.py` writes beside `Data.gs` and never the sheet. Every
 number is the engine's (`board_engine.py`), which mirrors the sheet's draft-day formulas;
@@ -403,6 +404,27 @@ def cmd_tracker(args, root, path, snap, state, pinned):
     return tracker_sections(snap, state, state["applied_sort"], ctx), ctx
 
 
+def cmd_compare(args, root, path, snap, state, pinned):
+    """Compare picks: each name scored as the tracker would read with him ticked MINE.
+
+    Ranked candidates first, best first; anyone since taken, repeated or off the board after,
+    in the order given. Each category cell is the win % after the pick, with the new Read's
+    glyph only where the Read would change -- the sheet's panel, cell for cell.
+    """
+    sort = state["applied_sort"]
+    found = resolve_all(snap, args.names, write=False, team=args.team)
+    got = E.compare(snap, state, snap["settings"], sort, [p["name"] for p in found])
+    ctx = context(snap, state, sort, pinned=pinned)
+    ctx.update({"players_ticked": got["n"], "cutoff": got["cutoff"],
+                "expected_now": got["now_expected"]})
+    head = ("rank", "name", "board_rank", "status", "expected", "gap", *snap["cat_labels"])
+    ordered = (sorted((s for s in got["slots"] if s["rank"]), key=lambda s: s["rank"])
+               + [s for s in got["slots"] if not s["rank"]])
+    rows = [[s["rank"], s["name"], s["board_rank"], s["status"], s["expected"], s["gap"],
+             *(c["text"] for c in s["cats"])] for s in ordered]
+    return [("compare", head, rows)], ctx
+
+
 def cmd_punts(args, root, path, snap, state, pinned):
     builds = snap["punt_builds"]
     if args.build:
@@ -447,7 +469,8 @@ def cmd_check(args, root, path, snap, state, pinned):
 
 
 READS = {"status": cmd_status, "board": cmd_board, "player": cmd_player,
-         "tracker": cmd_tracker, "punts": cmd_punts, "check": cmd_check}
+         "tracker": cmd_tracker, "compare": cmd_compare, "punts": cmd_punts,
+         "check": cmd_check}
 
 
 # --- writes -----------------------------------------------------------------------------
@@ -794,6 +817,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="add all nine values, tags, disagreement, dh/d and punts")
     p.add_argument("--team", help="break a tie between candidates (either team spelling)")
     add("tracker", "category rows, players ticked, My roster, off-board count")
+    p = add("compare", "rank candidates by expected categories won if taken next; each column "
+                       "is the tracker after that pick")
+    p.add_argument("names", nargs="+", metavar="NAME")
+    p.add_argument("--team", help="break a tie between candidates (either team spelling)")
     p = add("punts", "punt-build rankings")
     p.add_argument("build", nargs="?", metavar="BUILD", help="key (pFt) or label (Punt FT%%)")
     p.add_argument("--top", type=_int_at_least(1),

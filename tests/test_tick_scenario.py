@@ -52,12 +52,57 @@ def test_counts_and_inherited_ticks():
     put(pull, "Draft Board", D["drafted"]["index"], FIRST + 1, True)
     put(pull, "Category Tracker", T["columns"]["punted"], T["first_cat_row"] + 2, True)
     sheet = VL._Pull(pull)
-    assert TS.counts(sheet, LAYOUT) == {"mine": 1, "gone": 1, "punted": 1}
+    assert TS.counts(sheet, LAYOUT) == {"mine": 1, "gone": 1, "punted": 1, "slots": 0}
     punt = PS.col_letter(T["columns"]["punted"])
     assert TS.ticked_cells(sheet, LAYOUT) == [
         ("Draft Board", f"{D['drafted']['letter']}{FIRST + 1}"),
         ("Draft Board", f"{D['mine']['letter']}{FIRST}"),
         ("Category Tracker", f"{punt}{T['first_cat_row'] + 2}")]
+
+
+C = T["compare"]
+
+
+def fill_source(pull: dict, names: list[str]) -> None:
+    for i, name in enumerate(names):
+        put(pull, "Category Tracker", C["source"]["col"], C["source"]["first_row"] + i, name)
+
+
+def test_inherited_slots_are_counted_and_cleared_as_one_range():
+    pull = blank_pull()
+    put(pull, "Category Tracker", C["slots"][2]["index"], C["slot_row"], "Player 9")
+    sheet = VL._Pull(pull)
+    assert TS.counts(sheet, LAYOUT)["slots"] == 1
+    first, last = C["slots"][0]["letter"], C["slots"][-1]["letter"]
+    assert TS.slot_range(LAYOUT) == ("Category Tracker",
+                                     f"{first}{C['slot_row']}:{last}{C['slot_row']}")
+
+
+def test_compare_picks_spreads_three_repeats_one_and_takes_a_fifth():
+    pull = blank_pull()
+    fill_source(pull, [f"Player {r}" for r in range(FIRST + 20, FIRST + 40)])
+    typed, gone_row = TS.compare_picks(VL._Pull(pull), LAYOUT)
+    assert typed == [f"Player {FIRST + 20}", f"Player {FIRST + 25}", f"Player {FIRST + 30}",
+                     f"Player {FIRST + 20}", f"Player {FIRST + 23}"]
+    assert gone_row == FIRST + 23                     # the Draft Board row showing the fifth
+    assert len(typed) == len(C["slots"])
+
+
+def test_compare_picks_needs_a_long_enough_dropdown():
+    pull = blank_pull()
+    fill_source(pull, ["Player 30", "Player 31"])
+    with pytest.raises(TS.StepFailed, match="dropdown"):
+        TS.compare_picks(VL._Pull(pull), LAYOUT)
+
+
+def test_slots_that_did_not_take_the_typed_name_fail_step_f():
+    pull = blank_pull()
+    typed = ["Player 30", "Player 35", "Player 40", "Player 30", "Player 33"]
+    for s, name in zip(C["slots"], typed, strict=True):
+        put(pull, "Category Tracker", s["index"], C["slot_row"], name)
+    assert TS.slots_landed(VL._Pull(pull), LAYOUT, typed) is None
+    put(pull, "Category Tracker", C["slots"][1]["index"], C["slot_row"], "Player 351")
+    assert "slot 2" in TS.slots_landed(VL._Pull(pull), LAYOUT, typed)
 
 
 def test_clean_rows_come_from_the_bottom_and_skip_anything_touched():

@@ -56,7 +56,7 @@ context for a judgement call, not a multiplier.
 | `BMP`, `HBP`, `BMP-ALT` | One calculation tab per projection: raw line, the three values with their ranks and dropped categories, the DURANT H2H columns, plain z, and the punt builds. All numbers, no formulas. |
 | `Board` | The spine. Identity, the HBP raw line, the GP block, market, and every column you edit by hand. `Refresh data` writes here and nowhere else. |
 | `Punts` | Nine builds, each listing who it gets at a discount. Computed on BMP · DURH. |
-| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of all three of the Draft Board's profile columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. |
+| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of all three of the Draft Board's profile columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. Beside it, **Compare picks**: up to five candidates typed into yellow dropdown slots (I6:M6), each column the tracker as it would read if you took that player next, ranked on expected categories won ([ADR-0027](../decisions/ADR-0027-compare-picks-on-the-tracker.md)). Its status and win columns, and the dropdown's source list, are hidden in N:S. |
 | `Settings` | Every constant. Yellow cells are yours; grey cells record what the pipeline used. |
 | `README` | The cheat sheet, mirrored to [cheat-sheet.md](cheat-sheet.md). |
 
@@ -702,10 +702,10 @@ exercise them, so the scenario runs on a **copy**, as one command:
 
 ```bash
 python3 scripts/draft-board/tick_scenario.py            # ticks and punts, 130s measured
-python3 scripts/draft-board/tick_scenario.py --full --allow-consent   # adds 4 and 5
+python3 scripts/draft-board/tick_scenario.py --full --allow-consent   # adds 5 and 6
 ```
 
-**Two tiers, and a gate that reads formulas rather than filenames.** Steps 4 and 5 each cost a
+**Two tiers, and a gate that reads formulas rather than filenames.** Steps 5 and 6 each cost a
 full Apps Script execution on the copy, which is most of the wall-clock, so they are opt-in.
 Before anything opens a browser, `node scripts/draft-board/harness.js --tick-fingerprint`
 builds the workbook offline and prints two hashes: `tick`, over every generated formula that
@@ -717,9 +717,9 @@ rewrite. `tier_needed` compares both against the last passing run:
 | what moved | what runs |
 |---|---|
 | neither hash, and not `board_engine.py` | nothing; the browser never opens |
-| the `tick` hash, or `board_engine.py` | steps 1-3 |
-| the `rebuild` hash | steps 1-5, and it says so |
-| no hashes recorded (first run, or a pre-fingerprint stamp) | steps 1-5 |
+| the `tick` hash, or `board_engine.py` | steps 1-4 |
+| the `rebuild` hash | steps 1-6, and it says so |
+| no hashes recorded (first run, or a pre-fingerprint stamp) | steps 1-6 |
 
 The hash is taken from the **generated formula text**, so a column width, a colour, a header or
 a README row cannot move it — that was the whole defect. The old gate was `git diff --name-only
@@ -732,20 +732,26 @@ A tick-tier pass records only the `tick` hash. It must not stamp `rebuild`, or t
 skipped would never run again.
 
 It copies the live sheet (**File ▸ Make a copy**), unticks anything the copy inherited (Space,
-never Delete, which strips the checkbox), and then, pulling and running the full
+never Delete, which strips the checkbox), empties any Compare picks slot it inherited (Delete),
+and then, pulling and running the full
 `verify.py --local` comparison after every step:
 
 1. `MINE` on 8 rows, then 14, which reaches the tracker's `MIN(Q, TEAMS × n)` cap.
 2. `GONE` on ten rows spread over the board, two of them `MINE`.
 3. One conceded category, then two.
-4. A changed `Sort by`, then `Rebuild & re-sort`. This is the copy's first script run, so Google
+4. Five names typed into the Compare picks slots, each taken from the slots' own dropdown list:
+   three spread down it, a repeat of the first, and a fifth that is then ticked `GONE`. So the
+   panel has to rank three candidates, flag a repeat and drop a player taken since he was
+   typed, at fourteen picks with two punts. The step fails if a slot holds anything but the
+   name typed, because verify reads the slots back as input and would pass either way.
+5. A changed `Sort by`, then `Rebuild & re-sort`. This is the copy's first script run, so Google
    asks to authorise the copy's script, a screen that grants access to all of Bryan's Sheets.
    `--allow-consent` is Bryan's approval, **asked for before the run**, to click Allow on it.
    Without the flag the run stops here and exits 5.
-4. The step fails unless Settings `SORT_BY` reads the new sort **and** verify sees the board
+5. The step fails unless Settings `SORT_BY` reads the new sort **and** verify sees the board
    sorted by it. Verify on its own accepts whatever sort the board shows, and `onEdit` swallows
    its own errors.
-5. Two swapped Board names on rows carrying no tick, note or hand value, a hand value
+6. Two swapped Board names on rows carrying no tick, note or hand value, a hand value
    (`GP Y-1` = 50) on one of the two swapped rows, then `Refresh data`. `refreshData` finds the
    names out of order and runs `refreshWithReorder`, which keys hand values by the name each row
    shows at that moment and writes the Board back in `Data.gs` order. Verify compares `My GP` on
@@ -848,7 +854,15 @@ python3 scripts/draft-board/board.py gone NAME --pick N --show board,tracker   #
 python3 scripts/draft-board/board.py mine NAME --pick N --show board,tracker   # yours
 ```
 
-`mine` ticks `GONE` as well, as the sheet asks you to. **Never run `Refresh data`,
+`mine` ticks `GONE` as well, as the sheet asks you to. To choose between players, type them
+into the Compare picks slots beside the tracker, or ask the local board:
+
+```bash
+python3 scripts/draft-board/board.py compare NAME NAME NAME   # ranked on expected categories won
+```
+
+Each candidate's column is the tracker as it would read with him ticked next. The slots are not
+draft state: clear them or type over them as you like. **Never run `Refresh data`,
 `build_data.py` or `board.py rebase` during a live draft**: either board would move under the
 picks already recorded. The output of `board.py` is provider data and never belongs in `docs/`
 or `tests/`.

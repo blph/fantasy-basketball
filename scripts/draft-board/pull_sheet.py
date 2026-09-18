@@ -255,6 +255,7 @@ def plan_ranges(layout: dict) -> list[dict]:
     rcols = [(t["roster_columns"][k], kind, 0) for k, kind in ROSTER_TYPES.items()]
     for c1, c2, kind, least in _runs(rcols):
         out.append(_range("Category Tracker", c1, r1, c2, r2, kind, least))
+    out += _compare_ranges(t, ncat)
 
     # Punts: one header row across every block, then each block by type.
     p = tabs["Punts"]
@@ -267,6 +268,33 @@ def plan_ranges(layout: dict) -> list[dict]:
                   p["rows"] if k in PUNT_FULL else 0) for k, col in p["columns"].items()]
         for c1, c2, kind, least in _runs(pcols):
             out.append(_range("Punts", c1, r1, c2, r2, kind, least))
+    return out
+
+
+def _compare_ranges(t: dict, ncat: int) -> list[dict]:
+    """Compare picks (ADR-0027): its labels, and every panel cell with nothing required.
+
+    Five empty slots are a normal state, and so is a candidate who has since been drafted, so
+    no count here can tell a wrong layout from a quiet panel. The labels do that instead.
+    """
+    tab, c = "Category Tracker", t["compare"]
+    s0, s1 = c["slots"][0]["index"], c["slots"][-1]["index"]
+    h0, h1 = c["slots"][0]["hidden"], c["slots"][-1]["hidden"]
+    cat0, cat1 = t["first_cat_row"], t["first_cat_row"] + ncat - 1
+    src = c["source"]
+    out = _cells_by_column(tab, {a1: a1 for a1 in c["labels"]},
+                           {a1: STRING for a1 in c["labels"]})
+    for row, kind in ((c["slot_row"], STRING), (c["board_row"], NUMBER),
+                      (c["rank_row"], STRING), (c["expected_row"], NUMBER),
+                      (c["gap_row"], NUMBER)):
+        out.append(_range(tab, s0, row, s1, row, kind, 0))
+    out.append(_range(tab, s0, cat0, s1, cat1, STRING, 0))
+    out.append(_range(tab, h0, c["rank_row"], h1, c["rank_row"], STRING, 0))
+    out.append(_range(tab, h0, cat0, h1, cat1, NUMBER, 0))
+    out.append(_range(tab, src["col"], src["first_row"], src["col"],
+                      src["first_row"] + src["rows"] - 1, STRING, 0))
+    col, row, _, _ = parse_a1(c["expected_now"])
+    out.append(_range(tab, col, row, col, row, NUMBER, 0))
     return out
 
 

@@ -115,6 +115,8 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | **Z** | `` | Your roster's edge in that category, in standard deviations, scaled by √n. |
 | **The five reads** | `` | WEAK ≤40%. CONTESTED — spend the next pick here. STRONG ≥60%. BANKED ≥75%, stop looking. PUNTED, conceded on purpose. |
 | **No turnovers row** | `` | DURANT H2H weights turnovers zero, so the board cannot measure them. They are still on the Board tab as a raw number. |
+| **Compare picks** | `` | Type up to five players you are deciding between into the yellow slots beside the tracker. Each column is this tracker as it would read if you took that player next, and a glyph marks a category whose Read would change. Anyone taken since drops out. |
+| **Exp. cats** | `= Σ Win % not punted` | The categories you would expect to win each week against an average opponent. Compare picks ranks on it, and vs best is how far each candidate trails the top one. |
 
 ## THINGS WORTH KNOWING
 

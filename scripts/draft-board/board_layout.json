@@ -1775,6 +1775,56 @@
         "rank": "#",
         "name": "Player",
         "pos": "Pos"
+      },
+      "compare": {
+        "label_col": 8,
+        "slots": [
+          {
+            "index": 9,
+            "letter": "I",
+            "hidden": 14
+          },
+          {
+            "index": 10,
+            "letter": "J",
+            "hidden": 15
+          },
+          {
+            "index": 11,
+            "letter": "K",
+            "hidden": 16
+          },
+          {
+            "index": 12,
+            "letter": "L",
+            "hidden": 17
+          },
+          {
+            "index": 13,
+            "letter": "M",
+            "hidden": 18
+          }
+        ],
+        "board_row": 4,
+        "rank_row": 5,
+        "slot_row": 6,
+        "expected_row": 15,
+        "gap_row": 16,
+        "source": {
+          "col": 19,
+          "letter": "S",
+          "first_row": 1,
+          "rows": 200
+        },
+        "expected_now": "E15",
+        "labels": {
+          "H1": "Compare picks",
+          "H4": "Board #",
+          "H6": "If I take",
+          "H15": "Exp. cats",
+          "H16": "vs best",
+          "A15": "Expected cats"
+        }
       }
     },
     "Punts": {

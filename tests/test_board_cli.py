@@ -168,6 +168,33 @@ def test_tracker_shape(drafting, capsys):
     assert sections[1].splitlines()[:2] == ["# roster", "rank\tname\tpos"]
 
 
+def test_compare_ranks_the_candidates_then_lists_the_rest(drafting, capsys):
+    tick(drafting, name(0), mine=True, gone=True)
+    tick(drafting, name(2), gone=True)
+    code, out, _ = run(drafting, capsys, "compare", name(5), name(2), name(3), name(5))
+    ctx, header, rows = tsv(out)
+    assert code == 0
+    assert "players_ticked=1" in ctx and "expected_now=" in ctx
+    assert header == ["rank", "name", "board_rank", "status", "expected", "gap",
+                      *board.CAT_LABELS]
+    assert [r[3] for r in rows] == ["ok", "ok", "gone", "repeat"]
+    assert [r[0] for r in rows] == ["1", "2", "", ""]
+    assert {r[1] for r in rows[:2]} == {name(5), name(3)}
+    assert rows[0][5] == "0.0" and float(rows[1][5]) <= 0
+    assert (rows[2][1], rows[2][2]) == (name(2), "3")
+    assert all(cell.endswith("%") or cell[-1] in "■▲●▼" for cell in rows[0][6:])
+
+
+def test_compare_json_and_all_or_nothing(drafting, capsys):
+    code, out, _ = run(drafting, capsys, "compare", name(4), "--json")
+    got = json.loads(out)
+    assert code == 0 and set(got) == {"context", "compare"}
+    assert got["compare"][0]["name"] == name(4) and got["compare"][0]["rank"] == 1
+    code, out, err = run(drafting, capsys, "compare", name(1), "Qqqq Nobody")
+    assert (code, out) == (3, "")
+    assert "1 of 2 name(s) unresolved; nothing was printed" in err
+
+
 def test_punts_by_key_or_label(drafting, capsys):
     _, by_key, _ = run(drafting, capsys, "punts", "pFt", "--top", "3")
     _, by_label, _ = run(drafting, capsys, "punts", "punt ft%", "--top", "3")
@@ -239,7 +266,7 @@ def test_digest_mismatch_is_integrity_on_reads(drafting, capsys):
     snap["players"][0]["values"]["BMP"]["durh"]["v"] += 1.0
     write_snapshot(drafting, snap)                     # same date, new digest
     for argv in (["status"], ["board"], ["player", name(1)], ["tracker"], ["punts"],
-                 ["check"]):
+                 ["check"], ["compare", name(1)]):
         code, out, err = run(drafting, capsys, *argv)
         assert (code, out) == (4, ""), argv
         assert "rebuilt after the draft state was pinned" in err

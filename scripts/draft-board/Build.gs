@@ -480,7 +480,7 @@ function buildDraftBoard() {
   var priorDraft = readCheckState(ss.getSheetByName('Draft Board'));
   var draft    = sheetByName(ss, 'Draft Board', D_LAST, RN);
   var punts    = sheetByName(ss, 'Punts', PUNTS.length * 6, 60);
-  var tracker  = sheetByName(ss, TRACKER_TAB, 8, 60);
+  var tracker  = sheetByName(ss, TRACKER_TAB, CMP_SRC_COL, 60);
   var readme   = sheetByName(ss, 'README', 3, 70);
 
   _guard('Board',    function () { writeBoardData(board); writeBoardFormulas(board); });
@@ -916,7 +916,7 @@ function step4_DraftBoard() {
 function step5_Rest() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   _guard('Punts',   function () { buildPuntsTab(sheetByName(ss, 'Punts', PUNTS.length * 6, 60)); });
-  _guard('Tracker', function () { buildTrackerTab(sheetByName(ss, TRACKER_TAB, 8, 60)); });
+  _guard('Tracker', function () { buildTrackerTab(sheetByName(ss, TRACKER_TAB, CMP_SRC_COL, 60)); });
   _guard('README',  function () { buildReadme(sheetByName(ss, 'README', 3, 70)); });
   _guard('Tidy', function () {
     var order = ['Draft Board'];
@@ -2168,6 +2168,29 @@ function buildPuntsTab(sh) {
 // -------------------------------------------------------- Category Tracker
 
 var TRACK_PUNT_COL = 7;   // the Punted checkboxes; read by the Draft Board's profile
+var TRACK_WIN_COL = 5;    // Win %
+var TRACK_READ_COL = 6;   // Read
+
+/**
+ * Compare picks (ADR-0027): up to five candidates, each scored as the tracker would read with
+ * him ticked MINE. One column per candidate, read across the tracker's own category rows, so
+ * E7 and I7 are the same category before and after. Every column is an offset from Punted.
+ *
+ *   H       labels            I:M     the five slots and what each would do
+ *   N:R     hidden, one per slot: its status (row 5) and its Win′ per category
+ *   S       hidden, the slots' dropdown source: every player not GONE or MINE, by board #
+ */
+var CMP_SLOTS = 5;
+var CMP_LABEL_COL = TRACK_PUNT_COL + 1;
+var CMP_C0 = CMP_LABEL_COL + 1;
+var CMP_HID0 = CMP_C0 + CMP_SLOTS;
+var CMP_SRC_COL = CMP_HID0 + CMP_SLOTS;
+var CMP_SLOT_ROW = TRACKER_R0 - 1;                      // the tracker's header row
+var CMP_RANK_ROW = CMP_SLOT_ROW - 1;                    // rank, or why a slot is not ranked
+var CMP_BOARD_ROW = CMP_SLOT_ROW - 2;                   // the candidate's board #
+var CMP_EXP_ROW = TRACKER_R0 + CAT_LABELS.length;       // expected categories won
+var CMP_GAP_ROW = CMP_EXP_ROW + 1;                      // behind the best candidate
+var CMP_ORDINALS = ['1st', '2nd', '3rd', '4th', '5th'];
 
 /**
  * How likely you are to win each category, given who you have ticked.
@@ -2293,7 +2316,124 @@ function buildTrackerTab(sh) {
     '=IFERROR(SORT(FILTER({DB_RANK,DB_PLAYER,DB_POS},DB_MINE=TRUE),1,TRUE),'
     + '"Nothing ticked yet")');
 
+  buildComparePanel(sh, n);
   formatTracker(sh);
+}
+
+/**
+ * Compare picks, beside the tracker (ADR-0027). Each slot is the tracker recomputed with that
+ * player ticked MINE: n + 1 players, the benchmark cut at MIN(Q, TEAMS × (n + 1)), the same K
+ * and the same cutoffs. So a slot's column is exactly what the tracker reads after the pick.
+ *
+ * Expected cats sums those win probabilities over the categories not Punted -- in a categories
+ * league, the expected number of weekly category wins. Candidates rank on it; a tie goes to
+ * the lower board #. The gap row is to the best candidate, not to now: the benchmark moves up
+ * TEAMS players with every pick, so a change against now can read negative for every
+ * candidate at once.
+ *
+ * The slots are five single-select dropdowns rather than one multi-select, because Apps Script
+ * cannot create a multi-select dropdown and a Full rebuild clears every validation on this tab.
+ *
+ * Per-cell formulas only, the same as the tracker: no LET, and no IF handed to an array
+ * function. Every comparison that can meet a blank is masked with ISNUMBER, because Sheets
+ * orders text above numbers.
+ */
+function buildComparePanel(sh, n) {
+  var L = a1col;
+  var n1 = '(' + n + '+1)';
+  var drafted = 'DB_RANK<=MIN(Q,TEAMS*' + n1 + ')';
+  var r0 = TRACKER_R0, rN = TRACKER_R0 + CAT_LABELS.length - 1;
+  var punt = L(TRACK_PUNT_COL), cLast = CMP_C0 + CMP_SLOTS - 1;
+  var puntRange = '$' + punt + '$' + r0 + ':$' + punt + '$' + rN;
+  var exps = '$' + L(CMP_C0) + '$' + CMP_EXP_ROW + ':$' + L(cLast) + '$' + CMP_EXP_ROW;
+  var boards = '$' + L(CMP_C0) + '$' + CMP_BOARD_ROW + ':$' + L(cLast) + '$' + CMP_BOARD_ROW;
+  var ordinals = CMP_ORDINALS.map(function (o) { return '"' + o + '"'; }).join(',');
+
+  sh.getRange(1, CMP_LABEL_COL).setValue('Compare picks')
+    .setFontSize(14).setFontWeight('bold').setFontColor(COLOR.identity);
+  sh.getRange(2, CMP_LABEL_COL).setValue(
+    'Each column is this tracker as it would read after you take that player, ranked on the '
+    + 'categories you would expect to win each week. A glyph marks a category whose Read '
+    + 'would change; players taken since drop out on their own.')
+    .setFontSize(9).setFontColor(COLOR.muted).setWrap(true);
+  sh.getRange(2, CMP_LABEL_COL, 1, CMP_SLOTS + 1).merge();
+
+  sh.getRange(CMP_BOARD_ROW, CMP_LABEL_COL).setValue('Board #');
+  sh.getRange(CMP_SLOT_ROW, CMP_LABEL_COL).setValue('If I take');
+  for (var i = 0; i < CAT_LABELS.length; i++) sh.getRange(r0 + i, CMP_LABEL_COL).setValue(CAT_LABELS[i]);
+  sh.getRange(CMP_EXP_ROW, CMP_LABEL_COL).setValue('Exp. cats');
+  sh.getRange(CMP_GAP_ROW, CMP_LABEL_COL).setValue('vs best');
+
+  // The tracker's own total, the baseline every column is read against.
+  sh.getRange(CMP_EXP_ROW, 1).setValue('Expected cats');
+  sh.getRange(CMP_EXP_ROW, TRACK_WIN_COL).setFormula(
+    '=IF(' + n + '=0,"",SUMIFS($' + L(TRACK_WIN_COL) + '$' + r0 + ':$' + L(TRACK_WIN_COL) + '$'
+    + rN + ',' + puntRange + ',FALSE))');
+
+  // The dropdown's source: everyone still available, best first, so opening a slot without
+  // typing shows the top of the board. Typing into a slot narrows it; that is the search.
+  sh.getRange(1, CMP_SRC_COL).setFormula(
+    '=IFERROR(INDEX(SORT(FILTER({DB_RANK,DB_PLAYER},DB_GONE<>TRUE,DB_MINE<>TRUE,'
+    + 'DB_PLAYER<>""),1,TRUE),0,2),"")');
+  // Reject a partial name rather than keep it: a slot holding "brid" would read "not on
+  // board" and cost a look on the clock. A name drafted after it was entered stays put --
+  // validation only checks at entry -- and its status row says so.
+  sh.getRange(CMP_SLOT_ROW, CMP_C0, 1, CMP_SLOTS).setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInRange(sh.getRange(1, CMP_SRC_COL, POOL_ROWS, 1), true)
+      .setAllowInvalid(false)
+      .setHelpText('Type part of a name, then pick from the list.')
+      .build());
+
+  for (var s = 0; s < CMP_SLOTS; s++) {
+    var c = CMP_C0 + s, h = CMP_HID0 + s;
+    var name = L(c) + '$' + CMP_SLOT_ROW;
+    var match = 'MATCH(' + name + ',DB_PLAYER,0)';
+    var status = L(h) + '$' + CMP_RANK_ROW;
+    var total = L(c) + '$' + CMP_EXP_ROW;
+
+    // In the order the engine checks them. MATCH is case-insensitive, like the sheet's own
+    // lookup everywhere else.
+    var repeat = s === 0 ? '"ok"'
+      : 'IF(ISNUMBER(MATCH(' + name + ',$' + L(CMP_C0) + '$' + CMP_SLOT_ROW + ':$' + L(c - 1)
+        + '$' + CMP_SLOT_ROW + ',0)),"repeat","ok")';
+    sh.getRange(CMP_RANK_ROW, h).setFormula(
+      '=IF(' + name + '="","",IF(ISNA(' + match + '),"not on board",IF(INDEX(DB_MINE,' + match
+      + '),"mine",IF(INDEX(DB_GONE,' + match + '),"gone",' + repeat + '))))');
+
+    sh.getRange(CMP_BOARD_ROW, c).setFormula(
+      '=IF(' + name + '="","",IFERROR(INDEX(DB_RANK,' + match + '),""))');
+    // Rank on Expected cats, ties to the lower board #. SUMPRODUCT rather than COUNTIF: a
+    // COUNTIF criterion is text, which cuts the total to 15 digits.
+    sh.getRange(CMP_RANK_ROW, c).setFormula(
+      '=IF(' + status + '="","",IF(' + status + '<>"ok",' + status + ',CHOOSE(1'
+      + '+SUMPRODUCT(ISNUMBER(' + exps + ')*(' + exps + '>' + total + '))'
+      + '+SUMPRODUCT(ISNUMBER(' + exps + ')*(' + exps + '=' + total + ')*(' + boards + '<'
+      + L(c) + '$' + CMP_BOARD_ROW + ')),' + ordinals + ')))');
+
+    for (var k = 0; k < CAT_LABELS.length; k++) {
+      var r = r0 + k, key = catKey(CAT_LABELS[k]), dh = 'DB_DH_' + key;
+      var win = L(h) + r;
+      sh.getRange(r, h).setFormula(
+        '=IF(' + status + '<>"ok","",NORMSDIST((SUMIF(DB_MINE,TRUE,' + dh + ')+INDEX(' + dh + ','
+        + match + ')-' + n1 + '*AVERAGE(FILTER(' + dh + ',' + drafted + ')))/SQRT' + n1
+        + '*K_' + key + '))');
+      // The Read this category would have, tested in the tracker's own order.
+      var after = 'IF($' + punt + r + '=TRUE,"— PUNTED",IF(' + win + '>=BANK_WIN,"■ BANKED",IF('
+        + win + '>=STRONG_WIN,"▲ STRONG",IF(' + win + '<=WEAK_WIN,"▼ WEAK","● CONTESTED"))))';
+      sh.getRange(r, c).setFormula(
+        '=IF(' + status + '<>"ok","",TEXT(' + win + ',"0%")&IF(' + after + '=$'
+        + L(TRACK_READ_COL) + r + ',""," "&LEFT(' + after + ',1)))');
+    }
+
+    sh.getRange(CMP_EXP_ROW, c).setFormula(
+      '=IF(' + status + '<>"ok","",SUMIFS(' + L(h) + '$' + r0 + ':' + L(h) + '$' + rN + ','
+      + puntRange + ',FALSE))');
+    sh.getRange(CMP_GAP_ROW, c).setFormula(
+      '=IF(' + status + '<>"ok","",' + total + '-MAX(' + exps + '))');
+  }
+
+  sh.hideColumns(CMP_HID0, CMP_SRC_COL - CMP_HID0 + 1);
 }
 
 function formatTracker(sh) {
@@ -2348,7 +2488,76 @@ function formatTracker(sh) {
     .setBackground('#FFFBF0')
     .setRanges([sh.getRange(r0, 1, rows, 4)]).build());
 
+  formatComparePanel(sh);
   sh.setHiddenGridlines(true);
+}
+
+function formatComparePanel(sh) {
+  var L = a1col, rows = CAT_LABELS.length, r0 = TRACKER_R0, c0 = CMP_C0, ns = CMP_SLOTS;
+  sh.setColumnWidth(CMP_LABEL_COL, 56);
+  for (var s = 0; s < ns; s++) sh.setColumnWidth(c0 + s, 120);
+
+  sh.getRange(CMP_BOARD_ROW, CMP_LABEL_COL, CMP_GAP_ROW - CMP_BOARD_ROW + 1, 1)
+    .setFontSize(9).setFontColor(COLOR.muted);
+  sh.getRange(CMP_EXP_ROW, CMP_LABEL_COL).setFontWeight('bold');
+  sh.getRange(CMP_BOARD_ROW, c0, 1, ns).setNumberFormat('"#"0').setFontSize(9)
+    .setFontColor(COLOR.muted).setHorizontalAlignment('center');
+  sh.getRange(CMP_RANK_ROW, c0, 1, ns).setFontSize(10).setFontWeight('bold')
+    .setHorizontalAlignment('center');
+  sh.getRange(CMP_SLOT_ROW, c0, 1, ns).setBackground(COLOR.inputBg).setFontColor(COLOR.inputText)
+    .setFontSize(9).setFontWeight('bold');
+  sh.getRange(r0, c0, rows, ns).setFontSize(11).setHorizontalAlignment('center')
+    .setVerticalAlignment('middle');
+  // Expected cats is the one number the ranking is on, so it takes the tracker's largest type.
+  sh.getRange(CMP_EXP_ROW, 1).setFontSize(11).setFontWeight('bold');
+  [sh.getRange(CMP_EXP_ROW, TRACK_WIN_COL), sh.getRange(CMP_EXP_ROW, c0, 1, ns)].forEach(
+    function (rg) {
+      rg.setNumberFormat('0.00').setFontSize(13).setFontWeight('bold')
+        .setHorizontalAlignment('center');
+    });
+  sh.getRange(CMP_GAP_ROW, c0, 1, ns).setNumberFormat('+0.00;−0.00;0.00').setFontSize(9)
+    .setFontColor(COLOR.muted).setHorizontalAlignment('center');
+
+  // First match wins. A conceded category goes quiet first; then the direction of a change,
+  // which is the colour's only job -- the glyph already names the new state. A category
+  // BANKED now and still BANKED goes quiet last. The trailing glyph is what "changed" means,
+  // and the hidden Win′ against the tracker's own Win % is which way; both are same-sheet
+  // references, because a conditional format cannot read a named range on another tab.
+  var cells = [sh.getRange(r0, c0, rows, ns)];
+  var shown = L(c0) + r0, win = L(CMP_HID0) + r0;
+  var before = '$' + L(TRACK_WIN_COL) + r0, read = '$' + L(TRACK_READ_COL) + r0;
+  var marked = 'REGEXMATCH(' + shown + ',"[■▲●▼]$")';
+  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=$' + L(TRACK_PUNT_COL) + r0 + '=TRUE')
+    .setFontColor(COLOR.muted).setItalic(true).setBold(false)
+    .setRanges(cells).build());
+  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=AND(ISNUMBER(' + before + '),' + marked + ',' + win + '<' + before + ')')
+    .setFontColor(COLOR.negText).setBold(true)
+    .setRanges(cells).build());
+  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=AND(ISNUMBER(' + before + '),' + marked + ',' + win + '>' + before + ')')
+    .setFontColor(COLOR.posText).setBold(true)
+    .setRanges(cells).build());
+  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=AND(' + read + '="■ BANKED",NOT(' + marked + '))')
+    .setFontColor(COLOR.muted)
+    .setRanges(cells).build());
+  // The tracker's CONTESTED tint carries on across the panel, so the rows that matter read as
+  // bands all the way over. Last, so a change still shows through it.
+  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=' + read + '="● CONTESTED"')
+    .setBackground('#FFFBF0')
+    .setRanges([sh.getRange(r0, CMP_LABEL_COL, rows, ns + 1)]).build());
+  // The best candidate: the one fill the panel adds, in the MINE colour. One rule per row,
+  // never one over two ranges -- that would rely on how Sheets offsets a relative reference
+  // per range.
+  [CMP_RANK_ROW, CMP_EXP_ROW].forEach(function (row) {
+    addRule(sh, SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=' + L(c0) + '$' + CMP_RANK_ROW + '="1st"')
+      .setBackground(COLOR.mineBg).setFontColor(COLOR.mineText).setBold(true)
+      .setRanges([sh.getRange(row, c0, 1, ns)]).build());
+  });
 }
 
 // ------------------------------------------------------------------ README
@@ -2549,6 +2758,13 @@ var README_ROWS = [
   ['No turnovers row', '',
    'DURANT H2H weights turnovers zero, so the board cannot measure them. They are still on '
    + 'the Board tab as a raw number.'],
+  ['Compare picks', '',
+   'Type up to five players you are deciding between into the yellow slots beside the '
+   + 'tracker. Each column is this tracker as it would read if you took that player next, and '
+   + 'a glyph marks a category whose Read would change. Anyone taken since drops out.'],
+  ['Exp. cats', ' = Σ Win % not punted',
+   'The categories you would expect to win each week against an average opponent. Compare '
+   + 'picks ranks on it, and vs best is how far each candidate trails the top one.'],
   ['', '', ''],
 
   ['THINGS WORTH KNOWING', '', ''],

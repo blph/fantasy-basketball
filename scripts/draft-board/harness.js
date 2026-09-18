@@ -36,9 +36,16 @@ function Range(sheet, row, col, nr, nc, label) {
 }
 const chain = ['setBackground','setFontColor','setFontWeight','setFontSize','setFontStyle',
   'setHorizontalAlignment','setVerticalAlignment','setWrap','setNumberFormat','setFontFamily',
-  'setBorder','setDataValidation','insertCheckboxes','clearDataValidations','merge',
+  'setBorder','insertCheckboxes','clearDataValidations','merge',
   'shiftColumnGroupDepth','applyRowBanding'];
 chain.forEach(m => { Range.prototype[m] = function(){ return this; }; });
+// Recorded, not a no-op: Compare picks is only as good as the dropdown its slots carry, and a
+// slot validated against the wrong column would offer names nobody can take.
+Range.prototype.setDataValidation = function (rule) {
+  (this.sheet.validations = this.sheet.validations || [])
+    .push({ row: this.row, col: this.col, nr: this.nr, nc: this.nc, rule: rule });
+  return this;
+};
 // Single-cell writes have to be recorded too, not just grid writes. Whole tabs
 // — Settings, the Category Tracker — are built one setValue at a time, and
 // while these were no-ops nothing on them could be asserted at all.
@@ -199,11 +206,26 @@ function ruleBuilder() {
   b.build = () => spec;
   return b;
 }
+function validationBuilder() {
+  const spec = { list: null, range: null, dropdown: null, allowInvalid: true, help: '' };
+  const b = {
+    requireValueInList(values, show) { spec.list = values; spec.dropdown = show !== false; return b; },
+    requireValueInRange(rng, show) {
+      spec.range = { sheet: rng.sheet.name, row: rng.row, col: rng.col, nr: rng.nr, nc: rng.nc };
+      spec.dropdown = show !== false;
+      return b;
+    },
+    setAllowInvalid(v) { spec.allowInvalid = v; return b; },
+    setHelpText(t) { spec.help = t; return b; },
+    build: () => spec
+  };
+  return b;
+}
 global.SpreadsheetApp = {
   getActiveSpreadsheet: () => ss,
   flush(){},
   newConditionalFormatRule: ruleBuilder,
-  newDataValidation: () => ({ requireValueInList: () => ({ build: () => ({}) }) }),
+  newDataValidation: validationBuilder,
   InterpolationType: { NUMBER: 'NUMBER' },
   BorderStyle: { SOLID: 'SOLID', SOLID_MEDIUM: 'SOLID_MEDIUM' },
   BandingTheme: { LIGHT_GREY: 'LIGHT_GREY' },
@@ -415,6 +437,28 @@ function boardLayout() {
               columns: tcols, column_labels: tlabels, roster_header_row: banner + 1,
               roster_first_row: banner + 2, roster_rows: POOL_ROWS,
               roster_columns: rcols, roster_labels: rlabels };
+
+  // Compare picks (ADR-0027), checked against its own labels like the rest of the tab.
+  const cmpLabels = {};
+  [[CMP_LABEL_COL, 1, 'Compare picks'], [CMP_LABEL_COL, CMP_BOARD_ROW, 'Board #'],
+   [CMP_LABEL_COL, CMP_SLOT_ROW, 'If I take'], [CMP_LABEL_COL, CMP_EXP_ROW, 'Exp. cats'],
+   [CMP_LABEL_COL, CMP_GAP_ROW, 'vs best'], [1, CMP_EXP_ROW, 'Expected cats']]
+    .forEach(([c, r, label]) => {
+      need(text(T, r, c) === label, `tracker ${addr(c, r)} is "${text(T, r, c)}", not "${label}"`);
+      cmpLabels[addr(c, r)] = label;
+    });
+  need(CMP_SLOT_ROW === headerRow, 'the compare slots are not on the tracker header row');
+  need(CMP_GAP_ROW < banner, 'the compare panel runs into MY ROSTER');
+  tabs[T].compare = {
+    label_col: CMP_LABEL_COL,
+    slots: Array.from({ length: CMP_SLOTS }, (_, s) => (
+      { index: CMP_C0 + s, letter: a1col(CMP_C0 + s), hidden: CMP_HID0 + s })),
+    board_row: CMP_BOARD_ROW, rank_row: CMP_RANK_ROW, slot_row: CMP_SLOT_ROW,
+    expected_row: CMP_EXP_ROW, gap_row: CMP_GAP_ROW,
+    source: { col: CMP_SRC_COL, letter: a1col(CMP_SRC_COL), first_row: 1, rows: POOL_ROWS },
+    expected_now: addr(TRACK_WIN_COL, CMP_EXP_ROW),
+    labels: cmpLabels
+  };
 
   // Punts: one ARRAY_CONSTRAIN per build. Its arguments are the row count and the width.
   const P = 'Punts';
@@ -795,6 +839,129 @@ for (let i = 0; i < CAT_LABELS.length; i++) {
   ['PUNTED', 'BANKED', 'STRONG', 'WEAK', 'CONTESTED'].forEach(state => {
     check(`${lab} Read can report ${state}`, read.indexOf(state) >= 0, read);
   });
+}
+
+// --- Compare picks (ADR-0027) ----------------------------------------------
+// The panel is the tracker run one pick ahead, once per slot. Every reference below is built
+// from the CMP_* and TRACK_* constants, so a panel that drifts off its own columns fails here
+// -- but none of this evaluates a formula. The sheet and verify.py --local do that.
+{
+  const T = TRACKER_TAB, sh = seen.sheets[T];
+  const f = (r, c) => String(cell(T, r, c));
+  const last = CMP_C0 + CMP_SLOTS - 1, catLast = TRACKER_R0 + CAT_LABELS.length - 1;
+  const punt = L(TRACK_PUNT_COL);
+  check('the panel starts right of Punted',
+    CMP_LABEL_COL === TRACK_PUNT_COL + 1 && CMP_C0 === CMP_LABEL_COL + 1);
+  check('the hidden block and the source sit past the slots',
+    CMP_HID0 === last + 1 && CMP_SRC_COL === CMP_HID0 + CMP_SLOTS);
+  check('one ordinal per slot', CMP_ORDINALS.length === CMP_SLOTS);
+  check('the slots sit on the tracker header row', CMP_SLOT_ROW === TRACKER_R0 - 1);
+
+  const src = f(1, CMP_SRC_COL);
+  check('the dropdown source leaves out GONE and MINE',
+    src.indexOf('DB_GONE<>TRUE') >= 0 && src.indexOf('DB_MINE<>TRUE') >= 0, src);
+  check('the dropdown source runs in board-rank order',
+    src.indexOf('SORT(FILTER({DB_RANK,DB_PLAYER},') >= 0, src);
+  const v = (sh.validations || []).filter(x => x.row === CMP_SLOT_ROW && x.col === CMP_C0);
+  check('the slots carry one dropdown rule across all five',
+    v.length === 1 && v[0].nr === 1 && v[0].nc === CMP_SLOTS, JSON.stringify(sh.validations));
+  if (v.length === 1) {
+    const r = v[0].rule;
+    check('the slot dropdown reads the whole source column',
+      r.range && r.range.sheet === T && r.range.col === CMP_SRC_COL && r.range.row === 1
+      && r.range.nr === POOL_ROWS && r.range.nc === 1, JSON.stringify(r));
+    check('the slot dropdown shows its arrow and rejects a partial name',
+      r.dropdown === true && r.allowInvalid === false, JSON.stringify(r));
+  }
+  check('the hidden block and the source are hidden',
+    (sh.hidden || []).some(([c, n]) => c === CMP_HID0 && n === CMP_SRC_COL - CMP_HID0 + 1),
+    JSON.stringify(sh.hidden));
+
+  for (let s = 0; s < CMP_SLOTS; s++) {
+    const c = CMP_C0 + s, h = CMP_HID0 + s, name = `${L(c)}$${CMP_SLOT_ROW}`;
+    const match = `MATCH(${name},DB_PLAYER,0)`;
+    const status = f(CMP_RANK_ROW, h);
+    check(`slot ${s + 1} status reads its own slot`, status.indexOf(match) >= 0, status);
+    ['not on board', 'mine', 'gone'].forEach(w => {
+      check(`slot ${s + 1} status can read ${w}`, status.indexOf(`"${w}"`) >= 0, status);
+    });
+    const earlier = `MATCH(${name},$${L(CMP_C0)}$${CMP_SLOT_ROW}:$${L(c - 1)}$${CMP_SLOT_ROW},0)`;
+    check(`slot ${s + 1} repeat test covers exactly the earlier slots`,
+      s === 0 ? status.indexOf('repeat') < 0 : status.indexOf(earlier) >= 0, status);
+    check(`slot ${s + 1} board # reads DB_RANK`,
+      f(CMP_BOARD_ROW, c).indexOf(`INDEX(DB_RANK,${match})`) >= 0, f(CMP_BOARD_ROW, c));
+
+    CAT_LABELS.forEach((lab, i) => {
+      const r = TRACKER_R0 + i, key = catKey(lab);
+      const win = f(r, h);
+      check(`slot ${s + 1} ${lab} is a normal CDF on its own K`,
+        win.indexOf('NORMSDIST(') >= 0 && win.indexOf('*K_' + key + ')') >= 0, win);
+      check(`slot ${s + 1} ${lab} counts the candidate as pick n + 1`,
+        win.indexOf('MIN(Q,TEAMS*(COUNTIF(DB_MINE,TRUE)+1))') >= 0
+        && win.indexOf('/SQRT(COUNTIF(DB_MINE,TRUE)+1)') >= 0, win);
+      check(`slot ${s + 1} ${lab} adds the candidate's own DH`,
+        win.indexOf(`SUMIF(DB_MINE,TRUE,DB_DH_${key})+INDEX(DB_DH_${key},${match})`) >= 0, win);
+      const shown = f(r, c);
+      check(`slot ${s + 1} ${lab} displays its hidden Win′`,
+        shown.indexOf(`TEXT(${L(h)}${r},"0%")`) >= 0, shown);
+      check(`slot ${s + 1} ${lab} marks a change against the tracker's own Read`,
+        shown.indexOf(`=$${L(TRACK_READ_COL)}${r},""`) >= 0
+        && shown.indexOf(`IF($${punt}${r}=TRUE,"— PUNTED"`) >= 0, shown);
+    });
+    const exp = f(CMP_EXP_ROW, c);
+    check(`slot ${s + 1} expected cats sums its column over the unpunted rows`,
+      exp.indexOf(`SUMIFS(${L(h)}$${TRACKER_R0}:${L(h)}$${catLast},`
+        + `$${punt}$${TRACKER_R0}:$${punt}$${catLast},FALSE)`) >= 0, exp);
+    const rank = f(CMP_RANK_ROW, c);
+    check(`slot ${s + 1} rank masks blanks and breaks ties on board #`,
+      rank.indexOf('SUMPRODUCT(ISNUMBER(') >= 0
+      && rank.indexOf(`<${L(c)}$${CMP_BOARD_ROW})`) >= 0, rank);
+    // COUNTIF(range, ">"&x) turns x into 15 digits of text, so a total counts itself as
+    // greater than itself and the best candidate reads 2nd.
+    check(`slot ${s + 1} rank never compares through a text criterion`,
+      rank.indexOf('"&') < 0, rank);
+    check(`slot ${s + 1} gap is to the best`,
+      f(CMP_GAP_ROW, c).indexOf(`MAX($${L(CMP_C0)}$${CMP_EXP_ROW}:$${L(last)}$${CMP_EXP_ROW})`) >= 0,
+      f(CMP_GAP_ROW, c));
+  }
+  const now = f(CMP_EXP_ROW, TRACK_WIN_COL);
+  check('the tracker totals its own expected categories',
+    now.indexOf(`SUMIFS($${L(TRACK_WIN_COL)}$${TRACKER_R0}:$${L(TRACK_WIN_COL)}$${catLast},`) >= 0,
+    now);
+  expect('the total is labelled', cell(T, CMP_EXP_ROW, 1), 'Expected cats');
+  check('no LET on the tracker',
+    Object.values(sh.cells).every(x => typeof x !== 'string' || x.indexOf('LET(') < 0));
+
+  // The panel reads the Draft Board; nothing may read it back, or a formula closes a loop.
+  const reach = [];
+  Object.values(seen.sheets['Draft Board'].cells).forEach(x => {
+    if (typeof x !== 'string') return;
+    const re = /'Category Tracker'!\$?([A-Z]+)/g;
+    let m;
+    while ((m = re.exec(x))) if (colNum(m[1]) > TRACK_PUNT_COL) reach.push(x);
+  });
+  check('the Draft Board reads nothing on the tracker past Punted', reach.length === 0, reach[0]);
+
+  // Rules on the category cells, in the order they have to resolve.
+  const cells = sh.rules.filter(r => r.formula && r.ranges.some(g => g.col === CMP_C0));
+  const at = sub => cells.findIndex(r => r.formula.indexOf(sub) >= 0);
+  const shown = `${L(CMP_C0)}${TRACKER_R0}`, hid = `${L(CMP_HID0)}${TRACKER_R0}`;
+  const winRef = `$${L(TRACK_WIN_COL)}${TRACKER_R0}`;
+  const order = [
+    at(`=$${punt}${TRACKER_R0}=TRUE`),
+    at(`${hid}<${winRef})`),
+    at(`${hid}>${winRef})`),
+    at(`="■ BANKED",NOT(REGEXMATCH(${shown},`)
+  ];
+  check('panel rules resolve Punted, worse, better, then Banked',
+    order.every(i => i >= 0) && order.every((x, i) => i === 0 || x > order[i - 1]),
+    `${order} in\n     ${cells.map(r => r.formula).join('\n     ')}`);
+  check('a change needs a current Win % to compare with',
+    cells.filter(r => r.formula.indexOf('REGEXMATCH(') >= 0 && r.formula.indexOf('<>') < 0)
+      .slice(0, 2).every(r => r.formula.indexOf(`ISNUMBER(${winRef})`) >= 0));
+  const best = sh.rules.filter(r => r.formula === `=${L(CMP_C0)}$${CMP_RANK_ROW}="1st"`);
+  check('the best candidate is marked on its rank and its total, one rule each',
+    best.length === 2, JSON.stringify(best));
 }
 
 // The Settings sanity checks may not reach into another tab by any route Sheets is free to

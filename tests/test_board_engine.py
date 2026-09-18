@@ -9,6 +9,7 @@ column to be flat -- a zero profile, a constant attempt count -- the test sets i
 from __future__ import annotations
 
 import ast
+import copy
 import math
 import random
 from decimal import Decimal
@@ -496,6 +497,163 @@ class TestTracker:
         assert got["roster"][0]["rank"] == 3                   # RANK+COUNTIF, not position
 
 
+# ------------------------------------------------------------------ compare picks
+
+def compare_for(snap, state, candidates, sort=None):
+    return E.compare(snap, state, snap["settings"], sort or E.DEFAULT_SORT, candidates)
+
+
+def flat_board(n=20):
+    """Every BMP dh zero, 2 teams of 3 (q = 6): each category reads exactly 50% until a
+    test gives someone an edge, so an expected-categories total can be worked by hand."""
+    snap = make_snapshot(n=n, settings={"teams": 2, "roster": 3})
+    for p in snap["players"]:
+        p["values"]["BMP"]["dh"] = dict.fromkeys(CATS, 0.0)
+    return snap
+
+
+def name(snap, i):
+    return snap["players"][i]["name"]
+
+
+class TestCompare:
+    def test_after_win_is_the_tracker_with_that_candidate_ticked(self):
+        snap = make_snapshot(n=20, settings={"teams": 2, "roster": 5})
+        snap["deriv"]["k_tracker"].update({"REB": 0.5, "STL": 1.7})
+        state = E.empty_state()
+        state["conceded"] = ["AST"]
+        for i in (1, 6):
+            tick(state, snap, i, mine=True)
+        tick(state, snap, 3, gone=True)
+        got = compare_for(snap, state, [name(snap, i) for i in (0, 9, 14)])
+        for slot, i in zip(got["slots"], (0, 9, 14), strict=True):
+            after = copy.deepcopy(state)
+            tick(after, snap, i, mine=True)
+            want = tracker_for(snap, after)
+            assert slot["status"] == "ok"
+            for have, c in zip(slot["cats"], want["cats"], strict=True):
+                assert have["cat"] == c["cat"]
+                assert math.isclose(have["win"], c["win"], abs_tol=1e-12)
+                assert have["read"] == c["read"]
+            live = [c["win"] for c in want["cats"] if not c["conceded"]]
+            assert math.isclose(slot["expected"], sum(live), abs_tol=1e-12)
+
+    def test_hand_computed_reads_text_and_change(self):
+        snap = flat_board()
+        snap["players"][4]["values"]["BMP"]["dh"]["REB"] = 0.2
+        snap["players"][10]["values"]["BMP"]["dh"]["REB"] = 1.0
+        snap["players"][11]["values"]["BMP"]["dh"]["REB"] = -1.0
+        state = E.empty_state()
+        tick(state, snap, 4, mine=True)          # n = 1: REB reads Φ(0.2), CONTESTED
+        got = compare_for(snap, state, [name(snap, 11), name(snap, 10)])
+        assert (got["n"], got["cutoff"]) == (1, 4)             # min(6, 2 x 2)
+        assert math.isclose(got["now_expected"], 3.5 + E.normal_cdf(0.2), abs_tol=1e-12)
+        worse, better = got["slots"]
+        reb = CATS.index("REB")
+        assert math.isclose(better["cats"][reb]["win"], E.normal_cdf(1.2 / math.sqrt(2)),
+                            abs_tol=1e-12)
+        assert better["cats"][reb]["read"] == "■ BANKED"
+        assert better["cats"][reb]["text"] == "80% ■"
+        assert better["cats"][reb]["change"] == "better"
+        assert worse["cats"][reb]["text"] == "29% ▼"
+        assert worse["cats"][reb]["change"] == "worse"
+        for slot in got["slots"]:                              # the other seven stay at 50%
+            others = [c for k, c in enumerate(slot["cats"]) if k != reb]
+            assert {(c["text"], c["change"]) for c in others} == {("50%", None)}
+        assert (better["rank"], better["label"], better["gap"]) == (1, "1st", 0.0)
+        assert (worse["rank"], worse["label"]) == (2, "2nd")
+        assert math.isclose(worse["gap"], worse["expected"] - better["expected"],
+                            abs_tol=1e-15)
+        assert worse["gap"] < 0
+
+    def test_ranks_run_down_the_expected_total(self):
+        snap = make_snapshot(n=20, settings={"teams": 2, "roster": 5})
+        state = E.empty_state()
+        tick(state, snap, 2, mine=True)
+        got = compare_for(snap, state, [name(snap, i) for i in (12, 3, 7, 16, 9)])
+        by_rank = sorted(got["slots"], key=lambda s: s["rank"])
+        assert [s["rank"] for s in by_rank] == [1, 2, 3, 4, 5]
+        assert [s["label"] for s in by_rank] == ["1st", "2nd", "3rd", "4th", "5th"]
+        totals = [s["expected"] for s in by_rank]
+        assert totals == sorted(totals, reverse=True)
+        best = by_rank[0]["expected"]
+        assert all(s["gap"] == s["expected"] - best for s in got["slots"])
+
+    def test_a_tie_goes_to_the_lower_board_rank(self):
+        snap = flat_board()
+        state = E.empty_state()
+        tick(state, snap, 0, mine=True)
+        got = compare_for(snap, state, [name(snap, 15), name(snap, 8)])
+        assert got["slots"][0]["expected"] == got["slots"][1]["expected"]
+        assert [s["rank"] for s in got["slots"]] == [2, 1]     # board #9 before #16
+        assert [s["board_rank"] for s in got["slots"]] == [16, 9]
+
+    def test_statuses_are_left_out_of_the_ranking(self):
+        snap = flat_board(n=12)
+        snap["players"][5]["values"]["BMP"]["dh"]["REB"] = 1.0
+        state = E.empty_state()
+        tick(state, snap, 1, mine=True)
+        tick(state, snap, 2, gone=True)
+        tick(state, snap, 3, mine=True, gone=True)
+        slots = ["", "Nobody Onboard", name(snap, 1), name(snap, 2), name(snap, 3),
+                 name(snap, 6), name(snap, 6).upper(), name(snap, 5)]
+        got = compare_for(snap, state, slots)
+        assert [s["status"] for s in got["slots"]] == [
+            "", "not on board", "mine", "gone", "mine", "ok", "repeat", "ok"]
+        assert [s["label"] for s in got["slots"]] == [
+            "", "not on board", "mine", "gone", "mine", "2nd", "repeat", "1st"]
+        assert [s["board_rank"] for s in got["slots"]] == [None, None, 2, 3, 4, 7, 7, 6]
+        for s in got["slots"]:
+            if s["status"] != "ok":
+                assert (s["rank"], s["expected"], s["gap"]) == (None, None, None)
+                assert {(c["win"], c["text"], c["change"]) for c in s["cats"]} == {
+                    (None, "", None)}
+
+    def test_a_punted_category_is_left_out_and_never_marked(self):
+        snap = flat_board()
+        snap["players"][10]["values"]["BMP"]["dh"]["REB"] = 1.0
+        state = E.empty_state()
+        state["conceded"] = ["REB"]
+        tick(state, snap, 4, mine=True)
+        got = compare_for(snap, state, [name(snap, 10)])
+        slot = got["slots"][0]
+        reb = slot["cats"][CATS.index("REB")]
+        assert (reb["read"], reb["change"]) == ("— PUNTED", None)
+        assert reb["text"] == f"{E.pct_text(reb['win'])}"
+        assert slot["expected"] == 3.5 and got["now_expected"] == 3.5
+
+    def test_before_any_pick_every_category_is_marked_but_none_coloured(self):
+        snap = make_snapshot(n=12)
+        state = E.empty_state()
+        state["conceded"] = ["FT%"]
+        got = compare_for(snap, state, [name(snap, 0), ""])
+        assert (got["n"], got["now_expected"]) == (0, None)
+        slot = got["slots"][0]
+        for c in slot["cats"]:
+            assert c["change"] is None
+            if c["cat"] == "FT%":
+                assert c["text"] == E.pct_text(c["win"])
+            else:
+                assert c["text"] == E.pct_text(c["win"]) + " " + c["read"][0]
+        assert (slot["rank"], slot["gap"]) == (1, 0.0)
+        assert got["slots"][1]["status"] == ""
+
+    def test_available_is_the_dropdown_list_in_rank_order(self):
+        snap = make_snapshot(n=8)
+        state = E.empty_state()
+        tick(state, snap, 0, mine=True)
+        tick(state, snap, 5, gone=True)
+        rows = rows_for(snap, state, row_order=[7, 6, 5, 4, 3, 2, 1, 0])
+        got = E.compare(snap, state, snap["settings"], E.DEFAULT_SORT, [], rows=rows)
+        assert got["available"] == [name(snap, i) for i in (1, 2, 3, 4, 6, 7)]
+
+    def test_pct_text_rounds_half_up_on_fifteen_digits_like_sheets(self):
+        assert E.pct_text(0.285) == "29%"          # 28.499999999999996 in binary
+        assert E.pct_text(0.125) == "13%"
+        assert E.pct_text(0.994999) == "99%"
+        assert E.pct_text(0.0) == "0%" and E.pct_text(1.0) == "100%"
+
+
 # --------------------------------------------- punts, sanity checks, import boundary
 
 class TestPunts:
@@ -586,5 +744,5 @@ def test_the_engine_imports_nothing_that_can_value_a_player():
             imported.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom):
             imported.add((node.module or "").split(".")[0])
-    assert imported == {"__future__", "math", "re", "board_snapshot"}
+    assert imported == {"__future__", "decimal", "math", "re", "board_snapshot"}
     assert not imported & {"bbm_reference", "board_values", "sources", "build_data"}

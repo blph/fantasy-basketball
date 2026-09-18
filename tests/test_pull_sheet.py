@@ -109,6 +109,36 @@ class TestPlan:
         for key in ("generated", "digest"):
             assert f"Settings!{cells[key]}" in ranges
 
+    def test_the_compare_panel_is_planned_with_nothing_required(self):
+        t = LAYOUT["tabs"]["Category Tracker"]
+        c = t["compare"]
+        first, last = c["slots"][0]["letter"], c["slots"][-1]["letter"]
+        h0, h1 = PS.col_letter(c["slots"][0]["hidden"]), PS.col_letter(c["slots"][-1]["hidden"])
+        cat0, cat1 = t["first_cat_row"], t["first_cat_row"] + 7
+        src = c["source"]
+        want = {
+            f"{first}{c['slot_row']}:{last}{c['slot_row']}": "string",
+            f"{first}{c['board_row']}:{last}{c['board_row']}": "number",
+            f"{first}{c['rank_row']}:{last}{c['rank_row']}": "string",
+            f"{first}{cat0}:{last}{cat1}": "string",
+            f"{first}{c['expected_row']}:{last}{c['expected_row']}": "number",
+            f"{first}{c['gap_row']}:{last}{c['gap_row']}": "number",
+            f"{h0}{c['rank_row']}:{h1}{c['rank_row']}": "string",
+            f"{h0}{cat0}:{h1}{cat1}": "number",
+            f"{src['letter']}{src['first_row']}:{src['letter']}{src['rows']}": "string",
+            c["expected_now"]: "number",
+        }
+        ranges = by_name(PS.plan_ranges(LAYOUT))
+        for a1, kind in want.items():
+            r = ranges[f"Category Tracker!{a1}"]
+            assert (r["type"], r["min_cells"]) == (kind, 0), a1
+        labelled = {a for r in ranges.values() if r["sheet"] == "Category Tracker"
+                    for a in [r["range"]]}
+        for a1 in c["labels"]:
+            col, row, _, _ = PS.parse_a1(a1)
+            assert any(PS.parse_a1(x)[0] == col and PS.parse_a1(x)[1] <= row <= PS.parse_a1(x)[3]
+                       for x in labelled), a1
+
     def test_every_draft_board_column_is_in_exactly_one_data_range(self):
         cols = LAYOUT["tabs"]["Draft Board"]["columns"]
         seen = []

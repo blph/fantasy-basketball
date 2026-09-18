@@ -117,6 +117,26 @@ def test_tracker_has_eight_category_rows_above_the_roster():
     assert A1.match(t["players_ticked"])
 
 
+def test_compare_panel_sits_beside_the_tracker_on_its_category_rows():
+    t = LAYOUT["tabs"]["Category Tracker"]
+    c = t["compare"]
+    idx = [s["index"] for s in c["slots"]]
+    hidden = [s["hidden"] for s in c["slots"]]
+    assert len(idx) == 5 and idx == list(range(idx[0], idx[0] + 5))
+    assert c["label_col"] == t["columns"]["punted"] + 1 == idx[0] - 1
+    assert hidden == list(range(idx[-1] + 1, idx[-1] + 6))
+    assert c["source"] == {"col": hidden[-1] + 1, "letter": letter(hidden[-1] + 1),
+                           "first_row": 1, "rows": LAYOUT["last_row"] - LAYOUT["header_row"]}
+    assert all(s["letter"] == letter(s["index"]) for s in c["slots"])
+    assert c["slot_row"] == t["header_row"]
+    assert (c["board_row"], c["rank_row"]) == (c["slot_row"] - 2, c["slot_row"] - 1)
+    assert c["expected_row"] == t["first_cat_row"] + len(BV.CAT_LABELS)
+    assert c["gap_row"] == c["expected_row"] + 1 < t["roster_header_row"]
+    assert c["expected_now"] == f"{letter(t['columns']['win'])}{c['expected_row']}"
+    assert all(A1.match(a) for a in c["labels"])
+    assert c["labels"][f"{letter(c['label_col'])}{c['slot_row']}"] == "If I take"
+
+
 def test_punt_blocks_follow_the_snapshot_order_and_do_not_overlap():
     p = LAYOUT["tabs"]["Punts"]
     assert [b["key"] for b in p["blocks"]] == [k for k, _ in board_snapshot.PUNT_BUILDS]
@@ -143,6 +163,7 @@ def test_it_holds_labels_and_addresses_only():
     labels += [c["text"] for c in LAYOUT["tabs"]["Settings"]["cell_labels"].values()]
     t = LAYOUT["tabs"]["Category Tracker"]
     labels += list(t["column_labels"].values()) + list(t["roster_labels"].values())
+    labels += list(t["compare"]["labels"].values())
     labels += [c["label"] for c in LAYOUT["tabs"]["Punts"]["columns"].values()]
     # Every word of every label is written somewhere in Build.gs. A player name would not be.
     for label in labels:
