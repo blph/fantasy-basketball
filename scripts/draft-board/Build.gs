@@ -2507,9 +2507,11 @@ function formatComparePanel(sh) {
     .setFontColor(COLOR.muted).setHorizontalAlignment('center');
   sh.getRange(CMP_RANK_ROW, c0, 1, ns).setFontSize(10).setFontWeight('bold')
     .setHorizontalAlignment('center');
-  // Filled from the CMP ticks, so no input colours: these are names the board chose.
+  // Filled from the CMP ticks, so no input colours: these are names the board chose. Left,
+  // not centred: a centred name too long for the column clips at both ends and loses the
+  // first letter of the first name.
   sh.getRange(CMP_SLOT_ROW, c0, 1, ns).setFontColor(COLOR.identity).setFontSize(9)
-    .setFontWeight('bold').setHorizontalAlignment('center');
+    .setFontWeight('bold').setHorizontalAlignment('left');
   sh.getRange(r0, c0, rows, ns).setFontSize(11).setHorizontalAlignment('center')
     .setVerticalAlignment('middle');
   // Expected cats is the one number the ranking is on, so it takes the tracker's largest type.

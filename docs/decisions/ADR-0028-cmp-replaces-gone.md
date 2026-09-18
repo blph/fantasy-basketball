@@ -74,6 +74,10 @@ Bad:
   has to be ticked again. That was chosen over leaving a stale comparison on screen.
 - **`Left @pos` is gone from the sheet.** Its columns to the right moved left by one, which the
   layout, the pull and verify follow from the generated map.
+- **The MINE clear runs a second or two after the tick.** A simple trigger is not
+  instantaneous, so a CMP tick made in that window is cleared with the rest. The live check hit
+  it by ticking CMP straight after MINE. On draft day the next comparison is about 20 picks
+  away, so it should rarely matter. If it does, tick again.
 - **The clearing lives in a simple trigger, which swallows its own errors.** The harness drives
   every case in its mock. The tick scenario proves both routes on a copy of the live sheet. The
   menu item is the fallback.
