@@ -39,7 +39,7 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Regenerate the committed sheet layout after any `Build.gs` column, header, Settings, tracker, Punts or named-range change: `node scripts/draft-board/harness.js --write-layout` (always synthetic; the default `node harness.js` run fails while `board_layout.json` is stale)
 - Pull the live sheet for the local check: `python3 scripts/draft-board/pull_sheet.py` (writes `data/draft-board/pulls/<UTC timestamp> live.json`; `--sheet-id ID --label copy` for a scenario copy; runs `playwright-cli -s=fantasy` from the repo root)
 - Verify the local engine against a pull: `python3 scripts/draft-board/verify.py --local "data/draft-board/pulls/<timestamp> live.json"` (0 pass, 1 mismatch, 2 missing input, 3 not comparable — a different build, not a diff)
-- Run the tick scenario on a throwaway copy: `python3 scripts/draft-board/tick_scenario.py --allow-consent` (copies the live sheet, ticks, punts, re-sorts and refreshes it, pulls and verifies after every step, deletes the copy; one line per step; ask Bryan before passing `--allow-consent`, which clicks Allow on the copy's authorisation screen; skips itself unless `Build.gs` or `board_engine.py` changed since the last pass, `--force` overrides)
+- Run the tick scenario on a throwaway copy: `python3 scripts/draft-board/tick_scenario.py` (copies the live sheet, ticks and punts it, pulls and verifies after every step, deletes the copy; one line per step). **Two tiers.** The default is ticks and punts, 130s measured, no consent needed. `--full` adds the re-sort and `Refresh data` steps, which cost two Apps Script runs on top of that, and needs `--allow-consent` — ask Bryan before passing it, it clicks Allow on the copy's authorisation screen. It gates on `node scripts/draft-board/harness.js --tick-fingerprint`, which hashes the *generated formulas* each tier can reach: unchanged hashes mean the browser never opens ([ADR-0025](docs/decisions/ADR-0025-verification-budget.md)). `--force` runs the tick tier anyway
 - Start a draft state pinned to the newest local snapshot: `python3 scripts/draft-board/board.py new` (`--force` backs up and replaces a non-empty one; `--state mock1.json` keeps a mock draft apart, always under `data/draft-board/`)
 - Query the local board: `python3 scripts/draft-board/board.py status|board|player NAME…|tracker|punts [BUILD]|check` — TSV behind one `#` context line, `--json` for one object, `board --sort S:K` is a what-if. The output is provider data: never paste it into `docs/` or `tests/`
 - Log a pick: `python3 scripts/draft-board/board.py mine|gone NAME --pick N --show board,tracker` (`mine` ticks GONE too; `--undo`, `--team T`, `--offboard`); also `concede CAT`, `sort S:K`, `note NAME TEXT`, `gp|xrank|gp1|gp2|gp3 NAME N|--clear`, and `undo` for the last edit. Exits 0 ok, 2 usage, 3 name not resolved, 4 integrity (pin, digest, corrupt state)
@@ -47,6 +47,7 @@ Python 3.11+ (`tomllib` and modern typing are assumed).
 - Draft day: follow [the draft-day procedure](docs/draft-board/build-and-maintenance.md#draft-day) — `board.py new` once, then `board.py gone|mine NAME --pick N --show board,tracker` for every pick; never refresh either board once the draft starts
 - Review a mock draft — **stale, blocked until ported**: `python3 scripts/draft-board/review_mock_draft.py --board draft_board.csv --detail board_detail.csv --draft draft_log.csv --me NAME --teams N` reads the pre-DURANT layout and refuses a current pull; see the blocking entry in [the draft-refactoring summary](docs/project-updates/2026-09-01-draft-refactoring-branch-summary.md) and [the procedure](docs/draft-board/mock-draft-review.md)
 - Regenerate the board cheat sheet: `node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md`
+- Study category scarcity by round: `python3 scripts/draft-board/study_scarcity.py` (`--source`, `--rounds`, `--json` to print the counts and write nothing). Counts how many of each round's 12 players hold each category as a primary or secondary strength, over the drafted pool read with an empty state. Writes an HTML report to `docs/studies/`, which is gitignored — the script is the artifact ([ADR-0026](docs/decisions/ADR-0026-generated-studies-are-gitignored.md))
 - Lint: `ruff check .`
 - Format: `ruff format .`
 
@@ -59,7 +60,36 @@ No dependencies are declared yet beyond dev tooling. Runtime dependencies land i
 - Fixtures are **synthetic**: hand-authored JSON matching the shape of a real response, with invented player names and numbers. Never copy a file from `data/raw/` into `tests/fixtures/` — this repo is public and provider data is not ours to republish ([ADR-0006](docs/decisions/ADR-0006-no-provider-data-redistribution.md)).
 - When a live response reveals a shape a fixture gets wrong, edit the fixture to match the *shape*. Do not paste the payload.
 - Run `pytest` and `ruff check .` before finishing a task; fix failures rather than reporting them as pre-existing without checking.
-- **Definition of done for draft-board work: it is in the sheet and verified there, and the local engine agrees with it.** `pytest`, `ruff` and `harness.js` gate the push; they do not conclude it. A change that passes every local check and has not been deployed is not finished, and must not be reported as finished. Nor is one whose deployed sheet has not been pulled with `pull_sheet.py` and passed `verify.py --local` — the tick scenario on a copy included, whenever the change touches a formula the ticks drive.
+- **Definition of done for draft-board work: it is in the sheet and verified there, and the local engine agrees with it.** `pytest`, `ruff` and `harness.js` gate the push; they do not conclude it. A change that passes every local check and has not been deployed is not finished, and must not be reported as finished. Nor is one whose deployed sheet has not been pulled with `pull_sheet.py` and passed `verify.py --local`. Run the tick scenario when its fingerprint gate says to and not otherwise; the gate is the judgement, so do not second-guess it in either direction.
+
+## Verification budget
+
+Every check costs someone's time and someone's usage. Spend the least that would actually
+catch the failure you are worried about, and say what a step will cost before spending it
+([ADR-0025](docs/decisions/ADR-0025-verification-budget.md)).
+
+| check | wall-clock | output | what it actually proves |
+|---|---|---|---|
+| `pytest -q` + `ruff check .` + `node harness.js` | ~15s | ~80 tokens | the Python, and that the generated formula *strings* are what you meant |
+| `python3 scripts/draft-board/verify.py --local <pull>` | ~4s | 6 lines | **the real proof** — the deployed sheet and the local engine agree, cell for cell, on all 200 rows |
+| `tick_scenario.py` (default tier) | **130s measured** | 7 lines | ticks and punts drive the sheet correctly |
+| `tick_scenario.py --full` | ~4-5min, estimated | 10 lines | also the re-sort and `Refresh data` paths |
+| one Explore/Plan subagent | minutes | **~100k tokens** | a repo sweep you almost never need |
+| one screenshot | seconds | ~2k tokens | colour, width and clipping — the things a pull cannot see |
+
+- DO NOT launch a subagent for draft-board work. Every file that matters is named in
+  [build-and-maintenance.md](docs/draft-board/build-and-maintenance.md) and in the ADRs;
+  reading the four relevant ones costs about 5k tokens against a sweep's ~250k. A sweep of
+  this repo has been done and its findings are written down — use them.
+- DO NOT screenshot to confirm something worked. `verify.py --local` is what proves that.
+  Screenshot only to inspect something it structurally cannot see — colour, column width,
+  clipped text — and then once, not before and after.
+- DO NOT run a step you expect to exceed ~20k tokens or two minutes without first saying
+  what it will cost and getting an answer. An expensive check nobody asked for is waste
+  even when it passes.
+- DO NOT let a check print a cell, a row or a player. One line per step. Anything that needs
+  to dump the board to explain itself has already failed, and it is provider data besides.
+- DO NOT re-run a green check to feel sure. If it passed and nothing changed, it still passes.
 
 ## Boundaries (do NOT)
 

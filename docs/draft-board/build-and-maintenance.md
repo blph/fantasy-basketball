@@ -701,8 +701,35 @@ Ticks drive most of what the engine re-implements, and the owner's sheet cannot 
 exercise them, so the scenario runs on a **copy**, as one command:
 
 ```bash
-python3 scripts/draft-board/tick_scenario.py --allow-consent
+python3 scripts/draft-board/tick_scenario.py            # ticks and punts, 130s measured
+python3 scripts/draft-board/tick_scenario.py --full --allow-consent   # adds 4 and 5
 ```
+
+**Two tiers, and a gate that reads formulas rather than filenames.** Steps 4 and 5 each cost a
+full Apps Script execution on the copy, which is most of the wall-clock, so they are opt-in.
+Before anything opens a browser, `node scripts/draft-board/harness.js --tick-fingerprint`
+builds the workbook offline and prints two hashes: `tick`, over every generated formula that
+reads the `GONE` column, the `MINE` column or the tracker's `Punted` range — in either
+vocabulary, since the Draft Board reads them as column letters and the tracker as `DB_MINE` /
+`DB_GONE` named ranges — and `rebuild`, over every formula the re-sort and `Refresh data` paths
+rewrite. `tier_needed` compares both against the last passing run:
+
+| what moved | what runs |
+|---|---|
+| neither hash, and not `board_engine.py` | nothing; the browser never opens |
+| the `tick` hash, or `board_engine.py` | steps 1-3 |
+| the `rebuild` hash | steps 1-5, and it says so |
+| no hashes recorded (first run, or a pre-fingerprint stamp) | steps 1-5 |
+
+The hash is taken from the **generated formula text**, so a column width, a colour, a header or
+a README row cannot move it — that was the whole defect. The old gate was `git diff --name-only
+-- Build.gs board_engine.py`, and `Build.gs` is one 2,600-line file covering all nine tabs, so
+editing a column width tripped a four-minute browser run ([ADR-0025](../decisions/ADR-0025-verification-budget.md)).
+Column letters are deliberately left in the hashed text: a formula still reading `$H4` after
+`GONE` moved to `I` is exactly the silent breakage the scenario exists to catch.
+
+A tick-tier pass records only the `tick` hash. It must not stamp `rebuild`, or the steps it
+skipped would never run again.
 
 It copies the live sheet (**File ▸ Make a copy**), unticks anything the copy inherited (Space,
 never Delete, which strips the checkbox), and then, pulling and running the full
@@ -747,8 +774,8 @@ local board too:
 2. `pytest`, `ruff check .`, `cd scripts/draft-board && node harness.js`.
 3. Deploy `Code.gs` through Playwright from a committed SHA (below).
 4. `Full rebuild` or `Rebuild & re-sort`, as the change requires.
-5. `pull_sheet.py` and `verify.py --local` on the live sheet; the tick scenario on a copy when
-   the change touches anything the ticks drive.
+5. `pull_sheet.py` and `verify.py --local` on the live sheet; the tick scenario when its
+   fingerprint gate says to, at the tier it names, and not otherwise.
 6. Regenerate the cheat sheet.
 
 ### Pushing `Build.gs` into the sheet

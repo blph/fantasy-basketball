@@ -10,6 +10,11 @@ const path = require('path');
 // file is committed, so it must come out byte-identical on every machine, and a layout built
 // from real data would put provider data one mistake away from a public commit.
 const WRITE_LAYOUT = process.argv[2] === '--write-layout';
+// `node harness.js --tick-fingerprint` prints two hashes over the GENERATED formulas and
+// exits. tick_scenario.py gates on them. Fingerprinting the built formulas rather than the
+// source file is the whole point: Build.gs is one 2,600-line file covering nine tabs, so a
+// column width or a README edit used to trip a four-minute browser scenario (ADR-0025).
+const TICK_FINGERPRINT = process.argv[2] === '--tick-fingerprint';
 const LAYOUT_PATH = path.join(__dirname, 'board_layout.json');
 const LAYOUT_OUT = WRITE_LAYOUT && process.argv[3] ? path.resolve(process.argv[3]) : LAYOUT_PATH;
 const problems = [];
@@ -207,7 +212,10 @@ global.SpreadsheetApp = {
 
 // Real data if it happens to be here, otherwise synthetic. The test must run on
 // a clean clone: this repo is public and holds no provider data.
-const SYNTHETIC = WRITE_LAYOUT || !fs.existsSync(path.join(__dirname, 'Data.gs'));
+// The fingerprint forces synthetic players for the same reason the layout does: the hash
+// has to depend only on the formulas Build.gs generates, never on whose Data.gs is on disk.
+const SYNTHETIC = WRITE_LAYOUT || TICK_FINGERPRINT
+  || !fs.existsSync(path.join(__dirname, 'Data.gs'));
 if (!SYNTHETIC) {
   eval(fs.readFileSync(path.join(__dirname, 'Data.gs'), 'utf8'));
 } else {
@@ -463,6 +471,62 @@ if (WRITE_LAYOUT) {
   }
   fs.writeFileSync(LAYOUT_OUT, JSON.stringify(boardLayout(), null, 2) + '\n');
   console.log('wrote ' + LAYOUT_OUT);
+  process.exit(0);
+}
+
+/**
+ * Two hashes over the generated formulas, for tick_scenario.py's gate (ADR-0025).
+ *
+ * `tick` covers every formula whose text reads a checkbox the scenario toggles: the GONE
+ * column, the MINE column, or the tracker's Punted range. `rebuild` covers every formula
+ * the re-sort and Refresh paths rewrite, which is every per-row formula on the Draft Board
+ * plus the Board columns Refresh keys its hand values by.
+ *
+ * Formulas only. A cell holding a value contributes nothing, because the scenario proves
+ * how the sheet RECALCULATES, and a literal does not recalculate. That is also why a width,
+ * a colour, a header or a README row cannot move either hash.
+ *
+ * Column LETTERS are deliberately left in the hashed text rather than normalised away: a
+ * formula that still reads `$H4` after GONE moved to I is exactly the silent breakage the
+ * scenario exists to catch, so it must move the hash.
+ */
+function tickFingerprint() {
+  const crypto = require('crypto');
+  // Two vocabularies for the same checkboxes, and the hash has to cover both. The Draft
+  // Board reads them as column letters; the Category Tracker reads them as named ranges,
+  // so matching only on letters would miss every tracker formula the ticks drive.
+  const reads = ['$' + a1col(D.drafted), '$' + a1col(D.mine),
+                 '$' + a1col(TRACK_PUNT_COL) + '$' + TRACKER_R0,
+                 'DB_MINE', 'DB_GONE'];
+  const refreshTabs = { 'Draft Board': true, 'Board': true, 'Category Tracker': true };
+
+  const tick = [], rebuild = [];
+  Object.keys(seen.sheets).sort().forEach(name => {
+    const cells = seen.sheets[name].cells;
+    Object.keys(cells).sort().forEach(key => {
+      const v = cells[key];
+      if (typeof v !== 'string' || v[0] !== '=') return;
+      // Row-independent: every one of the 200 rows is the same formula shifted, and the
+      // scenario cannot tell them apart anyway. Keep the column, drop the row number.
+      const shape = name + '|' + key.split(',')[1] + '|' + v.replace(/(\$?[A-Z]+\$?)\d+/g, '$1#');
+      if (reads.some(r => v.indexOf(r) !== -1)) tick.push(shape);
+      if (refreshTabs[name]) rebuild.push(shape);
+    });
+  });
+
+  const h = list => crypto.createHash('sha256')
+    .update([...new Set(list)].sort().join('\n')).digest('hex').slice(0, 16);
+  return { tick: h(tick), rebuild: h(rebuild), tick_formulas: new Set(tick).size,
+           rebuild_formulas: new Set(rebuild).size };
+}
+
+if (TICK_FINGERPRINT) {
+  if (problems.length) {
+    console.error('not fingerprinting: the synthetic build reported problems');
+    problems.slice(0, 25).forEach(p => console.error(' - ' + p));
+    process.exit(1);
+  }
+  console.log(JSON.stringify(tickFingerprint()));
   process.exit(0);
 }
 

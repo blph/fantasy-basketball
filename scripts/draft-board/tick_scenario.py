@@ -19,9 +19,21 @@ the swapped-in player and must land on whichever row that player occupies afterw
 kept by row position fails. It goes in GP Y-1 because the Name Box cannot reach My GP on this
 sheet: Board W and Z sit in hidden columns, and the Name Box lands on the next visible one.
 
+Two tiers, because steps d and e each cost a full Apps Script execution on the copy and that is
+most of the wall-clock (ADR-0025):
+
+  ticks  steps a-c. The default. No consent, no script run, no menu.
+  full   adds d and e. `--full`, and it needs `--allow-consent`.
+
 `--allow-consent` is the owner's approval, given before the run, to click Allow on the copy's
-authorisation screen. Without it the run stops at step d (exit 5). The scenario only runs when
-`Build.gs` or `board_engine.py` changed since the last passing run (or with `--force`).
+authorisation screen. Without it a full run stops at step d (exit 5).
+
+**The gate reads the generated formulas, not the filenames.** `node harness.js
+--tick-fingerprint` builds the workbook offline and hashes the formulas each tier can reach;
+`tier_needed` compares those to the last passing run and returns "none", "ticks" or "full".
+Gating on `Build.gs` having changed at all was the defect this replaced: it is one 2,600-line
+file covering nine tabs, so editing a column width used to trip a four-minute browser run.
+A width moves no formula, so it now moves no hash. `--force` runs the tick tier regardless.
 
 Output is one line per step. Never a sheet id, a title or a player name: the pulls are provider
 data and stay under data/draft-board/pulls/, gitignored.
@@ -44,6 +56,7 @@ import pull_sheet as PS  # noqa: E402
 import verify_local as VL  # noqa: E402
 
 WATCHED = ("scripts/draft-board/Build.gs", "scripts/draft-board/board_engine.py")
+ENGINE = "scripts/draft-board/board_engine.py"
 LAST = BS.ROOT / "pulls" / "last-scenario"
 GONE_ROWS = (5, 9, 25, 40, 60, 80, 100, 130, 160, 190)  # 5 and 9 are MINE too
 NEW_SORT = "HBP · DURH"
@@ -61,13 +74,70 @@ class NeedsConsent(Exception):
 # ------------------------------------------------------------------ pure helpers (tested)
 
 def needed(repo: Path, last: Path) -> bool:
-    """True unless a passing run is recorded and nothing it covers changed since."""
+    """True unless a passing run is recorded and nothing it covers changed since.
+
+    The coarse, file-level gate. Superseded by `tier_needed` for deciding what to run and
+    kept only for the `engine_changed` half of it (ADR-0025).
+    """
     if not last.exists():
         return True
-    sha = last.read_text(encoding="utf-8").strip()
+    sha = _stamp(last).get("sha", "")
     diff = subprocess.run(["git", "diff", "--name-only", sha, "--", *WATCHED], cwd=repo,
                           capture_output=True, text=True)
     return diff.returncode != 0 or bool(diff.stdout.strip())
+
+
+def _stamp(last: Path) -> dict:
+    """The recorded pass. A pre-fingerprint stamp was a bare sha and carries no hashes."""
+    if not last.exists():
+        return {}
+    text = last.read_text(encoding="utf-8").strip()
+    try:
+        got = json.loads(text)
+        return got if isinstance(got, dict) else {}
+    except json.JSONDecodeError:
+        return {"sha": text}
+
+
+def fingerprint(repo: Path) -> dict:
+    """The harness's two hashes over the GENERATED formulas. Offline, about two seconds."""
+    proc = subprocess.run(["node", str(Path(__file__).with_name("harness.js")),
+                           "--tick-fingerprint"], cwd=repo, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise StepFailed(f"harness --tick-fingerprint exited {proc.returncode}: "
+                         f"{proc.stderr.strip()[-300:]}")
+    return json.loads(proc.stdout.strip())
+
+
+def engine_changed(repo: Path, last: Path) -> bool:
+    """Has the Python mirror moved since the last pass? It is not in the sheet, so no hash
+    covers it -- but it is what every step compares against."""
+    sha = _stamp(last).get("sha")
+    if not sha:
+        return True
+    diff = subprocess.run(["git", "diff", "--name-only", sha, "--", ENGINE], cwd=repo,
+                          capture_output=True, text=True)
+    return diff.returncode != 0 or bool(diff.stdout.strip())
+
+
+def tier_needed(repo: Path, last: Path, fp: dict, engine_changed: bool) -> str:
+    """How much of the scenario this change can affect: "none", "ticks" or "full".
+
+    Gating on the generated formulas rather than on which file was edited is the point.
+    `Build.gs` is one file covering nine tabs, so a column width used to trip a four-minute
+    browser run; a width moves no formula, so it now moves no hash (ADR-0025).
+
+    A stamp with no hashes -- never run, or written before the fingerprint existed -- proves
+    everything, because "unknown" must never read as "unchanged".
+    """
+    stamp = _stamp(last)
+    if not stamp.get("tick") or not stamp.get("rebuild"):
+        return "full"
+    if stamp["rebuild"] != fp["rebuild"]:
+        return "full"
+    if stamp["tick"] != fp["tick"] or engine_changed:
+        return "ticks"
+    return "none"
 
 
 def counts(sheet: VL._Pull, layout: dict) -> dict:
@@ -165,7 +235,17 @@ class Browser:
         code = ("async page => { const A = " + json.dumps(args) + ";"
                 " const pages = page.context().pages();"
                 " const copy = A.copy ? pages.find(p => p.url().includes(A.copy)) : null;"
-                " const live = pages.find(p => p.url().includes(A.live));"
+                # The live sheet has to be open for anything here to find it. Left implicit,
+                # a session parked on another page died on `live.locator` -- an opaque
+                # TypeError, thrown after the point where a copy can already exist in Drive.
+                # Open it instead: the scenario is a standalone command and must not depend
+                # on where a previous command happened to leave the browser.
+                " let live = pages.find(p => p.url().includes(A.live));"
+                " if (!live) {"
+                "   live = await page.context().newPage();"
+                "   await live.goto('https://docs.google.com/spreadsheets/d/' + A.live + '/edit');"
+                "   await live.waitForSelector('#docs-menubar', {timeout: 60000});"
+                "   await live.waitForTimeout(2000); }"
                 " const nameBox = async (p, tab, a1) => {"
                 "   await p.locator('.docs-sheet-tab-name',"
                 "     {hasText: new RegExp('^' + tab + '$')}).first().click();"
@@ -344,7 +424,7 @@ class Scenario:
         self.sheet, self.lines = sheet, lines
         return sheet
 
-    def run(self, allow: bool) -> None:
+    def run(self, allow: bool, full: bool) -> None:
         L, d = self.layout, self.layout["tabs"]["Draft Board"]["columns"]
         t = L["tabs"]["Category Tracker"]
         punt = PS.col_letter(t["columns"]["punted"])
@@ -353,8 +433,11 @@ class Scenario:
         sheet = self.check("copy")
         inherited = ticked_cells(sheet, L)
         if inherited:
+            # Only re-pull when something was actually toggled. A pull is one download
+            # of the whole workbook, so re-proving a state this step just verified costs a
+            # full download for nothing (ADR-0025).
             self.b.toggle(inherited)
-        self.check("cleared", {"mine": 0, "gone": 0, "punted": 0})
+            self.check("cleared", {"mine": 0, "gone": 0, "punted": 0})
 
         mine = d["mine"]["letter"]
         self.b.toggle([("Draft Board", f"{mine}{first}:{mine}{first + 7}")])
@@ -369,6 +452,11 @@ class Scenario:
         self.check("c punt 1", {"punted": 1})
         self.b.toggle([("Category Tracker", f"{punt}{t['first_cat_row'] + 3}")])
         self.check("c punt 2", {"punted": 2})
+
+        if not full:
+            # The tick tier ends here. Steps d and e each cost a full Apps Script run on the
+            # copy, which is most of the wall-clock, and neither is reachable from a tick.
+            return
 
         self.b.type_into([("Draft Board", f"{d['drafted']['letter']}1", NEW_SORT)])
         self.b.draft_menu("Rebuild & re-sort", "^Sorted by ", allow)
@@ -409,10 +497,23 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--allow-consent", action="store_true",
                     help="the owner approved clicking Allow on the copy's authorisation screen")
     ap.add_argument("--force", action="store_true", help="run even if nothing covered changed")
+    ap.add_argument("--full", action="store_true",
+                    help="also run steps d and e (re-sort and Refresh); needs --allow-consent")
     args = ap.parse_args(argv)
-    if not args.force and not needed(PS.REPO, LAST):
-        print("scenario not needed: Build.gs and board_engine.py unchanged since the last pass")
+    try:
+        fp = fingerprint(PS.REPO)
+    except (StepFailed, json.JSONDecodeError) as e:
+        print(f"scenario: {e}", file=sys.stderr)
+        return 2
+    if args.force or args.full:
+        tier = "full" if args.full else "ticks"
+    else:
+        tier = tier_needed(PS.REPO, LAST, fp, engine_changed(PS.REPO, LAST))
+    if tier == "none":
+        print("scenario not needed: no formula the ticks drive changed since the last pass")
         return 0
+    if tier == "full" and not args.full:
+        print("scenario: a rebuild-path formula changed, so steps d and e are included")
     try:
         sheet_id = args.sheet_id or PS.read_sheet_id(PS.ENV)
         layout = json.loads(PS.LAYOUT.read_text(encoding="utf-8"))
@@ -425,7 +526,7 @@ def main(argv: list[str] | None = None) -> int:
     code = 0
     try:
         browser.make_copy()
-        Scenario(browser, layout, snapshot).run(args.allow_consent)
+        Scenario(browser, layout, snapshot).run(args.allow_consent, tier == "full")
     except NeedsConsent:
         print("scenario stopped at step d: needs --allow-consent (ask the owner first)")
         code = 5
@@ -449,8 +550,16 @@ def main(argv: list[str] | None = None) -> int:
         LAST.parent.mkdir(parents=True, exist_ok=True)
         head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=PS.REPO, capture_output=True,
                               text=True).stdout.strip()
-        LAST.write_text(head + "\n", encoding="utf-8")
-        print(f"scenario ok: every step verify exit 0, hand value kept, copy deleted, "
+        # Record the hashes only for what this run actually proved: a tick-tier pass must
+        # not stamp the rebuild hash, or the steps it skipped would never run again.
+        stamped = {"sha": head, "tick": fp["tick"]}
+        if tier == "full":
+            stamped["rebuild"] = fp["rebuild"]
+        else:
+            stamped["rebuild"] = _stamp(LAST).get("rebuild", "")
+        LAST.write_text(json.dumps(stamped) + "\n", encoding="utf-8")
+        kept = "hand value kept, " if tier == "full" else ""
+        print(f"scenario ok ({tier}): every step verify exit 0, {kept}copy deleted, "
               f"{time.monotonic() - started:.0f}s")
     return code
 

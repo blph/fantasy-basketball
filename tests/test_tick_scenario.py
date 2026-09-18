@@ -156,3 +156,47 @@ def test_the_run_gate(tmp_path):
     assert TS.needed(tmp_path, last)                       # a watched change, uncommitted
     last.write_text("0000000000000000000000000000000000000000\n")
     assert TS.needed(tmp_path, last)                       # an unknown sha
+
+
+FP = {"tick": "aaaa", "rebuild": "bbbb"}
+
+
+def stamp(last, sha="deadbeef", **over):
+    last.write_text(json.dumps({"sha": sha, **FP, **over}), encoding="utf-8")
+
+
+class TestTier:
+    """The gate returns how much of the scenario a change can actually affect (ADR-0025).
+
+    A width, a colour or a README row moves neither hash, and the browser is never opened.
+    """
+
+    def test_a_first_run_proves_everything(self, tmp_path):
+        assert TS.tier_needed(tmp_path, tmp_path / "none", FP, engine_changed=False) == "full"
+
+    def test_nothing_moved_skips_entirely(self, tmp_path):
+        last = tmp_path / "last"
+        stamp(last)
+        assert TS.tier_needed(tmp_path, last, FP, engine_changed=False) == "none"
+
+    def test_a_tick_formula_runs_the_tick_tier(self, tmp_path):
+        last = tmp_path / "last"
+        stamp(last, tick="zzzz")
+        assert TS.tier_needed(tmp_path, last, FP, engine_changed=False) == "ticks"
+
+    def test_a_rebuild_formula_runs_everything(self, tmp_path):
+        last = tmp_path / "last"
+        stamp(last, rebuild="zzzz")
+        assert TS.tier_needed(tmp_path, last, FP, engine_changed=False) == "full"
+
+    def test_the_python_mirror_changing_runs_the_tick_tier(self, tmp_path):
+        # board_engine.py is not in the sheet, so no hash moves -- but the mirror is what
+        # the scenario compares against at every tick state.
+        last = tmp_path / "last"
+        stamp(last)
+        assert TS.tier_needed(tmp_path, last, FP, engine_changed=True) == "ticks"
+
+    def test_a_stamp_from_before_the_fingerprint_proves_everything(self, tmp_path):
+        last = tmp_path / "last"
+        last.write_text("deadbeef\n", encoding="utf-8")       # the old plain-sha format
+        assert TS.tier_needed(tmp_path, last, FP, engine_changed=False) == "full"
