@@ -131,8 +131,9 @@ and whether the difference survives normalization.
 ADR-0011 and surfaced by a pool-shortfall cell — check the reasoning still holds, and that
 the pool and `REPLACEMENT` being drawn from marginally different sets stays bounded and
 visible. Replacement is the Qth-best G-total globally, deliberately not per-position, with
-positional scarcity handled instead as a Draft Board tiebreak (`Left @pos`), which counts
-every slot a player is eligible for. Judge whether that split is right for a Yahoo league
+positional scarcity handled instead as a tiebreak (`Left @pos`), which counts every slot a
+player is eligible for. Since ADR-0028 it lives on the local board only: it needs other
+managers' picks, and the sheet no longer has a GONE column to record them. Judge whether that split is right for a Yahoo league
 with daily lineups, and whether a tier-scoped count is the right scope at all — it says
 nothing about scarcity one tier down.
 The pool converges rather than being assumed to: `converge_pool()` in `valuation.py`

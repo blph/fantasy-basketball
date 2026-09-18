@@ -160,7 +160,42 @@ verify exit 0, copy deleted, 320 s):
   sheet runs, so a change tested before deployment can later be skipped. Run it with `--force`
   after a deploy until that gate compares against the deployed script.
 
+## Update, 2026-09-18: Compare picks, and CMP replaces GONE
+
+- **Compare picks** (ADR-0027) sits beside the Category Tracker. It has up to five candidate
+  columns, and each is the tracker as it would read with that player ticked MINE. Candidates
+  rank on expected categories won, the sum of Win % over the categories not punted. A glyph
+  marks a category whose Read would change, and "vs best" gives each one's gap to the top
+  candidate. The engine mirrors it in `board_engine.compare`, and `board.py compare NAME…`
+  answers the same question locally. A test holds each column equal to `tracker()` with that
+  player ticked.
+- **CMP replaces GONE** (ADR-0028). The owner never ticked GONE, so the column became `CMP`:
+  tick it beside the players you are deciding between, and they fill Compare picks, best board
+  # first, with MINE left out. Past five, the panel compares the best five and says so. Every
+  CMP tick clears three ways: the **Clear all** box beside the panel title, any **MINE** tick
+  (both through the simple `onEdit`), or **Draft Board ▸ Clear compare**. `Left @pos` left the
+  sheet with GONE. `board.py gone` stays as the agent's local pick log. A rebuild never reads an
+  old GONE tick as CMP, and the build removes the retired `DB_GONE` named range.
+- **Deployed and verified in the sheet** after each change: Code.gs replaced through Monaco,
+  then a Full rebuild, then a pull, then `verify.py --local` at exit 0.
+  - The live check ticked 3 MINE and 6 CMP. Verify passed at n = 3, and the note read
+    "Top 5 of 6".
+  - The Clear all box cleared 6 ticks and reset itself.
+  - A MINE tick cleared 2.
+  - The sheet was restored to zero ticks, and it passes verify at zero.
+- **Found in the sheet and fixed:**
+  - the panel's `3PM` label was being read as 3:00 PM (the labels are now plain text, and
+    verify checks them);
+  - long names clipped at both ends (the slots are now left-aligned).
+- **Seen and recorded, not fixed:** the MINE auto-clear lands a second or two after the tick, so
+  a CMP tick made in that window is cleared too (ADR-0028).
+- **Not run:** the tick scenario. Its gate asks for the full tier, which needs consent on the
+  copy's authorisation screen, and the owner deferred it. Its new steps f and g prove both clear
+  routes on a copy; until it passes, the rebuild path with CMP is proven only by the live Full
+  rebuilds above.
+
 ## Records
 
-New: ADR-0022 · ADR-0023. Superseded in part: ADR-0018. New bug report:
+New: ADR-0022 · ADR-0023 · ADR-0027 · ADR-0028. Superseded in part: ADR-0018, and ADR-0027
+(by ADR-0028). New bug report:
 `docs/bugs/2026-09-12-reorder-refresh-tick-misattachment.md`.

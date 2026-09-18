@@ -268,8 +268,9 @@ against the same history.
 - **ADP provenance.** It is the export provider's aggregate, not Yahoo's (F12). Read GAP
   as "cheap somewhere", not "cheap in this room".
 - **Blank GAP is not zero.** An unpriced player is not a fairly priced one.
-- **Position is not in the model** (F10). `Left @pos` counts what remains; it does not
-  value scarcity. Judge that tiebreak by hand.
+- **Position is not in the model** (F10). The sheet no longer carries `Left @pos`
+  (ADR-0028); the local board's version counts what remains from the picks an agent logged.
+  Neither values scarcity. Judge that tiebreak by hand.
 
 ---
 

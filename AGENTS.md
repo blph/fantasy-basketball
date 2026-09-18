@@ -71,9 +71,9 @@ catch the failure you are worried about, and say what a step will cost before sp
 | check | wall-clock | output | what it actually proves |
 |---|---|---|---|
 | `pytest -q` + `ruff check .` + `node harness.js` | ~15s | ~80 tokens | the Python, and that the generated formula *strings* are what you meant |
-| `python3 scripts/draft-board/verify.py --local <pull>` | ~4s | 6 lines | **the real proof** — the deployed sheet and the local engine agree, cell for cell, on all 200 rows |
-| `tick_scenario.py` (default tier) | **130s measured** | 7 lines | ticks and punts drive the sheet correctly |
-| `tick_scenario.py --full` | ~4-5min, estimated | 10 lines | also the re-sort and `Refresh data` paths |
+| `python3 scripts/draft-board/verify.py --local <pull>` | ~4s | 7 lines | **the real proof** — the deployed sheet and the local engine agree, cell for cell, on all 200 rows |
+| `tick_scenario.py` (default tier) | **130s measured** before the four CMP steps; ~3 min estimated now | ~11 lines | ticks, punts and both CMP clear routes drive the sheet correctly |
+| `tick_scenario.py --full` | ~5-6min, estimated | ~14 lines | also the re-sort and `Refresh data` paths |
 | one Explore/Plan subagent | minutes | **~100k tokens** | a repo sweep you almost never need |
 | one screenshot | seconds | ~2k tokens | colour, width and clipping — the things a pull cannot see |
 
