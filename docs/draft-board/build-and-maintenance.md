@@ -222,8 +222,20 @@ re-sort left in place. Injury tiers do not need either kind of recovery — the 
 column and the Draft Board mirrors it, so a tier follows its player through any sort by
 construction.
 
-**12. Verify the local engine against the sheet.** Required, and only after step 11 — before
-the re-sort the rows are still the previous board's order and the comparison is meaningless.
+**11a. Run `Draft Board ▸ Full rebuild (from Data.gs)` as well.** Not optional, and the reason
+is narrow: the Settings tracker block — `k`, `w`, `K` and the **D-on-z slope** — is written only
+by `writeSettingsSkeleton`, which `refreshData` never calls. Those slopes move whenever the
+projections move, so after a refresh alone the block still records the *previous* build and step
+12 fails on eight cells with everything else agreeing. First seen on 2026-10-01, where the sheet's
+column E matched the superseded snapshot exactly.
+
+Safe when there is nothing to lose, which is the normal case: check the pull from step 8 for MINE
+and CMP ticks, Notes, XRank, and the eight `Punted` boxes, and restore them afterwards if any were
+set. `Step 1 — Settings only` would write the same block and must still never be used — it
+recreates the tab and leaves `TIER` and `RND` as `#REF!` on all 200 rows.
+
+**12. Verify the local engine against the sheet.** Required, and only after steps 11 and 11a —
+before the re-sort the rows are still the previous board's order and the comparison is meaningless.
 
 ```bash
 python3 scripts/draft-board/pull_sheet.py

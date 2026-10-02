@@ -123,6 +123,24 @@ Left unidentified deliberately. The board never reads that column — `verify.py
 `Value` (→ ZSC) and `DUR H2H` (→ DURH), and the board's three values are DURH, ZSH and ZSC. Worth
 revisiting only if a future column needs it.
 
+### A refresh alone cannot pass step 12
+
+Found while deploying this fix, and unrelated to it. `verify.py --local` failed on eight cells —
+the Settings tracker block's **D-on-z slope**, `E16:E23` — with all 15,594 Draft Board cells, the
+tracker, the punts and the Settings inputs agreeing. The sheet's eight values matched the
+2026-09-12 snapshot *exactly*: they were stale, not wrong.
+
+`writeSettingsSkeleton` is the only thing that writes that block, and only `buildDraftBoard`
+(Full rebuild) and `step1_Settings` call it. `refreshData` does not. Since those slopes move
+whenever the projections move, the documented procedure — step 8 `Refresh data`, step 11
+`Rebuild & re-sort`, step 12 `verify --local` with "exit 0 is the pass" — could never pass on a
+refresh that moved them. The 2026-09-12 deploy must have ended in a full rebuild.
+
+Worked around for now by adding **step 11a** to the procedure: run `Full rebuild (from Data.gs)`
+before verifying. The better fix is to have `refreshData` rewrite those eight cells, which would
+let a refresh stand on its own; it is a `Build.gs` change, so it needs a `Code.gs` redeploy and it
+moves the `rebuild` fingerprint hash, which pulls in the tick scenario.
+
 ### The first scrape of a source can come back truncated
 
 On this refresh the first pull returned **152** rows for BMP and **147** for BMP-ALT, against 234 on
