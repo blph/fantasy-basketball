@@ -33,7 +33,7 @@ import board_settings as BSET  # noqa: E402
 import board_snapshot as BS  # noqa: E402
 import board_values as BV  # noqa: E402
 import sources as S  # noqa: E402
-from bbm_reference import H2H_WEIGHTS, LAMBDAS_BBM_2026_27_JOSH, per_game  # noqa: E402
+from bbm_reference import H2H_WEIGHTS, LAMBDAS_BBM_2026_27_JOSH_Z, per_game  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "data" / "player_data"
@@ -232,7 +232,7 @@ def score(board: list[dict], vendors: dict[str, dict],
 
     hbp_rates = {r["key"]: dict(r["rates"]) for r in board}
     out["HBP"] = BV.score_source(hbp_rates, Q)
-    out["HBP"]["lambdas"] = dict(LAMBDAS_BBM_2026_27_JOSH)
+    out["HBP"]["lambdas"] = dict(LAMBDAS_BBM_2026_27_JOSH_Z)
     out["HBP"]["by_row"] = [out["HBP"]["players"][r["key"]] for r in board]
     rerank(out["HBP"]["by_row"])
 

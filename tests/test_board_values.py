@@ -128,7 +128,8 @@ class TestZsh:
         # second opinion, and shipping both would be pointless.
         pool = spread(60)
         _, zp = B.build_z_h2h_pool(pool, 30)
-        _, dp = B.build_durant_pool(pool, 30, B.LAMBDAS_BBM_2026_27_JOSH)
+        _, _plain = B.build_pool(pool, 30)
+        _, dp = B.build_durant_pool(pool, 30, B.LAMBDAS_BBM_2026_27_JOSH_Z, _plain)
         differ = sum(B.z_h2h(r, zp)[1] != B.durant_h2h(r, dp)[1] for r in pool.values())
         assert differ > 0
 
@@ -138,7 +139,8 @@ class TestPools:
         pool = spread(60)
         zsc, _ = B.build_pool(pool, 30)
         zsh, _ = B.build_z_h2h_pool(pool, 30)
-        dur, _ = B.build_durant_pool(pool, 30, B.LAMBDAS_BBM_2026_27_JOSH)
+        _, _plain = B.build_pool(pool, 30)
+        dur, _ = B.build_durant_pool(pool, 30, B.LAMBDAS_BBM_2026_27_JOSH_Z, _plain)
         assert len(zsc) == len(zsh) == len(dur) == 30
         # They rank a different order, so at least one pair selects a different top-30.
         assert {tuple(sorted(zsc)), tuple(sorted(zsh)), tuple(sorted(dur))}
@@ -197,20 +199,32 @@ class TestScoreSource:
         assert all(math.isfinite(p["durh"]) for p in res["players"].values())
 
 
-def borrowed_from(pool, q, *, shift=0.0, stretch=1.0):
+def borrowed_from(pool, q, *, shift=0.0, stretch=1.0, stretch_durant=None):
     """A `params` mapping in the shape `bbm_constants.load` returns.
 
     With the defaults it is exactly the pool's own constants, which is what the identity
     test needs. `shift` and `stretch` perturb it into constants no pool of this projection
     set produces -- the situation Basketball Monster actually puts us in.
+
+    `stretch_durant` stretches the DURANT block alone, leaving the plain block as the pool's
+    own. That is a state the real loader can produce -- the two blocks' SDs are independent
+    numbers on disk -- and it is the one that isolates the DURANT pool from the z feeding it.
     """
-    _, plain = B.build_pool(pool, q)
-    _, dur = B.build_durant_pool(pool, q, B.LAMBDAS_BBM_2026_27_JOSH)
-    if shift or stretch != 1.0:
-        for block in (plain, dur):
+    def perturb(block, f):
+        if shift or f != 1.0:
             for spec in block.values():
                 spec["mean"] += shift * spec["sd"]
-                spec["sd"] *= stretch
+                spec["sd"] *= f
+
+    _, plain = B.build_pool(pool, q)
+    # Perturb the plain block before the DURANT block is built from it. Since ADR-0029 the
+    # DURANT layer standardises the plain z and carries a copy of the plain constants, and
+    # `bbm_constants.parse` always copies them across -- so a fixture that perturbed the two
+    # independently would hand `score_source` a file the loader cannot produce, with the two
+    # blocks describing different z-scores.
+    perturb(plain, stretch)
+    _, dur = B.build_durant_pool(pool, q, B.LAMBDAS_BBM_2026_27_JOSH_Z, plain)
+    perturb(dur, stretch if stretch_durant is None else stretch_durant)
     return {"plain": plain, "durant": dur}
 
 
@@ -261,11 +275,43 @@ class TestBorrowedConstants:
         # Borrowed constants stretched 8% wider than the pool's own should report roughly
         # -7.4% -- our SD is 1/1.08 of theirs. This number is the only thing on Settings
         # that can reveal a stale or bad calibration, so it has to be right.
-        pool = spread(60)
-        res = BV.score_source(pool, 30, params=borrowed_from(pool, 30, stretch=1.08))
+        #
+        # Stretched on the DURANT block alone, because since ADR-0029 that is the block this
+        # row describes. The z it transforms comes from the plain block, which `_derived_delta`
+        # holds fixed at the borrowed value precisely so this number measures one thing.
+        #
+        # At a realistic pool size the figure is exact. It is not at a small one: the borrowed
+        # path picks its pool in one pass from the borrowed constants rather than iterating to
+        # a fixed point, and on 30 players a one-player disagreement moves a transformed
+        # column's SD by up to three points. Q is 156 in production, so this uses 120.
+        pool = spread(240)
+        res = BV.score_source(pool, 120,
+                              params=borrowed_from(pool, 120, stretch_durant=1.08))
         delta = res["pools"]["durant"]["derived_delta"]
         for c in B.CATEGORIES:
             assert delta[c]["sd"] == pytest.approx(100 * (1 / 1.08 - 1), abs=0.5)
+
+    def test_the_plain_rows_drift_is_unaffected_by_the_durant_nesting(self):
+        # The plain block is not nested inside anything, so its row reports the stretch
+        # exactly. Keeping the two rows separate is what lets a reader attribute a gap.
+        pool = spread(240)
+        res = BV.score_source(pool, 120, params=borrowed_from(pool, 120, stretch=1.08))
+        for c in B.CATEGORIES:
+            assert res["pools"]["zsc"]["derived_delta"][c]["sd"] == pytest.approx(
+                100 * (1 / 1.08 - 1), abs=0.5)
+
+    def test_stretching_both_blocks_does_not_compound_in_the_durant_row(self):
+        # Worth pinning, because the nesting makes compounding the intuitive guess: a wider
+        # plain SD shrinks the z the transform sees, so it looks as though the stretch should
+        # reach this row twice. It does not, and `_derived_delta` passing the BORROWED plain
+        # is why -- both sides then build the same z, leaving the ratio at 1/f whatever the
+        # plain block did. The slack here over the test above is pool selection, which the
+        # plain stretch also perturbs.
+        pool = spread(240)
+        res = BV.score_source(pool, 120, params=borrowed_from(pool, 120, stretch=1.08))
+        for c in B.CATEGORIES:
+            assert res["pools"]["durant"]["derived_delta"][c]["sd"] == pytest.approx(
+                100 * (1 / 1.08 - 1), abs=1.0)
 
     def test_a_derived_run_reports_no_drift_because_there_is_nothing_to_compare(self):
         assert "derived_delta" not in BV.score_source(spread(40), 20)["pools"]["zsc"]
@@ -291,14 +337,16 @@ class TestPuntBuilds:
         # the top Q, which changes every mean and SD -- so a punt moves the whole field,
         # not one column. The old board subtracted after the fact and kept the pool fixed.
         pool = spread(60)
-        base, _ = B.build_durant_pool(pool, 30, B.LAMBDAS_BBM_2026_27_JOSH)
+        _, _plain = B.build_pool(pool, 30)
+        base, _ = B.build_durant_pool(pool, 30, B.LAMBDAS_BBM_2026_27_JOSH_Z, _plain)
         punted = BV.durant_h2h_punt(pool, 30, ("ft%V",), 0.25)
         after = sorted(punted, key=lambda k: -punted[k])[:30]
         assert sorted(after) != sorted(base)
 
     def test_a_punt_weight_of_one_reproduces_the_unpunted_value(self):
         pool = spread(40)
-        _, params = B.build_durant_pool(pool, 20, B.LAMBDAS_BBM_2026_27_JOSH)
+        _, _plain = B.build_pool(pool, 20)
+        _, params = B.build_durant_pool(pool, 20, B.LAMBDAS_BBM_2026_27_JOSH_Z, _plain)
         unpunted = {k: B.durant_h2h(r, params)[0] for k, r in pool.items()}
         same = BV.durant_h2h_punt(pool, 20, ("ft%V",), 1.0)
         for k in pool:

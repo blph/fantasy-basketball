@@ -51,7 +51,7 @@ import sources as S  # noqa: E402
 from bbm_reference import (  # noqa: E402
     CATEGORIES,
     COUNTING,
-    LAMBDAS_BBM_2026_27_JOSH,
+    LAMBDAS_BBM_2026_27_JOSH_Z,
     PERCENTAGE,
     build_durant_pool,
     build_pool,
@@ -87,14 +87,21 @@ Q = BSET.Q
 
 #: Refuse to write a fit worse than this. These are TOLERANCES, not measurements: they sit
 #: well above the two-decimal display floor a clean fit lands on (~0.004) and well below
-#: anything a truncated or misjoined scrape produces. The DURANT percentage gate is loose
-#: deliberately -- their percentage input is a known unresolved item (doc III.1) and must
-#: never block a refresh.
+#: anything a truncated or misjoined scrape produces.
+#:
+#: Both DURANT gates tightened with ADR-0029, which is the point of the exercise: the loose
+#: 0.030 counting gate is what let their change of composition order register as a bare
+#: failure rather than an obvious one, and the 0.050 percentage gate existed only to keep the
+#: unresolved doc-III.1 residual from blocking a refresh. That residual is resolved, so the
+#: allowance is withdrawn. On 2026-10-01 the worst of the nine is steals at 0.015 -- it
+#: inherits the plain layer's own 0.013 -- so 0.025 leaves real headroom while still catching
+#: a return to the old order, which lands at 0.027 to 0.039 on five of seven counting
+#: categories.
 GATES = {
     ("plain", "counting"): 0.020,
     ("plain", "percentage"): 0.030,
-    ("durant", "counting"): 0.030,
-    ("durant", "percentage"): 0.050,
+    ("durant", "counting"): 0.025,
+    ("durant", "percentage"): 0.030,
 }
 
 #: Smallest scrape worth fitting. Below this a three-parameter fit still succeeds and still
@@ -452,9 +459,22 @@ def fit_counting_plain(cat: str, xs: list[float], ys: list[float]) -> dict:
     return {"mean": -icpt / slope, "sd": sd, "rmse": rmse, "max_resid": mx}
 
 
-def fit_counting_durant(cat: str, xs: list[float], ys: list[float], seed: float,
-                        span: float = 0.5) -> dict:
-    """Fit lambda and the constants together: z = sign * (YJ(x, lam) - mean) / sd.
+def fit_durant(cat: str, zs: list[float], ys: list[float], seed: float,
+               span: float = 0.5) -> dict:
+    """Fit lambda and the constants on the standardised z: value = (YJ(z, lam) - mean) / sd.
+
+    `zs` is the plain layer's signed z, so turnovers arrive already inverted and no sign is
+    applied again here -- which is why the recovered slope must be positive for all nine, and
+    is checked rather than assumed. This is the composition Basketball Monster switched to on
+    2026-10-01 (ADR-0029); before that the transform took the raw per-game stat and the sign
+    came out of the standardisation, as `fit_counting_plain` still does.
+
+    One fitter now covers all nine categories. The percentages used to need a second,
+    two-dimensional search over `(rate, lambda)` jointly, because transforming the impact
+    left the pool rate unidentified by any linear fit. Reading the plain z instead means the
+    rate is already measured, by the plain layer, so the percentages reduce to this same
+    one-dimensional search -- and the residual they used to carry (doc III.1, MAE 0.034 and
+    0.027) collapses to about 0.012 with it.
 
     The objective is the residual against THEIR published column, not maximum likelihood.
     That distinction is the point -- MLE on the same pool gives +0.065 for points against
@@ -466,7 +486,7 @@ def fit_counting_durant(cat: str, xs: list[float], ys: list[float], seed: float,
     being assumed.
     """
     def objective(lam):
-        (slope, icpt), rmse, mx = _fit([[yeo_johnson(x, lam) for x in xs]], ys)
+        (slope, icpt), rmse, mx = _fit([[yeo_johnson(z, lam) for z in zs]], ys)
         if abs(slope) < 1e-12:
             return None, None
         return rmse, (slope, icpt, mx)
@@ -487,9 +507,13 @@ def fit_counting_durant(cat: str, xs: list[float], ys: list[float], seed: float,
             f"after widening, so it is a bracket artefact rather than a measurement."
         )
     slope, icpt, mx = payload
-    sd = SIGN[cat] / slope
-    if sd <= 0:
-        raise CalibrationError(f"{cat}: recovered sd={sd:.4f} on the DURANT layer")
+    if slope <= 0:
+        raise CalibrationError(
+            f"{cat}: recovered slope={slope:.4f} on the DURANT layer. The z handed to the "
+            f"transform is already signed, so their column must increase with it; a negative "
+            f"slope means the sign was applied twice or the wrong column was read."
+        )
+    sd = 1 / slope
     return {"mean": -icpt / slope, "sd": sd, "lam": point[0], "rmse": rmse, "max_resid": mx}
 
 
@@ -512,53 +536,6 @@ def fit_pct_plain(cat: str, made: list[float], att: list[float], ys: list[float]
     if sd <= 0:
         raise CalibrationError(f"{cat}: recovered sd={sd:.4f}")
     return {"mean": -c / a, "sd": sd, "rate": -b / a, "rmse": rmse, "max_resid": mx}
-
-
-def fit_pct_durant(cat: str, made: list[float], att: list[float], ys: list[float],
-                   rate_seed: float, lam_seed: float) -> dict:
-    """The impact is transformed, so the rate no longer falls out of a linear fit.
-
-    Search the rate and lambda together, then solve the linear part exactly. The rate
-    bracket is centred on the rate the plain-z fit already recovered from the same data --
-    derived, not typed -- because the two layers use rates that are close but, on their
-    numbers, not equal.
-
-    Their percentage input is not quite our impact column: the Spearman against it is 0.998
-    rather than 1.0 (doc III.1). So this residual stays above the display floor whatever is
-    fitted. That is a known open item, not a failure of the search.
-    """
-    r_span, l_span = 0.10, 0.5
-    for attempt in range(2):
-        rlo, rhi = rate_seed - r_span, rate_seed + r_span
-        llo = max(-BC.LAM_LIMIT, lam_seed - l_span)
-        lhi = min(BC.LAM_LIMIT, lam_seed + l_span)
-
-        def objective(rate, lam):
-            xs = [yeo_johnson(made[i] - att[i] * rate, lam) for i in range(len(ys))]
-            (a, b), rmse, mx = _fit([xs], ys)
-            if abs(a) < 1e-12:
-                return None, None
-            return rmse, (a, b, mx)
-
-        point, rmse, payload = _refine([(rlo, rhi), (llo, lhi)], objective)
-        if point is None:
-            raise CalibrationError(f"{cat}: no usable (rate, lambda) pair")
-        edge = _near(point[0], rlo, rhi) or _near(point[1], llo, lhi)
-        if not edge or attempt:
-            break
-        r_span, l_span = r_span * 3, l_span * 3
-
-    if edge:
-        raise CalibrationError(
-            f"{cat}: (rate {point[0]:.4f}, lambda {point[1]:.4f}) sits on the edge of its "
-            f"search bracket even after widening -- a bracket artefact, not a measurement."
-        )
-    a, b, mx = payload
-    sd = 1 / a
-    if sd <= 0:
-        raise CalibrationError(f"{cat}: recovered sd={sd:.4f} on the DURANT layer")
-    return {"mean": -b / a, "sd": sd, "rate": point[0], "lam": point[1],
-            "rmse": rmse, "max_resid": mx}
 
 
 # --------------------------------------------------------------------------------------
@@ -608,27 +585,44 @@ def consistent_players(rates: dict, published: dict, keys: list) -> tuple[list, 
 
 def calibrate(rates: dict, published: dict, keys: list,
               seeds: dict) -> tuple[dict, dict, dict]:
-    """Fit both layers over `keys`. Returns (params, lambdas, fit report)."""
+    """Fit both layers over `keys`. Returns (params, lambdas, fit report).
+
+    The plain layer is fitted first and the DURANT layer is fitted **on top of it**, because
+    since 2026-10-01 their DURANT column transforms the standardised z rather than the raw
+    stat (ADR-0029). The z fed to the transform is rebuilt from our own stat lines and the
+    mean/SD just recovered -- not read from their published z column -- so that the fit and
+    the pipeline compose the layers identically. Fitting against their z instead scores about
+    0.004 everywhere and would be reporting an accuracy the board cannot reproduce.
+
+    One consequence worth naming: the DURANT layer now inherits the plain layer's residual.
+    Points and assists, whose plain fit lands near 0.0035, come out near 0.0037; steals,
+    whose plain fit is 0.013, comes out near 0.015.
+    """
     plain, durant, lambdas, report = {}, {}, {}, {"plain": {}, "durant": {}}
 
     for cat in CATEGORIES:
         yp = [published[k][PLAIN_COL[cat]] for k in keys]
-        yd = [published[k][DURANT_COL[cat]] for k in keys]
         if KIND[cat] == "counting":
             xs = [rates[k][STAT_KEY[cat]] for k in keys]
             p = fit_counting_plain(cat, xs, yp)
-            d = fit_counting_durant(cat, xs, yd, seeds[cat])
             plain[cat] = {"kind": "counting", "mean": p["mean"], "sd": p["sd"]}
+            raw = xs
         else:
             mk, ak = PCT_KEYS[cat]
             made = [rates[k][mk] for k in keys]
             att = [rates[k][ak] for k in keys]
             p = fit_pct_plain(cat, made, att, yp)
-            d = fit_pct_durant(cat, made, att, yd, p["rate"], seeds[cat])
             plain[cat] = {"kind": "percentage", "mean": p["mean"], "sd": p["sd"],
                           "rate": p["rate"]}
-        durant[cat] = {k: v for k, v in d.items() if k in ("mean", "sd", "rate")}
-        durant[cat]["kind"] = KIND[cat]
+            raw = [made[i] - att[i] * p["rate"] for i in range(len(keys))]
+
+        # The sign goes on once, here, so the transform sees a column where more is better.
+        sign = SIGN.get(cat, +1)
+        zs = [sign * (r - p["mean"]) / p["sd"] for r in raw]
+        yd = [published[k][DURANT_COL[cat]] for k in keys]
+        d = fit_durant(cat, zs, yd, seeds[cat])
+
+        durant[cat] = {"kind": KIND[cat], "mean": d["mean"], "sd": d["sd"]}
         lambdas[cat] = d["lam"]
         for layer, fit in (("plain", p), ("durant", d)):
             report[layer][cat] = {"rmse": round(fit["rmse"], 5),
@@ -666,7 +660,7 @@ def derived_gap(rates: dict, params: dict, lambdas: dict) -> dict:
     if len(rates) <= Q:
         return {}
     _, ours_plain = build_pool(rates, Q)
-    _, ours_dur = build_durant_pool(rates, Q, lambdas)
+    _, ours_dur = build_durant_pool(rates, Q, lambdas, ours_plain)
     out = {}
     for layer, ours in (("plain", ours_plain), ("durant", ours_dur)):
         out[layer] = {}
@@ -821,8 +815,8 @@ def main() -> int:
         if len(rejected) > 10:
             print(f"    ... and {len(rejected) - 10} more")
 
-    params, lambdas, fit = calibrate(rates, published, kept, LAMBDAS_BBM_2026_27_JOSH)
-    report_table(params, lambdas, LAMBDAS_BBM_2026_27_JOSH, fit,
+    params, lambdas, fit = calibrate(rates, published, kept, LAMBDAS_BBM_2026_27_JOSH_Z)
+    report_table(params, lambdas, LAMBDAS_BBM_2026_27_JOSH_Z, fit,
                  derived_gap(rates, params, lambdas))
 
     failures = check_gates(fit, args.force)

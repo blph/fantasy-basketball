@@ -29,13 +29,13 @@ def write_constants(directory, label, date, rates, q=20, shift=0.0, stretch=1.0)
     Nothing here is Basketball Monster's; see ADR-0006.
     """
     _, plain = B.build_pool(rates, q)
-    _, durant = B.build_durant_pool(rates, q, B.LAMBDAS_BBM_2026_27_JOSH)
+    _, durant = B.build_durant_pool(rates, q, B.LAMBDAS_BBM_2026_27_JOSH_Z, plain)
     for block in (plain, durant):
         for spec in block.values():
             spec["mean"] += shift * spec["sd"]
             spec["sd"] *= stretch
     blob = BC.dump(
-        {"plain": plain, "durant": durant}, dict(B.LAMBDAS_BBM_2026_27_JOSH),
+        {"plain": plain, "durant": durant}, dict(B.LAMBDAS_BBM_2026_27_JOSH_Z),
         source=label, export_date=date, bbm_source_id=0,
         fitted_at="2026-01-01T00:00:00Z", fitted_from="synthetic",
         players_fitted=len(rates), fit={},

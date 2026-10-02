@@ -213,7 +213,8 @@ def _durant_pool(n=40):
 
 def test_durant_drops_the_players_own_worst_category():
     players = _durant_pool()
-    pool, params = B.build_durant_pool(players, 20, B.LAMBDAS_BBM_2026_27_JOSH)
+    _, _plain = B.build_pool(players, 20)
+    pool, params = B.build_durant_pool(players, 20, B.LAMBDAS_BBM_2026_27_JOSH_Z, _plain)
     for key in list(players)[:5]:
         vals = B.durant_category_values(players[key], params)
         score, dropped = B.durant(players[key], params)
@@ -224,7 +225,8 @@ def test_durant_drops_the_players_own_worst_category():
 
 def test_durant_h2h_zeroes_turnovers_and_averages_seven():
     players = _durant_pool()
-    pool, params = B.build_durant_pool(players, 20, B.LAMBDAS_BBM_2026_27_JOSH)
+    _, _plain = B.build_pool(players, 20)
+    pool, params = B.build_durant_pool(players, 20, B.LAMBDAS_BBM_2026_27_JOSH_Z, _plain)
     key = list(players)[3]
     score, dropped = B.durant_h2h(players[key], params)
     assert dropped != "toV"                          # turnovers never the named drop
@@ -234,6 +236,83 @@ def test_durant_h2h_zeroes_turnovers_and_averages_seven():
     kept = [weighted[c] for c in live if c != dropped]
     assert len(kept) == 7
     assert score == pytest.approx(sum(kept) / 7)
+
+
+def test_durant_standardises_before_it_transforms():
+    # ADR-0029, and the thing most worth pinning: Basketball Monster transformed the raw
+    # per-game stat until 2026-09-12 and transforms the standardised z since 2026-10-01.
+    # Yeo-Johnson is not affine, so the two orders genuinely disagree -- a revert would make
+    # every value on the board wrong by a few thousandths and nothing would error.
+    players = _durant_pool()
+    _, plain = B.build_pool(players, 20)
+    _, params = B.build_durant_pool(players, 20, B.LAMBDAS_BBM_2026_27_JOSH_Z, plain)
+    one = players["p7"]
+
+    got = B.durant_category_values(one, params)
+    # Only the categories `_durant_pool` actually varies; the rest have no spread to divide by.
+    for cat in ("pV", "3V", "aV", "bV", "toV"):
+        spec, pl = params[cat], plain[cat]
+        z = pl["sign"] * (one[pl["key"]] - pl["mean"]) / pl["sd"]
+        want = (B.yeo_johnson(z, spec["lam"]) - spec["mean"]) / spec["sd"]
+        assert got[cat] == pytest.approx(want, abs=1e-12)
+
+        # And the superseded order is a different number, not the same one by another route.
+        old = B.yeo_johnson(one[pl["key"]], spec["lam"])
+        assert got[cat] != pytest.approx((old - spec["mean"]) / spec["sd"], abs=1e-6)
+
+
+def test_the_two_orders_agree_only_where_lambda_is_one():
+    # Why threes was the one category that did not move when they switched. At lambda 1
+    # Yeo-Johnson is x + something, which IS affine, so standardising before or after lands
+    # in the same place; anywhere else it does not. This is the diagnostic that identified
+    # the change, kept as an executable statement of it.
+    players = _durant_pool()
+    _, plain = B.build_pool(players, 20)
+    xs = [p["points"] for p in players.values()]
+    pl = plain["pV"]
+    zs = [(x - pl["mean"]) / pl["sd"] for x in xs]
+
+    def standardise(vals):
+        m, s = sum(vals) / len(vals), st.pstdev(vals)
+        return [(v - m) / s for v in vals]
+
+    # lambda 1: transform-then-standardise and standardise-then-transform coincide.
+    assert standardise([B.yeo_johnson(x, 1.0) for x in xs]) == pytest.approx(
+        standardise([B.yeo_johnson(z, 1.0) for z in zs]), abs=1e-9)
+
+    # lambda 0.4: they do not.
+    a = standardise([B.yeo_johnson(x, 0.4) for x in xs])
+    b = standardise([B.yeo_johnson(z, 0.4) for z in zs])
+    assert max(abs(a[i] - b[i]) for i in range(len(a))) > 0.05
+
+
+def test_turnovers_reach_the_transform_already_inverted():
+    # The sign goes on the z, once, so the transform always sees a column where more is
+    # better. Applying it after the transform instead would put turnovers through the
+    # negative branch of Yeo-Johnson and silently reshape the one inverted category.
+    players = _durant_pool()
+    _, plain = B.build_pool(players, 20)
+    _, params = B.build_durant_pool(players, 20, B.LAMBDAS_BBM_2026_27_JOSH_Z, plain)
+    assert plain["toV"]["sign"] == -1
+
+    # p0 has the most turnovers of the pool and p19 the fewest, so toV must rank them
+    # fewest-first. The raw stat ranks them the other way.
+    vals = {k: B.durant_category_values(r, params)["toV"] for k, r in players.items()}
+    assert players["p0"]["turnovers"] > players["p19"]["turnovers"]
+    assert vals["p19"] > vals["p0"]
+
+
+def test_a_durant_spec_carries_the_plain_constants_it_standardised_with():
+    # So the block can be passed around on its own, as the punt path does, and so the
+    # loader can never hand out a DURANT block describing a different z from its plain one.
+    players = _durant_pool()
+    _, plain = B.build_pool(players, 20)
+    _, params = B.build_durant_pool(players, 20, B.LAMBDAS_BBM_2026_27_JOSH_Z, plain)
+    for cat in B.CATEGORIES:
+        assert params[cat]["z_mean"] == plain[cat]["mean"]
+        assert params[cat]["z_sd"] == plain[cat]["sd"]
+        if plain[cat]["kind"] == "percentage":
+            assert params[cat]["rate"] == plain[cat]["rate"]
 
 
 def test_h2h_weights_discount_the_right_categories():

@@ -30,24 +30,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 from bbm_reference import (  # noqa: E402
     CATEGORIES,
     COUNTING,
-    LAMBDAS_BBM_2026_27_JOSH,
+    LAMBDAS_BBM_2026_27_JOSH_Z,
     PERCENTAGE,
 )
 
 #: Bump when the file's shape changes. An old file is refused, not guessed at.
-SCHEMA = 1
+#:
+#: 2: the DURANT layer standardises before it transforms (ADR-0029), so its `mean` and `sd`
+#:    describe the transformed *z* rather than the transformed raw stat, and its percentage
+#:    entries no longer carry a `rate` -- the impact is the plain layer's. A schema-1 file
+#:    has the same fields holding incompatible numbers, which is exactly the failure this
+#:    field exists to stop: nothing downstream could see it.
+SCHEMA = 2
 
 #: Yeo-Johnson's search domain. A lambda outside it is a broken fit, not a finding.
 LAM_LIMIT = 4.0
 
-#: How far a refitted counting-category lambda may drift from the seed before it is worth
-#: mentioning. A warning, never an error: Basketball Monster moving their lambdas is the
-#: thing this whole design exists to absorb, so it must not be able to block a refresh.
+#: How far a refitted lambda may drift from the seed before it is worth mentioning. A
+#: warning, never an error: Basketball Monster moving their lambdas is the thing this whole
+#: design exists to absorb, so it must not be able to block a refresh.
 #:
-#: Only the counting categories are checked. The two percentage lambdas are fitted jointly
-#: with the pool rate and trade off against it along a ridge, so they wander between
-#: refreshes without meaning anything (doc III.1). Alarming on them every time would teach
-#: the reader to skip the alarm, which is worse than not having one.
+#: All nine are checked since ADR-0029. Previously the two percentage lambdas were exempt
+#: because they were fitted jointly with a DURANT pool rate and traded off against it along
+#: a ridge, wandering between refreshes without meaning anything. That rate is gone -- the
+#: layer reads the plain z, so the impact is measured once, in the plain layer -- and the
+#: percentage lambdas are now identified exactly as the counting ones are.
 LAM_DRIFT_WARN = 0.05
 
 _LAYER_KEYS = ("plain", "durant")
@@ -57,13 +64,13 @@ class ConstantsError(Exception):
     """A fitted-constants file is not usable for the build being run."""
 
 
-def _spec(name: str, entry: dict, layer: str, lam: float) -> dict:
-    """One category's params, with the structural fields rebuilt rather than read."""
+def _plain_spec(name: str, entry: dict) -> dict:
+    """One category's plain-z params, with the structural fields rebuilt rather than read."""
     for key, cat, sign in COUNTING:
         if cat == name:
             if "rate" in entry:
                 raise ConstantsError(
-                    f"{layer}.{name}: counting categories carry no 'rate'. A rate here means "
+                    f"plain.{name}: counting categories carry no 'rate'. A rate here means "
                     f"the file was written against a different category table."
                 )
             out = {"kind": "counting", "key": key, "sign": sign,
@@ -74,7 +81,7 @@ def _spec(name: str, entry: dict, layer: str, lam: float) -> dict:
             if cat == name:
                 if "rate" not in entry:
                     raise ConstantsError(
-                        f"{layer}.{name}: percentage categories need a pool 'rate'. Without it "
+                        f"plain.{name}: percentage categories need a pool 'rate'. Without it "
                         f"the impact column is measured against nothing."
                     )
                 out = {"kind": "percentage", "made": made, "att": att, "sign": +1,
@@ -82,16 +89,39 @@ def _spec(name: str, entry: dict, layer: str, lam: float) -> dict:
                        "mean": float(entry["mean"]), "sd": float(entry["sd"])}
                 break
         else:  # pragma: no cover - CATEGORIES is COUNTING + PERCENTAGE by construction
-            raise ConstantsError(f"{layer}.{name}: not a known category")
+            raise ConstantsError(f"plain.{name}: not a known category")
+    _check_sd("plain", name, out["sd"])
+    return out
 
-    if out["sd"] <= 0:
+
+def _durant_spec(name: str, entry: dict, plain: dict, lam: float) -> dict:
+    """One category's DURANT params, assembled on top of the plain block.
+
+    Since ADR-0029 the layer standardises before it transforms, so what it needs from disk
+    is only its own mean and SD over the transformed z. Everything describing the *input* --
+    the stat key, the sign, and a percentage's pool rate -- belongs to the plain layer and
+    is carried over from there rather than stored twice. A rate in a DURANT entry means a
+    schema-1 file whose `schema` was edited rather than refitted.
+    """
+    if "rate" in entry:
         raise ConstantsError(
-            f"{layer}.{name}: sd={out['sd']}. A non-positive spread cannot standardise "
+            f"durant.{name}: carries a 'rate'. Since the layer reads the plain z, the "
+            f"impact is the plain layer's and the DURANT rate is gone. Refit."
+        )
+    out = dict(plain)
+    out["z_mean"], out["z_sd"] = plain["mean"], plain["sd"]
+    out["mean"], out["sd"] = float(entry["mean"]), float(entry["sd"])
+    out["lam"] = lam
+    _check_sd("durant", name, out["sd"])
+    return out
+
+
+def _check_sd(layer: str, name: str, sd: float) -> None:
+    if sd <= 0:
+        raise ConstantsError(
+            f"{layer}.{name}: sd={sd}. A non-positive spread cannot standardise "
             f"anything; the fit failed and the file should not have been written."
         )
-    if layer == "durant":
-        out["lam"] = lam
-    return out
 
 
 def parse(blob: dict, *, source: str, export_date: str) -> dict:
@@ -128,17 +158,16 @@ def parse(blob: dict, *, source: str, export_date: str) -> dict:
                 f"domain, so it is a broken fit rather than a measurement."
             )
 
-    counting = {c for _, c, _ in COUNTING}
     warnings = []
-    for c in sorted(counting):
-        lam, seed = lambdas[c], LAMBDAS_BBM_2026_27_JOSH[c]
+    for c in sorted(CATEGORIES):
+        lam, seed = lambdas[c], LAMBDAS_BBM_2026_27_JOSH_Z[c]
         if abs(lam - seed) > LAM_DRIFT_WARN:
             warnings.append(
                 f"lambda {c} refitted to {lam:+.4f}, {lam - seed:+.4f} from the "
                 f"{seed:+.4f} seed -- Basketball Monster may have retuned their transform"
             )
 
-    params = {}
+    blocks = {}
     for layer in _LAYER_KEYS:
         block = blob.get(layer)
         if not isinstance(block, dict):
@@ -149,9 +178,14 @@ def parse(blob: dict, *, source: str, export_date: str) -> dict:
                 f"{layer}: missing {', '.join(sorted(missing))}. All nine are required -- "
                 f"ZSC averages nine even though the board displays eight."
             )
-        params[layer] = {
-            c: _spec(c, block[c], layer, lambdas[c]) for c in CATEGORIES
-        }
+        blocks[layer] = block
+
+    # Plain first: the DURANT layer is built on top of it, not beside it.
+    params = {"plain": {c: _plain_spec(c, blocks["plain"][c]) for c in CATEGORIES}}
+    params["durant"] = {
+        c: _durant_spec(c, blocks["durant"][c], params["plain"][c], lambdas[c])
+        for c in CATEGORIES
+    }
 
     return {
         "plain": params["plain"],
@@ -191,12 +225,14 @@ def dump(params: dict, lambdas: dict, *, source: str, export_date: str,
     Writes only the fitted numbers. The structural fields (`kind`, `key`, `sign`) are the
     reader's to rebuild, so the file cannot carry a contradiction of the category table.
     """
-    def strip(block):
+    def strip(block, *, with_rate):
         out = {}
         for c in CATEGORIES:
             spec = block[c]
             entry = {"mean": round(spec["mean"], 8), "sd": round(spec["sd"], 8)}
-            if spec["kind"] == "percentage":
+            # Only the plain layer owns a pool rate. The DURANT layer reads the plain z, so
+            # the impact is already measured by the time it sees anything (ADR-0029).
+            if with_rate and spec["kind"] == "percentage":
                 entry["rate"] = round(spec["rate"], 8)
             out[c] = entry
         return out
@@ -210,8 +246,8 @@ def dump(params: dict, lambdas: dict, *, source: str, export_date: str,
         "fitted_from": fitted_from,
         "players_fitted": players_fitted,
         "lambdas": {c: round(lambdas[c], 6) for c in CATEGORIES},
-        "lambda_seed": dict(lambda_seed or LAMBDAS_BBM_2026_27_JOSH),
-        "plain": strip(params["plain"]),
-        "durant": strip(params["durant"]),
+        "lambda_seed": dict(lambda_seed or LAMBDAS_BBM_2026_27_JOSH_Z),
+        "plain": strip(params["plain"], with_rate=True),
+        "durant": strip(params["durant"], with_rate=False),
         "fit": fit,
     }

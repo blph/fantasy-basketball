@@ -31,7 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "bbm"))
 from bbm_reference import (  # noqa: E402
     CATEGORIES,
     H2H_WEIGHTS,
-    LAMBDAS_BBM_2026_27_JOSH,
+    LAMBDAS_BBM_2026_27_JOSH_Z,
     build_durant_pool,
     build_pool,
     build_z_h2h_pool,
@@ -122,7 +122,7 @@ def score_source(rates: dict, q: int, lambdas=None, weights=None, params=None) -
     Note that ZSC and ZSH share the borrowed plain-z block. They select different top-Qs,
     but a pool no longer determines a constant, so the two report the same numbers.
     """
-    lambdas = lambdas or LAMBDAS_BBM_2026_27_JOSH
+    lambdas = lambdas or LAMBDAS_BBM_2026_27_JOSH_Z
     weights = weights or H2H_WEIGHTS
     seed = _seed(rates)
 
@@ -130,7 +130,10 @@ def score_source(rates: dict, q: int, lambdas=None, weights=None, params=None) -
         basis = "derived"
         zsc_pool, zsc_params = build_pool(rates, q, seed_order=seed)
         zsh_pool, zsh_params = build_z_h2h_pool(rates, q, weights, seed_order=seed)
-        dur_pool, dur_params = build_durant_pool(rates, q, lambdas, seed_order=seed)
+        # The DURANT layer standardises before it transforms (ADR-0029), so it reads the
+        # plain block. On the derived path that is the ZSC pool's -- the same z ZSC reports.
+        dur_pool, dur_params = build_durant_pool(rates, q, lambdas, zsc_params,
+                                                 seed_order=seed)
     else:
         basis = "borrowed"
         zsc_params = zsh_params = params["plain"]
@@ -171,7 +174,7 @@ def score_source(rates: dict, q: int, lambdas=None, weights=None, params=None) -
     if params is not None:
         pools["zsc"]["derived_delta"] = _derived_delta(zsc_pool, rates, zsc_params, None)
         pools["durant"]["derived_delta"] = _derived_delta(
-            dur_pool, rates, dur_params, lambdas)
+            dur_pool, rates, dur_params, lambdas, params["plain"])
 
     return {
         "players": players,
@@ -205,16 +208,22 @@ def _pool_report(pool: list, params: dict, rates: dict, basis: str = "derived") 
     return out
 
 
-def _derived_delta(pool: list, rates: dict, borrowed: dict, lambdas) -> dict:
+def _derived_delta(pool: list, rates: dict, borrowed: dict, lambdas, plain=None) -> dict:
     """Signed percent gap between what our own pool would say and what we borrowed.
 
     The bug ADR-0021 fixes, quantified and kept on screen. Around half a percent on the
     means and one to three on the SDs is the normal, expected disagreement -- it is why the
     constants are borrowed at all. Anything wilder means a bad scrape or a stale fit, and
     without this number that failure is invisible: every value still looks like a value.
+
+    On the DURANT layer `plain` is the **borrowed** plain block, deliberately. Since the layer
+    standardises before it transforms (ADR-0029), handing it our own plain constants would mix
+    two disagreements into one number and the reader could not tell which had moved. Holding
+    the z fixed leaves this measuring one thing: the pool the transformed column is averaged
+    over.
     """
     members = [rates[k] for k in pool]
-    ours = durant_params(members, lambdas) if lambdas else pool_params(members)
+    ours = durant_params(members, lambdas, plain) if lambdas else pool_params(members)
     out = {}
     for c in CATEGORIES:
         row = {}
@@ -256,7 +265,7 @@ def durant_h2h_punt(rates: dict, q: int, drop: tuple[str, ...], punt_weight: flo
     that a punt weight of 1.0 reproduces the unpunted DURH would break, and the board's
     punt GAP column would be comparing two different bases while looking fine.
     """
-    lambdas = lambdas or LAMBDAS_BBM_2026_27_JOSH
+    lambdas = lambdas or LAMBDAS_BBM_2026_27_JOSH_Z
     weights = weights or H2H_WEIGHTS
     scale = {c: (punt_weight if c in drop else 1.0) for c in CATEGORIES}
 
@@ -269,19 +278,24 @@ def durant_h2h_punt(rates: dict, q: int, drop: tuple[str, ...], punt_weight: flo
         worst = min(CATEGORIES, key=lambda c: vals[c])
         return sum(vals[c] for c in CATEGORIES if c != worst) / (len(CATEGORIES) - 1)
 
-    def params_for(members):
-        return durant_params([rates[k] for k in members], lambdas)
+    def params_for(members, plain):
+        return durant_params([rates[k] for k in members], lambdas, plain)
 
     if params is None:
+        # The z the transform reads comes from the unpunted plain pool and is held fixed
+        # across the iteration. The punt scale applies to the standardised DURANT value, as
+        # the docstring above sets out, so it has no business moving the plain layer -- and
+        # if it did, a punt weight of 1.0 would stop reproducing the unpunted DURH.
+        _, plain = build_pool(rates, q, seed_order=_seed(rates))
         pool = _seed(rates)[:q]
         for _ in range(50):
-            current = params_for(pool)
+            current = params_for(pool, plain)
             scored = sorted(
                 rates, key=lambda k: (-durant_score(scaled(rates[k], current)), str(k)))
             if scored[:q] == pool:
                 break
             pool = scored[:q]
-        params = params_for(pool)
+        params = params_for(pool, plain)
 
     return {k: weighted_drop_one(scaled(r, params), weights)[0] for k, r in rates.items()}
 

@@ -21,9 +21,9 @@ def blob(**over):
     """A valid file, derived from a synthetic pool. Override a key to break one thing."""
     pool = spread(40)
     _, plain = B.build_pool(pool, 20)
-    _, durant = B.build_durant_pool(pool, 20, B.LAMBDAS_BBM_2026_27_JOSH)
+    _, durant = B.build_durant_pool(pool, 20, B.LAMBDAS_BBM_2026_27_JOSH_Z, plain)
     out = BC.dump(
-        {"plain": plain, "durant": durant}, dict(B.LAMBDAS_BBM_2026_27_JOSH),
+        {"plain": plain, "durant": durant}, dict(B.LAMBDAS_BBM_2026_27_JOSH_Z),
         source="BMP", export_date="2026-01-01", bbm_source_id=17329,
         fitted_at="2026-01-01T00:00:00Z", fitted_from="synthetic",
         players_fitted=40, fit={},
@@ -92,11 +92,21 @@ class TestShapeGates:
         with pytest.raises(BC.ConstantsError, match="need a pool 'rate'"):
             parse(b)
 
-    def test_a_counting_category_carrying_a_rate_is_refused(self):
+    def test_a_plain_counting_category_carrying_a_rate_is_refused(self):
         b = blob()
-        b["durant"]["pV"]["rate"] = 0.5
+        b["plain"]["pV"]["rate"] = 0.5
         with pytest.raises(BC.ConstantsError, match="carry no 'rate'"):
             parse(b)
+
+    def test_any_durant_category_carrying_a_rate_is_refused(self):
+        # Since ADR-0029 the layer reads the plain z, so the impact is measured once, in the
+        # plain layer. A rate in a DURANT entry is a schema-1 file whose `schema` was edited
+        # rather than refitted -- the one way a stale file could reach here looking valid.
+        for cat in ("pV", "fg%V"):
+            b = blob()
+            b["durant"][cat]["rate"] = 0.5
+            with pytest.raises(BC.ConstantsError, match="carries a 'rate'"):
+                parse(b)
 
     def test_a_missing_category_is_refused(self):
         # All nine, not the eight the board displays: ZSC averages nine.
@@ -135,16 +145,19 @@ class TestLambdaDrift:
         # Basketball Monster retuning their transform is the thing this design absorbs, so
         # it must be visible and must never block a refresh.
         b = blob()
-        b["lambdas"] = dict(b["lambdas"], bV=B.LAMBDAS_BBM_2026_27_JOSH["bV"] + 0.4)
+        b["lambdas"] = dict(b["lambdas"], bV=B.LAMBDAS_BBM_2026_27_JOSH_Z["bV"] + 0.4)
         got = parse(b)
         assert any("bV" in w for w in got["warnings"])
 
-    def test_a_moved_percentage_lambda_is_silent(self):
-        # They are fitted jointly with the pool rate and wander along a ridge without
-        # meaning anything. Alarming every refresh would teach the reader to skip the alarm.
+    def test_a_moved_percentage_lambda_now_warns_like_any_other(self):
+        # It used to be silent, and had to be: the percentage lambdas were fitted jointly with
+        # a DURANT pool rate and traded off against it along a ridge, so they wandered between
+        # refreshes without meaning anything. ADR-0029 removed that rate -- the layer reads the
+        # plain z, so the impact is measured once -- and the percentage lambdas are now
+        # identified exactly as the counting ones are. So they are worth hearing about.
         b = blob()
         b["lambdas"] = dict(b["lambdas"], **{"ft%V": 1.40})
-        assert parse(b)["warnings"] == []
+        assert any("ft%V" in w for w in parse(b)["warnings"])
 
 
 class TestLoad:
