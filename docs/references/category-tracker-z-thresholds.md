@@ -13,8 +13,10 @@ turnovers at zero, so a DH turnover column is identically 0.0 for every player a
 be thresholded. Eight rows, not nine.
 
 Everything else below stands as written: the derivation in §2, the `k` constants in §4,
-the percentage basis correction in §5, the win-rate targets in §6, and the five read states
-in §7.
+the percentage basis correction in §5, and the five read states in §7. The win-rate targets
+in §6 do not: [ADR-0023](../decisions/ADR-0023-win-rate-cutoffs-40-60.md) moved WEAK and
+STRONG to 40% and 60%, and BANKED stays at 75%. §6 and the §7 table keep the old numbers,
+because §6 is the argument that decision had to answer.
 
 Original scope note, preserved: the Category Tracker tab and its Settings constants. The
 valuation itself and the Draft Board ranking were untouched by *this* document — they moved
@@ -305,6 +307,12 @@ order. The slope table is printed by `verify.py` as the standing diagnostic.
 ---
 
 ## 6. Choosing the win-rate targets
+
+> **Status, 2026-09-12.** The board no longer uses 35% / 65%.
+> [ADR-0023](../decisions/ADR-0023-win-rate-cutoffs-40-60.md) set WEAK at 40% and STRONG at
+> 60%; BANKED stays at 75%. This section is unchanged. Its case for 35/65, that a category at
+> the ~60% target should read CONTESTED, is the cost ADR-0023 accepts, and the efficiency table
+> below is how ADR-0023 answers it.
 
 With `k` fixed, one number sets all nine thresholds: the win rate that counts as strong.
 That number should come from the playbook's own strategy, and it does.

@@ -298,3 +298,37 @@ class TestLoadInjuryRisk:
         p = self.write_risk(tmp_path, ["1,Ardent Bellweather,BOS,PG,,,"])
         with pytest.raises(S.SourceError, match="no player"):
             S.load_injury_risk(p)
+
+
+class TestLoadComments:
+    HEAD = "rank,last_name,first_name,team,positions,comment"
+
+    def _file(self, tmp_path, rows):
+        text = "\n".join([self.HEAD, *rows]) + "\n"
+        return write(tmp_path, "BMP Comments - 2026-01-01.csv", text)
+
+    def test_keys_on_the_normalised_name(self, tmp_path):
+        path = self._file(tmp_path, ['1,Aldaine Jr.,Quorin,BOS,PG,"Plays a lot, scores a bit."'])
+        assert S.load_comments(path) == {"quorinaldaine": "Plays a lot, scores a bit."}
+
+    def test_a_comment_that_would_parse_as_a_formula_gets_a_leading_space(self, tmp_path):
+        # Sheets stores a string beginning with = or + as a formula, whatever the format.
+        path = self._file(tmp_path, ["1,Aldaine,Quorin,BOS,PG,=up 3 spots",
+                                     "2,Brevick,Tamsin,BOS,PG,+minutes this year"])
+        got = S.load_comments(path)
+        assert got["quorinaldaine"] == " =up 3 spots"
+        assert got["tamsinbrevick"] == " +minutes this year"
+
+    def test_a_blank_comment_is_no_comment(self, tmp_path):
+        path = self._file(tmp_path, ["1,Aldaine,Quorin,BOS,PG,", "2,Brevick,Tamsin,BOS,PG,Fine."])
+        assert list(S.load_comments(path)) == ["tamsinbrevick"]
+
+    def test_two_players_on_one_key_is_an_error(self, tmp_path):
+        path = self._file(tmp_path, ["1,Aldaine,Quorin,BOS,PG,One.",
+                                     "2,Aldaine,Quorín,BOS,PG,Two."])
+        with pytest.raises(S.AmbiguousName):
+            S.load_comments(path)
+
+    def test_an_empty_file_is_an_error(self, tmp_path):
+        with pytest.raises(S.SourceError, match="no player carries a comment"):
+            S.load_comments(self._file(tmp_path, []))

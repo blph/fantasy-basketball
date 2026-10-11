@@ -12,3 +12,4 @@ Static HTML/CSS/JS. No build step, no dev server ([ADR-0001](../docs/decisions/A
 - **Read data only.** Apps never call a provider API and never recompute valuations at load time. Python precomputes marts; apps display them.
 - **Must work offline, opened directly from the filesystem.** Draft day has no tolerance for a failed build or a dead network.
 - Data reaches an app as a generated static JSON file exported by the Python layer, not a live query.
+- The local draft board's snapshot (`data/draft-board/board - <date>.json`, [ADR-0022](../docs/decisions/ADR-0022-local-draft-board.md)) is **not** that feed. It is the interim copy of the 2026-27 Google Sheet, shaped for `board.py`, and it retires with the sheet.

@@ -12,7 +12,12 @@ import re
 import sys
 from pathlib import Path
 
+import board_engine
+import board_snapshot
+import board_state
 import pytest
+
+import board_fixtures
 
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "draft-board" / "export_yahoo_rankings.py"
 _spec = importlib.util.spec_from_file_location("export_yahoo_rankings", _SRC)
@@ -184,3 +189,160 @@ def test_main_creates_a_missing_output_directory(tmp_path):
     export.main([str(src), "-o", str(out), "--limit", "2"])
 
     assert out.exists()
+
+
+# --- --local ----------------------------------------------------------------
+# One synthetic snapshot from tests/board_fixtures.py, written under tmp_path. Every team is
+# set to a provider code Yahoo spells differently, so the remap runs on the local path too.
+
+
+def local_board(root):
+    snap = board_fixtures.make_snapshot()
+    for p in snap["players"]:
+        p["team"] = "GS"
+    snap["meta"]["digest"] = board_snapshot.digest(snap)
+    path = board_snapshot.path_for(root, snap["meta"]["generated"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(board_snapshot.dumps(snap), encoding="utf-8")
+    return snap, path
+
+
+def write_state(root, snap, sort, ticked_key=None):
+    state = board_state.new_state(snap)
+    state["applied_sort"] = sort
+    if ticked_key:
+        state["players"][ticked_key] = {
+            **board_engine.player_state(state, ticked_key),
+            "gone": True,
+            "mine": True,
+        }
+    board_state.save(root / "draft-state.json", state)
+
+
+@pytest.fixture
+def local(tmp_path, monkeypatch):
+    root = tmp_path / "draft-board"
+    snap, path = local_board(root)
+    monkeypatch.setattr(export, "LOCAL_ROOT", root)
+    return root, snap, path
+
+
+def test_local_and_csv_paths_write_identical_bytes(tmp_path, local):
+    root, snap, _ = local
+    n = str(len(snap["players"]))
+    raw = tmp_path / "raw.csv"
+    with raw.open("w", encoding="utf-8", newline="") as fh:
+        csv.writer(fh).writerows(export.rows_from_local(snap, board_engine.DEFAULT_SORT))
+    via_csv, via_local = tmp_path / "csv.csv", tmp_path / "local.csv"
+
+    export.main([str(raw), "-o", str(via_csv), "--limit", n])
+    export.main(["--local", "-o", str(via_local), "--limit", n])
+
+    assert via_local.read_bytes() == via_csv.read_bytes()
+    assert via_local.read_text().splitlines()[1].split(",")[2] == "GSW"
+
+
+def test_local_rows_follow_the_applied_value_not_the_board_row(local):
+    """Checked against the snapshot directly, not through the engine's own order()."""
+    _, snap, _ = local
+    sort = {"source": "HBP", "kind": "zsh"}
+
+    rows = export.rows_from_local(snap, sort)
+
+    expected = sorted(snap["players"], key=lambda p: (-p["values"]["HBP"]["zsh"]["v"], p["row"]))
+    assert [r[export.COL_PLAYER] for r in rows] == [p["name"] for p in expected]
+    assert [r[0] for r in rows] == [str(i) for i in range(1, len(rows) + 1)]
+    assert {len(r) for r in rows} == {export.RANGE_WIDTH}
+
+
+def test_sort_flag_beats_the_state_file(tmp_path, local, capsys):
+    root, snap, _ = local
+    write_state(root, snap, {"source": "HBP", "kind": "zsc"})
+    out = tmp_path / "y.csv"
+
+    export.main(["--local", "--sort", "bmp-alt:DURH", "-o", str(out), "--limit", "5"])
+
+    assert "sorted by BMP-ALT:durh" in capsys.readouterr().err
+    want = export.rows_from_local(snap, {"source": "BMP-ALT", "kind": "durh"})
+    assert out.read_text().splitlines()[1].split(",")[1] == want[0][export.COL_PLAYER]
+
+
+def test_state_file_sort_beats_the_default(tmp_path, local, capsys):
+    root, snap, _ = local
+    write_state(root, snap, {"source": "HBP", "kind": "zsc"})
+
+    export.main(["--local", "-o", str(tmp_path / "y.csv"), "--limit", "5"])
+
+    assert "sorted by HBP:zsc" in capsys.readouterr().err
+
+
+def test_default_sort_without_a_state_file(tmp_path, local, capsys):
+    _, snap, _ = local
+
+    export.main(["--local", "-o", str(tmp_path / "y.csv"), "--limit", "5"])
+
+    err = capsys.readouterr().err
+    assert "sorted by BMP:durh" in err
+    assert f"local board {snap['meta']['generated']} digest {snap['meta']['digest'][:12]}" in err
+
+
+def test_ticks_do_not_change_the_export(tmp_path, local):
+    root, snap, _ = local
+    sort = {"source": "BMP", "kind": "durh"}
+    top = export.rows_from_local(snap, sort)[0][export.COL_PLAYER]
+    key = next(p["key"] for p in snap["players"] if p["name"] == top)
+    untouched, ticked = tmp_path / "a.csv", tmp_path / "b.csv"
+
+    export.main(["--local", "-o", str(untouched), "--limit", "5"])
+    write_state(root, snap, sort, ticked_key=key)
+    export.main(["--local", "-o", str(ticked), "--limit", "5"])
+
+    assert ticked.read_bytes() == untouched.read_bytes()
+
+
+def test_snapshot_flag_pins_an_older_board(tmp_path, local, capsys):
+    root, _, path = local
+    newer = board_fixtures.make_snapshot(date="2026-01-02")
+    for p in newer["players"]:
+        p["team"] = "GS"
+    newer["meta"]["digest"] = board_snapshot.digest(newer)
+    board_snapshot.path_for(root, "2026-01-02").write_text(board_snapshot.dumps(newer), "utf-8")
+
+    export.main(["--local", "--snapshot", str(path), "-o", str(tmp_path / "y.csv"), "--limit", "5"])
+
+    assert "local board 2026-01-01" in capsys.readouterr().err
+
+
+def test_local_with_a_csv_is_a_usage_error(tmp_path, local, capsys):
+    with pytest.raises(SystemExit) as exc:
+        export.main(["--local", str(tmp_path / "raw.csv")])
+
+    assert exc.value.code == 2
+    assert "--local" in capsys.readouterr().err
+
+
+def test_sort_without_local_is_a_usage_error(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        export.main([str(tmp_path / "raw.csv"), "--sort", "BMP:durh"])
+
+    assert exc.value.code == 2
+
+
+def test_no_snapshot_is_a_clear_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(export, "LOCAL_ROOT", tmp_path / "empty")
+
+    with pytest.raises(export.ExportError, match="no local board .* run build_data.py"):
+        export.main(["--local", "-o", str(tmp_path / "y.csv")])
+
+
+def test_an_unknown_sort_names_the_choices(tmp_path, local):
+    with pytest.raises(export.ExportError, match="expected SOURCE:KIND"):
+        export.main(["--local", "--sort", "ESPN:durh", "-o", str(tmp_path / "y.csv")])
+
+
+def test_a_tampered_snapshot_is_refused(tmp_path, local):
+    _, _, path = local
+    path.write_text(path.read_text("utf-8").replace('"GS"', '"BOS"', 1), "utf-8")
+
+    with pytest.raises(export.ExportError, match=re.escape(path.name)):
+        export.main(["--local", "-o", str(tmp_path / "y.csv"), "--limit", "5"])

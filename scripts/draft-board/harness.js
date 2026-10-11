@@ -2,6 +2,21 @@
 // assert the things that actually break: range/array dimension mismatches,
 // writes outside the grid, and calls to methods that do not exist.
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// `node harness.js --write-layout [PATH]` writes board_layout.json (or PATH) and exits. That
+// mode always builds from the synthetic players below and never reads a local Data.gs: the
+// file is committed, so it must come out byte-identical on every machine, and a layout built
+// from real data would put provider data one mistake away from a public commit.
+const WRITE_LAYOUT = process.argv[2] === '--write-layout';
+// `node harness.js --tick-fingerprint` prints two hashes over the GENERATED formulas and
+// exits. tick_scenario.py gates on them. Fingerprinting the built formulas rather than the
+// source file is the whole point: Build.gs is one 2,600-line file covering nine tabs, so a
+// column width or a README edit used to trip a four-minute browser scenario (ADR-0025).
+const TICK_FINGERPRINT = process.argv[2] === '--tick-fingerprint';
+const LAYOUT_PATH = path.join(__dirname, 'board_layout.json');
+const LAYOUT_OUT = WRITE_LAYOUT && process.argv[3] ? path.resolve(process.argv[3]) : LAYOUT_PATH;
 const problems = [];
 const seen = { namedRanges: {}, sheets: {} };
 
@@ -21,9 +36,29 @@ function Range(sheet, row, col, nr, nc, label) {
 }
 const chain = ['setBackground','setFontColor','setFontWeight','setFontSize','setFontStyle',
   'setHorizontalAlignment','setVerticalAlignment','setWrap','setNumberFormat','setFontFamily',
-  'setBorder','setDataValidation','insertCheckboxes','clearDataValidations','merge',
-  'shiftColumnGroupDepth','applyRowBanding'];
+  'setBorder','insertCheckboxes','clearDataValidations','merge',
+  'applyRowBanding','setWrapStrategy'];
 chain.forEach(m => { Range.prototype[m] = function(){ return this; }; });
+// Recorded, not a no-op: each projection's block is a column group (ADR-0030), and a group
+// over the wrong span, or two that touch and so merge into one, passes every other check.
+// A negative shift is resetColumnGroups flattening the tab.
+Range.prototype.shiftColumnGroupDepth = function (d) {
+  if (d < 0) this.sheet.groups = [];
+  else (this.sheet.groups = this.sheet.groups || []).push([this.col, this.nc]);
+  return this;
+};
+Range.prototype.clearContent = function () {
+  for (let i = 0; i < this.nr; i++)
+    for (let j = 0; j < this.nc; j++) delete this.sheet.cells[`${this.row + i},${this.col + j}`];
+  return this;
+};
+// Recorded, not a no-op: Compare picks is only as good as the dropdown its slots carry, and a
+// slot validated against the wrong column would offer names nobody can take.
+Range.prototype.setDataValidation = function (rule) {
+  (this.sheet.validations = this.sheet.validations || [])
+    .push({ row: this.row, col: this.col, nr: this.nr, nc: this.nc, rule: rule });
+  return this;
+};
 // Single-cell writes have to be recorded too, not just grid writes. Whole tabs
 // — Settings, the Category Tracker — are built one setValue at a time, and
 // while these were no-ops nothing on them could be asserted at all.
@@ -67,6 +102,23 @@ Range.prototype.setFormulas = function (g) {
   this.sheet._write(this, g); return this;
 };
 Range.prototype.getValue = function () { return this.sheet._read(this.row, this.col); };
+// What onEdit reads off e.range, and what clearCompare writes. Recorded rather than stubbed:
+// a clear that unticks the wrong span is the failure worth catching.
+Range.prototype.getRow = function () { return this.row; };
+Range.prototype.getColumn = function () { return this.col; };
+Range.prototype.getNumRows = function () { return this.nr; };
+Range.prototype.getNumColumns = function () { return this.nc; };
+Range.prototype.getSheet = function () { return this.sheet; };
+Range.prototype.uncheck = function () {
+  for (let i = 0; i < this.nr; i++)
+    for (let j = 0; j < this.nc; j++) this.sheet.cells[`${this.row + i},${this.col + j}`] = false;
+  return this;
+};
+// refreshWithReorder tells a My GP override from its seeding formula by reading FORMULAS.
+// Without this the one path that re-attaches hand edits could not be run at all.
+Range.prototype.getFormulas = function () {
+  return this.getValues().map(r => r.map(v => (typeof v === 'string' && v.charAt(0) === '=' ? v : '')));
+};
 Range.prototype.getValues = function () {
   const out = [];
   for (let i = 0; i < this.nr; i++) {
@@ -112,8 +164,7 @@ Sheet.prototype.getRange = function (a, b, c, d) {
 ['clear','clearConditionalFormatRules',
  'setRowHeight','setHiddenGridlines','setConditionalFormatRules']
  .forEach(m => { Sheet.prototype[m] = function(){ return this; }; });
-// Recorded, not a no-op: the projection filter's whole job is column arithmetic, and
-// pointing it at the wrong span is exactly the failure that would pass every other check.
+// Recorded, not a no-op: hiding the wrong span passes every other check.
 Sheet.prototype.setFrozenRows = function (n) { this.frozenRows = n; return this; };
 Sheet.prototype.hideColumns = function (c, n) {
   (this.hidden = this.hidden || []).push([c, n === undefined ? 1 : n]); return this;
@@ -134,10 +185,15 @@ Sheet.prototype.setFrozenColumns = function (n) {
   return this;
 };
 Sheet.prototype.getName = function(){ return this.name; };
+Sheet.prototype.getParent = function(){ return ss; };
 Sheet.prototype.getBandings = function(){ return []; };
 Sheet.prototype.getConditionalFormatRules = function(){ return this.rules; };
 Sheet.prototype.setConditionalFormatRules = function(r){ this.rules = r; return this; };
-Sheet.prototype.getColumnGroup = function(){ return { collapse(){} }; };
+Sheet.prototype.getColumnGroup = function (c) {
+  const sh = this;
+  return { collapse(){ (sh.collapsed = sh.collapsed || []).push(c); } };
+};
+Sheet.prototype.setColumnGroupControlPosition = function (p) { this.groupControl = p; return this; };
 Sheet.prototype.getLastRow = function(){ return 0; };
 Sheet.prototype.getMaxRows = function(){ return this.maxRows; };
 Sheet.prototype.getMaxColumns = function(){ return this.maxCols; };
@@ -148,6 +204,7 @@ const ss = {
   deleteSheet(){}, setActiveSheet(){ return this; }, moveActiveSheet(){}, toast(){},
   setSpreadsheetTimeZone(){}, getSpreadsheetTimeZone: () => 'UTC',
   getNamedRanges: () => [],
+  getRangeByName: name => seen.namedRanges[name] || null,
   setNamedRange(name, rng) {
     seen.namedRanges[name] = rng;
     if (!rng || !(rng instanceof Range)) problems.push(`named range ${name} is not a Range`);
@@ -179,22 +236,42 @@ function ruleBuilder() {
   b.build = () => spec;
   return b;
 }
+function validationBuilder() {
+  const spec = { list: null, range: null, dropdown: null, allowInvalid: true, help: '' };
+  const b = {
+    requireValueInList(values, show) { spec.list = values; spec.dropdown = show !== false; return b; },
+    requireValueInRange(rng, show) {
+      spec.range = { sheet: rng.sheet.name, row: rng.row, col: rng.col, nr: rng.nr, nc: rng.nc };
+      spec.dropdown = show !== false;
+      return b;
+    },
+    setAllowInvalid(v) { spec.allowInvalid = v; return b; },
+    setHelpText(t) { spec.help = t; return b; },
+    build: () => spec
+  };
+  return b;
+}
 global.SpreadsheetApp = {
   getActiveSpreadsheet: () => ss,
   flush(){},
   newConditionalFormatRule: ruleBuilder,
-  newDataValidation: () => ({ requireValueInList: () => ({ build: () => ({}) }) }),
+  newDataValidation: validationBuilder,
   InterpolationType: { NUMBER: 'NUMBER' },
   BorderStyle: { SOLID: 'SOLID', SOLID_MEDIUM: 'SOLID_MEDIUM' },
+  WrapStrategy: { CLIP: 'CLIP' },
+  GroupControlTogglePosition: { BEFORE: 'BEFORE', AFTER: 'AFTER' },
   BandingTheme: { LIGHT_GREY: 'LIGHT_GREY' },
   getUi: () => ({ createMenu: () => { const m = { addItem: () => m, addSeparator: () => m, addToUi(){} }; return m; } })
 };
 
 // Real data if it happens to be here, otherwise synthetic. The test must run on
 // a clean clone: this repo is public and holds no provider data.
-const SYNTHETIC = !fs.existsSync('Data.gs');
+// The fingerprint forces synthetic players for the same reason the layout does: the hash
+// has to depend only on the formulas Build.gs generates, never on whose Data.gs is on disk.
+const SYNTHETIC = WRITE_LAYOUT || TICK_FINGERPRINT
+  || !fs.existsSync(path.join(__dirname, 'Data.gs'));
 if (!SYNTHETIC) {
-  eval(fs.readFileSync('Data.gs', 'utf8'));
+  eval(fs.readFileSync(path.join(__dirname, 'Data.gs'), 'utf8'));
 } else {
   global.PLAYERS = Array.from({ length: 200 }, (_, i) => {
     const t = 1 - i / 220;                       // deterministic, no randomness
@@ -208,11 +285,18 @@ if (!SYNTHETIC) {
       +(0.6 + 2.8 * t).toFixed(1), +(6 + 22 * t).toFixed(1), +(2 + 8 * t).toFixed(1),
       +(1 + 7 * t).toFixed(1), +(0.4 + 1.1 * t).toFixed(1), +(0.2 + 1.4 * t).toFixed(1),
       +(0.8 + 2.4 * t).toFixed(1),
-      ['LOW', 'MED', 'HIGH', 'EXTREME', '?'][i % 5]  // the tier, all five tokens present
+      ['LOW', 'MED', 'HIGH', 'EXTREME', '?'][i % 5], // the tier, all five tokens present
+      58 + (i % 24),                                 // Basketball Monster's projected games
+      i % 7 === 6 ? '' : 'Synthetic comment ' + (i + 1) + '.'
     ];
   });
+  // What build_data.py stamps at the top of Data.gs. `digest` is the local board's
+  // (ADR-0022); stampData copies it onto Settings, and a clean clone has to exercise that
+  // copy or the one cell tying the sheet to the local board goes untested in CI.
+  global.META = { generated: '2026-01-01', mixedDates: false, boardRows: 200, sources: {},
+                  injuries: { graded: 160, missing: 40, unused: 0 }, digest: 'synthetic' };
 }
-eval(fs.readFileSync('Build.gs','utf8'));
+eval(fs.readFileSync(path.join(__dirname, 'Build.gs'), 'utf8'));
 
 if (SYNTHETIC) {
   // PLAYERS alone is not enough: `requireData` refuses to build without VALUES for every
@@ -260,6 +344,275 @@ if (SYNTHETIC) {
 try { buildDraftBoard(); }
 catch (e) { problems.push('THREW: ' + e.message + '\n' + (e.stack||'').split('\n').slice(1,4).join('\n')); }
 
+// ---- board_layout.json ---------------------------------------------------------------------
+//
+// The sheet's layout as Python reads it: every column position and header label, the Settings
+// addresses, the tracker and Punts geometry, and every named range. Derived from the column
+// maps and from the cells the mock sheets captured -- never typed out -- because a hand-kept
+// map is exactly what drifts (mock-draft-review.md's column map is the standing evidence).
+// Anything that cannot be found by its label throws, so a renamed header fails loudly here
+// instead of producing a layout that points at the wrong cell.
+function boardLayout() {
+  const text = (sheet, r, c) => {
+    const v = seen.sheets[sheet].cells[`${r},${c}`];
+    return v === undefined || v === null ? '' : String(v);
+  };
+  const addr = (c, r) => a1col(c) + r;
+  const need = (ok, msg) => { if (!ok) throw new Error('layout: ' + msg); };
+
+  // Index order, so the JSON reads left to right like the sheet, and every column exactly once.
+  function columns(sheet, headerRow, entries, width) {
+    const out = {}, used = new Set();
+    entries.slice().sort((a, b) => a[1] - b[1]).forEach(([key, index]) => {
+      need(!used.has(index), `${sheet} column ${a1col(index)} is mapped twice (${key})`);
+      used.add(index);
+      out[key] = { index: index, letter: a1col(index), label: text(sheet, headerRow, index) };
+    });
+    need(used.size === width, `${sheet} layout covers ${used.size} of ${width} columns`);
+    return out;
+  }
+  const BLOCKS = ['dh0', 'd0', 'z0', 'p0', 'pr0', 'rank0', 'last'];
+  const plain = m => Object.keys(m).filter(k => BLOCKS.indexOf(k) < 0).map(k => [k, m[k]]);
+
+  const draft = plain(D);
+  CAT_LABELS.forEach((c, i) => { draft.push(['dh:' + c, D.dh0 + i], ['d:' + c, D.d0 + i]); });
+  SOURCES.forEach((s, si) => VALUE_KINDS.forEach((k, ki) => {
+    draft.push([`rank:${s.key}:${k.v}`, dRank(si, ki)]);
+  }));
+
+  const calc = plain(V);
+  CAT_LABELS.forEach((c, i) => {
+    calc.push(['dh:' + c, V.dh0 + i], ['d:' + c, V.d0 + i], ['z:' + c, V.z0 + i]);
+  });
+  PUNTS.forEach((p, i) => { calc.push(['p:' + p.key, V.p0 + i], ['pr:' + p.key, V.pr0 + i]); });
+
+  const tabs = {};
+  tabs['Draft Board'] = { header_row: HDR, columns: columns('Draft Board', HDR, draft, D_LAST) };
+  tabs['Board'] = { header_row: HDR, columns: columns('Board', HDR, plain(B), B_LAST) };
+  SOURCES.forEach(s => {
+    // Row HDR on a calculation tab carries each column's constant (a lambda, a weight), which
+    // comes from DERIV and so differs by build. The names sit one row up.
+    tabs[s.key] = { header_row: HDR - 1, columns: columns(s.key, HDR - 1, calc, V_LAST) };
+  });
+
+  // Settings. Inputs come from the named ranges, because those are what every formula reads;
+  // the sanity rows have no names and come from S_SANITY, checked against their labels.
+  const S = 'Settings';
+  const named = {
+    teams: 'TEAMS', roster: 'ROSTER', q: 'Q', sort_by: 'SORT_BY', scoring: 'SCORING',
+    tier_mult: 'TIER_MULT', cat_band: 'CAT_BAND', cat_band_sec: 'CAT_BAND_SEC',
+    disagree_gap: 'DISAGREE_GAP',
+    weak_win: 'WEAK_WIN', strong_win: 'STRONG_WIN', bank_win: 'BANK_WIN'
+  };
+  const sanity = ['names_aligned', 'rows_aligned', 'board_rows', 'mine', 'adp_coverage',
+                  'generated', 'injuries', 'digest'];
+  const cells = {}, cellLabels = {};
+  const place = (key, col, row) => {
+    const label = text(S, row, col - 1);
+    need(label !== '', `Settings ${addr(col, row)} (${key}) has no label beside it`);
+    cells[key] = addr(col, row);
+    cellLabels[key] = { cell: addr(col - 1, row), text: label };
+  };
+  Object.keys(named).forEach(key => {
+    const rng = seen.namedRanges[named[key]];
+    need(rng && rng.sheet.name === S, `named range ${named[key]} is not on Settings`);
+    place(key, rng.col, rng.row);
+  });
+  sanity.forEach((key, i) => place(key, 2, S_SANITY + 1 + i));
+
+  const weights = {}, weightLabels = {}, trackerConstants = {}, trackerLabels = {};
+  CAT_LABELS.forEach((c, i) => {
+    const row = S_WEIGHTS + 1 + i;
+    need(text(S, row, 4) === c, `Settings D${row} is "${text(S, row, 4)}", expected ${c}`);
+    weights[c] = addr(5, row);
+    weightLabels[c] = addr(4, row);
+    const k = seen.namedRanges['K_' + catKey(c)];
+    need(k && text(S, k.row, 1) === c, `K_${catKey(c)} does not sit on the ${c} row`);
+    trackerConstants[c] = { k: addr(k.col - 2, k.row), w: addr(k.col - 1, k.row),
+                            K: addr(k.col, k.row), slope: addr(k.col + 1, k.row) };
+    trackerLabels[c] = addr(1, k.row);
+  });
+  tabs[S] = { cells: cells, cell_labels: cellLabels, weights: weights,
+              weight_labels: weightLabels, tracker_constants: trackerConstants,
+              tracker_labels: trackerLabels };
+
+  // Category Tracker, found by its own labels.
+  const T = TRACKER_TAB;
+  const headerRow = TRACKER_R0 - 1;
+  const want = { cat: 'Category', my_team: 'My team', avg_team: 'Average team', z: 'Z',
+                 win: 'Win %', read: 'Read', punted: 'Punted' };
+  const tcols = {}, tlabels = {};
+  Object.keys(want).forEach(key => {
+    let col = 0;
+    for (let c = 1; c <= 8 && !col; c++) if (text(T, headerRow, c) === want[key]) col = c;
+    need(col > 0, `no "${want[key]}" header on the tracker's row ${headerRow}`);
+    tcols[key] = col;
+    tlabels[key] = want[key];
+  });
+  need(tcols.punted === TRACK_PUNT_COL, 'the Punted header is not TRACK_PUNT_COL');
+  let ticked = 0;
+  for (let r = 1; r < headerRow && !ticked; r++) if (text(T, r, 1) === 'Players ticked') ticked = r;
+  need(ticked > 0, 'no "Players ticked" row on the tracker');
+  let banner = 0;
+  for (let r = TRACKER_R0 + CAT_LABELS.length; r < 60 && !banner; r++) {
+    if (text(T, r, 1) === 'MY ROSTER') banner = r;
+  }
+  need(banner > 0, 'no MY ROSTER block on the tracker');
+  const rosterWant = { rank: '#', name: 'Player', pos: 'Pos' };
+  const rcols = {}, rlabels = {};
+  Object.keys(rosterWant).forEach((key, i) => {
+    need(text(T, banner + 1, i + 1) === rosterWant[key],
+      `roster header ${addr(i + 1, banner + 1)} is not "${rosterWant[key]}"`);
+    rcols[key] = i + 1;
+    rlabels[key] = rosterWant[key];
+  });
+  need(text(T, banner + 2, 1).indexOf('DB_MINE') >= 0, 'the roster formula is not under its header');
+  tabs[T] = { players_ticked: addr(2, ticked), header_row: headerRow, first_cat_row: TRACKER_R0,
+              columns: tcols, column_labels: tlabels, roster_header_row: banner + 1,
+              roster_first_row: banner + 2, roster_rows: POOL_ROWS,
+              roster_columns: rcols, roster_labels: rlabels };
+
+  // Compare picks (ADR-0027), checked against its own labels like the rest of the tab.
+  const cmpLabels = {};
+  // The category labels too: Sheets reads a bare "3PM" as 3:00 PM unless the cell is text,
+  // and a label that turned into a time is only caught if something compares it.
+  [[CMP_LABEL_COL, 1, 'Compare picks'], [CMP_CLEAR_COL - 1, 1, 'Clear all'],
+   [CMP_LABEL_COL, CMP_BOARD_ROW, 'Board #'],
+   [CMP_LABEL_COL, CMP_SLOT_ROW, 'If I take'], [CMP_LABEL_COL, CMP_EXP_ROW, 'Exp. cats'],
+   [CMP_LABEL_COL, CMP_GAP_ROW, 'vs best'], [1, CMP_EXP_ROW, 'Expected cats']]
+    .concat(CAT_LABELS.map((lab, i) => [CMP_LABEL_COL, TRACKER_R0 + i, lab]))
+    .forEach(([c, r, label]) => {
+      need(text(T, r, c) === label, `tracker ${addr(c, r)} is "${text(T, r, c)}", not "${label}"`);
+      cmpLabels[addr(c, r)] = label;
+    });
+  need(CMP_SLOT_ROW === headerRow, 'the compare slots are not on the tracker header row');
+  need(CMP_GAP_ROW < banner, 'the compare panel runs into MY ROSTER');
+  tabs[T].compare = {
+    label_col: CMP_LABEL_COL,
+    slots: Array.from({ length: CMP_SLOTS }, (_, s) => (
+      { index: CMP_C0 + s, letter: a1col(CMP_C0 + s), hidden: CMP_HID0 + s })),
+    board_row: CMP_BOARD_ROW, rank_row: CMP_RANK_ROW, slot_row: CMP_SLOT_ROW,
+    expected_row: CMP_EXP_ROW, gap_row: CMP_GAP_ROW,
+    note: addr(CMP_LABEL_COL, CMP_NOTE_ROW),
+    clear: addr(CMP_CLEAR_COL, 1),
+    expected_now: addr(TRACK_WIN_COL, CMP_EXP_ROW),
+    labels: cmpLabels
+  };
+
+  // Punts: one ARRAY_CONSTRAIN per build. Its arguments are the row count and the width.
+  const P = 'Punts';
+  const anchors = Object.keys(seen.sheets[P].cells)
+    .map(k => k.split(',').map(Number))
+    .filter(([r, c]) => String(seen.sheets[P].cells[`${r},${c}`]).indexOf('=ARRAY_CONSTRAIN(') === 0)
+    .sort((a, b) => a[1] - b[1]);
+  need(anchors.length === PUNTS.length, `${anchors.length} punt blocks, expected ${PUNTS.length}`);
+  const firstRow = anchors[0][0];
+  const shape = String(seen.sheets[P].cells[`${firstRow},${anchors[0][1]}`]).match(/,(\d+),(\d+)\)$/);
+  need(shape !== null, 'cannot read the punt block size from its ARRAY_CONSTRAIN');
+  const prow = Number(shape[1]), pwidth = Number(shape[2]);
+  const pwant = { rank: '#', name: 'Player', score: 'Score', adp: 'ADP', gap: 'GAP' };
+  const pcols = {};
+  Object.keys(pwant).forEach(key => {
+    let off = -1;
+    for (let o = 0; o < pwidth && off < 0; o++) {
+      if (text(P, firstRow - 1, anchors[0][1] + o) === pwant[key]) off = o;
+    }
+    need(off >= 0, `no "${pwant[key]}" header on the first punt block`);
+    pcols[key] = { offset: off, label: pwant[key] };
+  });
+  const blocks = PUNTS.map((p, i) => {
+    const [r, c] = anchors[i];
+    need(r === firstRow, `punt block ${p.key} starts on row ${r}, not ${firstRow}`);
+    need(text(P, firstRow - 2, c) === p.label.toUpperCase(), `punt block ${i} is not ${p.label}`);
+    Object.keys(pcols).forEach(key => {
+      need(text(P, firstRow - 1, c + pcols[key].offset) === pcols[key].label,
+        `punt block ${p.key} header differs from the first block's`);
+    });
+    return { key: p.key, first_col: c };
+  });
+  tabs[P] = { header_row: firstRow - 1, first_row: firstRow, rows: prow,
+              block_width: blocks[1].first_col - blocks[0].first_col, columns: pcols,
+              blocks: blocks };
+
+  const namedRanges = {};
+  Object.keys(seen.namedRanges).sort().forEach(name => {
+    const g = seen.namedRanges[name];
+    const tail = (g.nr > 1 || g.nc > 1) ? ':' + addr(g.col + g.nc - 1, g.row + g.nr - 1) : '';
+    namedRanges[name] = sheetRef(g.sheet.name) + '!' + addr(g.col, g.row) + tail;
+  });
+
+  return { version: 1, generated_by: 'node scripts/draft-board/harness.js --write-layout',
+           header_row: HDR, first_row: R0, last_row: RN, tabs: tabs,
+           named_ranges: namedRanges };
+}
+
+if (WRITE_LAYOUT) {
+  if (problems.length) {
+    console.error('not writing the layout: the synthetic build reported problems');
+    problems.slice(0, 25).forEach(p => console.error(' - ' + p));
+    process.exit(1);
+  }
+  fs.writeFileSync(LAYOUT_OUT, JSON.stringify(boardLayout(), null, 2) + '\n');
+  console.log('wrote ' + LAYOUT_OUT);
+  process.exit(0);
+}
+
+/**
+ * Two hashes over the generated formulas, for tick_scenario.py's gate (ADR-0025).
+ *
+ * `tick` covers every formula whose text reads a checkbox the scenario toggles: the GONE
+ * column, the MINE column, or the tracker's Punted range. `rebuild` covers every formula
+ * the re-sort and Refresh paths rewrite, which is every per-row formula on the Draft Board
+ * plus the Board columns Refresh keys its hand values by.
+ *
+ * Formulas only. A cell holding a value contributes nothing, because the scenario proves
+ * how the sheet RECALCULATES, and a literal does not recalculate. That is also why a width,
+ * a colour, a header or a README row cannot move either hash.
+ *
+ * Column LETTERS are deliberately left in the hashed text rather than normalised away: a
+ * formula that still reads `$H4` after GONE moved to I is exactly the silent breakage the
+ * scenario exists to catch, so it must move the hash.
+ */
+function tickFingerprint() {
+  const crypto = require('crypto');
+  // Two vocabularies for the same checkboxes, and the hash has to cover both. The Draft
+  // Board reads them as column letters; the Category Tracker reads them as named ranges,
+  // so matching only on letters would miss every tracker formula the ticks drive.
+  const reads = ['$' + a1col(D.cmp), '$' + a1col(D.mine),
+                 '$' + a1col(TRACK_PUNT_COL) + '$' + TRACKER_R0,
+                 'DB_MINE', 'DB_CMP'];
+  const refreshTabs = { 'Draft Board': true, 'Board': true, 'Category Tracker': true };
+
+  const tick = [], rebuild = [];
+  Object.keys(seen.sheets).sort().forEach(name => {
+    const cells = seen.sheets[name].cells;
+    Object.keys(cells).sort().forEach(key => {
+      const v = cells[key];
+      if (typeof v !== 'string' || v[0] !== '=') return;
+      // Row-independent: every one of the 200 rows is the same formula shifted, and the
+      // scenario cannot tell them apart anyway. Keep the column, drop the row number.
+      const shape = name + '|' + key.split(',')[1] + '|' + v.replace(/(\$?[A-Z]+\$?)\d+/g, '$1#');
+      if (reads.some(r => v.indexOf(r) !== -1)) tick.push(shape);
+      if (refreshTabs[name]) rebuild.push(shape);
+    });
+  });
+
+  const h = list => crypto.createHash('sha256')
+    .update([...new Set(list)].sort().join('\n')).digest('hex').slice(0, 16);
+  return { tick: h(tick), rebuild: h(rebuild), tick_formulas: new Set(tick).size,
+           rebuild_formulas: new Set(rebuild).size };
+}
+
+if (TICK_FINGERPRINT) {
+  if (problems.length) {
+    console.error('not fingerprinting: the synthetic build reported problems');
+    problems.slice(0, 25).forEach(p => console.error(' - ' + p));
+    process.exit(1);
+  }
+  console.log(JSON.stringify(tickFingerprint()));
+  process.exit(0);
+}
+
 console.log('sheets built:', Object.keys(seen.sheets).join(', '));
 console.log('named ranges:', Object.keys(seen.namedRanges).length);
 const board = seen.sheets['Board'], draft = seen.sheets['Draft Board'];
@@ -305,9 +658,20 @@ SOURCES.forEach((s, i) => {
     dSpanStart(i) + SPAN - 1 === dTag(i, VALUE_KINDS.length - 1));
 });
 
-// Gone and Mine sit inside the frozen pane, and the freeze is set to Mine.
-check('GONE and MINE are adjacent and inside the frozen pane',
-  D.mine === D.drafted + 1 && D.mine < dSpanStart(0));
+// CMP and Mine sit inside the frozen pane, and the freeze is set to Mine.
+check('CMP and MINE are adjacent and inside the frozen pane',
+  D.mine === D.cmp + 1 && D.mine < dSpanStart(0));
+// GONE and Left @pos left the sheet together (ADR-0028). Nothing may still reach for either.
+check('the Draft Board has no GONE or Left @pos column',
+  D.drafted === undefined && D.posLeft === undefined && typeof posLeftFormula === 'undefined');
+{
+  const stale = [];
+  Object.values(seen.sheets).forEach(sh => Object.values(sh.cells).forEach(v => {
+    if (typeof v === 'string' && /DB_GONE|\bGONE\b/.test(v) && v.charAt(0) === '=') stale.push(v);
+  }));
+  check('no formula still reads GONE', stale.length === 0, stale[0]);
+  expect('the CMP header', cell('Draft Board', HDR, D.cmp), 'CMP');
+}
 
 // The punt score and rank blocks must each be contiguous: "Best build" takes MIN and MATCH
 // across the rank span as one range, and the labels are positional against it.
@@ -488,8 +852,9 @@ for (const r of [R0, RN]) {
 // The profile columns: both array traps live here and neither is visible offline.
 {
   const s = String(cell('Draft Board', r4, D.strengths));
+  const n2 = String(cell('Draft Board', r4, D.secondary));
   const w = String(cell('Draft Board', r4, D.weaknesses));
-  [['strengths', s], ['weaknesses', w]].forEach(([name, f]) => {
+  [['strengths', s], ['secondary', n2], ['weaknesses', w]].forEach(([name, f]) => {
     check(`${name} wraps its IF in ARRAYFORMULA`, f.indexOf('ARRAYFORMULA(IF(') >= 0, f);
     // The LET trap: bind the raw TRANSPOSE and compare inside the ARRAYFORMULA.
     check(`${name} binds the raw TRANSPOSE, not a comparison`,
@@ -500,7 +865,13 @@ for (const r of [R0, RN]) {
     check(`${name} reads the tracker's Punted column`,
       f.indexOf(`$${L(TRACK_PUNT_COL)}$${TRACKER_R0}`) >= 0, f);
   });
-  check('strengths and weaknesses are different formulas', s !== w);
+  check('the three profile columns are different formulas',
+    s !== w && s !== n2 && n2 !== w);
+  // Half-open, or a primary strength is listed twice.
+  check('secondary is bounded above by CAT_BAND',
+    n2.indexOf('(d<CAT_BAND)') >= 0, n2);
+  check('secondary is bounded below by CAT_BAND_SEC',
+    n2.indexOf('(d>=CAT_BAND_SEC)') >= 0, n2);
 }
 
 // --- Category Tracker ------------------------------------------------------
@@ -518,6 +889,124 @@ for (let i = 0; i < CAT_LABELS.length; i++) {
   ['PUNTED', 'BANKED', 'STRONG', 'WEAK', 'CONTESTED'].forEach(state => {
     check(`${lab} Read can report ${state}`, read.indexOf(state) >= 0, read);
   });
+}
+
+// --- Compare picks (ADR-0027, ADR-0028) -----------------------------------
+// The panel is the tracker run one pick ahead, once per slot, for the players ticked CMP on
+// the Draft Board. Every reference below is built from the CMP_*, TRACK_* and D constants, so
+// a panel that drifts off its own columns fails here -- but none of this evaluates a formula.
+// The sheet and verify.py --local do that.
+{
+  const T = TRACKER_TAB, sh = seen.sheets[T];
+  const f = (r, c) => String(cell(T, r, c));
+  const last = CMP_C0 + CMP_SLOTS - 1, catLast = TRACKER_R0 + CAT_LABELS.length - 1;
+  const punt = L(TRACK_PUNT_COL);
+  check('the panel starts right of Punted',
+    CMP_LABEL_COL === TRACK_PUNT_COL + 1 && CMP_C0 === CMP_LABEL_COL + 1);
+  check('the hidden block sits past the slots, and nothing else is hidden past it',
+    CMP_HID0 === last + 1 && typeof CMP_SRC_COL === 'undefined');
+  check('one ordinal per slot', CMP_ORDINALS.length === CMP_SLOTS);
+  check('the slots sit on the tracker header row', CMP_SLOT_ROW === TRACKER_R0 - 1);
+  check('the slots carry no dropdown: CMP ticks fill them',
+    (sh.validations || []).length === 0, JSON.stringify(sh.validations));
+  check('the hidden block is hidden, and only it',
+    (sh.hidden || []).length === 1 && sh.hidden[0][0] === CMP_HID0
+    && sh.hidden[0][1] === CMP_SLOTS, JSON.stringify(sh.hidden));
+
+  const ticked = 'SUMPRODUCT((DB_CMP=TRUE)*(DB_MINE<>TRUE))';
+  const note = f(CMP_NOTE_ROW, CMP_LABEL_COL);
+  check('the note counts CMP ticks that are not MINE', note.indexOf(ticked) >= 0, note);
+  check('the note speaks only past the slot count',
+    note.indexOf(`>${CMP_SLOTS},"Top ${CMP_SLOTS} of "&`) >= 0, note);
+  expect('the Clear all label sits just left of its box',
+    cell(T, 1, CMP_CLEAR_COL - 1), 'Clear all');
+  check('the Clear all box is on row 1, past the title', CMP_CLEAR_COL > CMP_LABEL_COL + 1);
+
+  for (let s = 0; s < CMP_SLOTS; s++) {
+    const c = CMP_C0 + s, h = CMP_HID0 + s, name = `${L(c)}$${CMP_SLOT_ROW}`;
+    const match = `MATCH(${name},DB_PLAYER,0)`;
+    expect(`slot ${s + 1} is the ${s + 1}th CMP tick by board #`, f(CMP_SLOT_ROW, c),
+      `=IFERROR(INDEX(SORT(FILTER({DB_RANK,DB_PLAYER},DB_CMP=TRUE,DB_MINE<>TRUE),1,TRUE),`
+      + `${s + 1},2),"")`);
+    check(`slot ${s + 1} has no status cell`, cell(T, CMP_RANK_ROW, h) === '<empty>');
+    check(`slot ${s + 1} board # reads DB_RANK`,
+      f(CMP_BOARD_ROW, c).indexOf(`INDEX(DB_RANK,${match})`) >= 0, f(CMP_BOARD_ROW, c));
+
+    CAT_LABELS.forEach((lab, i) => {
+      const r = TRACKER_R0 + i, key = catKey(lab);
+      const win = f(r, h);
+      check(`slot ${s + 1} ${lab} is blank for an empty slot`,
+        win.indexOf(`=IF(${name}="","",`) === 0, win);
+      check(`slot ${s + 1} ${lab} is a normal CDF on its own K`,
+        win.indexOf('NORMSDIST(') >= 0 && win.indexOf('*K_' + key + ')') >= 0, win);
+      check(`slot ${s + 1} ${lab} counts the candidate as pick n + 1`,
+        win.indexOf('MIN(Q,TEAMS*(COUNTIF(DB_MINE,TRUE)+1))') >= 0
+        && win.indexOf('/SQRT(COUNTIF(DB_MINE,TRUE)+1)') >= 0, win);
+      check(`slot ${s + 1} ${lab} adds the candidate's own DH`,
+        win.indexOf(`SUMIF(DB_MINE,TRUE,DB_DH_${key})+INDEX(DB_DH_${key},${match})`) >= 0, win);
+      const shown = f(r, c);
+      check(`slot ${s + 1} ${lab} displays its hidden Win′`,
+        shown.indexOf(`TEXT(${L(h)}${r},"0%")`) >= 0, shown);
+      check(`slot ${s + 1} ${lab} marks a change against the tracker's own Read`,
+        shown.indexOf(`=$${L(TRACK_READ_COL)}${r},""`) >= 0
+        && shown.indexOf(`IF($${punt}${r}=TRUE,"— PUNTED"`) >= 0, shown);
+    });
+    const exp = f(CMP_EXP_ROW, c);
+    check(`slot ${s + 1} expected cats sums its column over the unpunted rows`,
+      exp.indexOf(`SUMIFS(${L(h)}$${TRACKER_R0}:${L(h)}$${catLast},`
+        + `$${punt}$${TRACKER_R0}:$${punt}$${catLast},FALSE)`) >= 0, exp);
+    const rank = f(CMP_RANK_ROW, c);
+    check(`slot ${s + 1} rank is blank for an empty slot`,
+      rank.indexOf(`=IF(${name}="","",CHOOSE(`) === 0, rank);
+    check(`slot ${s + 1} rank masks blanks and breaks ties on board #`,
+      rank.indexOf('SUMPRODUCT(ISNUMBER(') >= 0
+      && rank.indexOf(`<${L(c)}$${CMP_BOARD_ROW})`) >= 0, rank);
+    // COUNTIF(range, ">"&x) turns x into 15 digits of text, so a total counts itself as
+    // greater than itself and the best candidate reads 2nd.
+    check(`slot ${s + 1} rank never compares through a text criterion`,
+      rank.indexOf('"&') < 0, rank);
+    check(`slot ${s + 1} gap is to the best`,
+      f(CMP_GAP_ROW, c).indexOf(`MAX($${L(CMP_C0)}$${CMP_EXP_ROW}:$${L(last)}$${CMP_EXP_ROW})`) >= 0,
+      f(CMP_GAP_ROW, c));
+  }
+  const now = f(CMP_EXP_ROW, TRACK_WIN_COL);
+  check('the tracker totals its own expected categories',
+    now.indexOf(`SUMIFS($${L(TRACK_WIN_COL)}$${TRACKER_R0}:$${L(TRACK_WIN_COL)}$${catLast},`) >= 0,
+    now);
+  expect('the total is labelled', cell(T, CMP_EXP_ROW, 1), 'Expected cats');
+  check('no LET on the tracker',
+    Object.values(sh.cells).every(x => typeof x !== 'string' || x.indexOf('LET(') < 0));
+
+  // The panel reads the Draft Board; nothing may read it back, or a formula closes a loop.
+  const reach = [];
+  Object.values(seen.sheets['Draft Board'].cells).forEach(x => {
+    if (typeof x !== 'string') return;
+    const re = /'Category Tracker'!\$?([A-Z]+)/g;
+    let m;
+    while ((m = re.exec(x))) if (colNum(m[1]) > TRACK_PUNT_COL) reach.push(x);
+  });
+  check('the Draft Board reads nothing on the tracker past Punted', reach.length === 0, reach[0]);
+
+  // Rules on the category cells, in the order they have to resolve.
+  const cells = sh.rules.filter(r => r.formula && r.ranges.some(g => g.col === CMP_C0));
+  const at = sub => cells.findIndex(r => r.formula.indexOf(sub) >= 0);
+  const shown = `${L(CMP_C0)}${TRACKER_R0}`, hid = `${L(CMP_HID0)}${TRACKER_R0}`;
+  const winRef = `$${L(TRACK_WIN_COL)}${TRACKER_R0}`;
+  const order = [
+    at(`=$${punt}${TRACKER_R0}=TRUE`),
+    at(`${hid}<${winRef})`),
+    at(`${hid}>${winRef})`),
+    at(`="■ BANKED",NOT(REGEXMATCH(${shown},`)
+  ];
+  check('panel rules resolve Punted, worse, better, then Banked',
+    order.every(i => i >= 0) && order.every((x, i) => i === 0 || x > order[i - 1]),
+    `${order} in\n     ${cells.map(r => r.formula).join('\n     ')}`);
+  check('a change needs a current Win % to compare with',
+    cells.filter(r => r.formula.indexOf('REGEXMATCH(') >= 0 && r.formula.indexOf('<>') < 0)
+      .slice(0, 2).every(r => r.formula.indexOf(`ISNUMBER(${winRef})`) >= 0));
+  const best = sh.rules.filter(r => r.formula === `=${L(CMP_C0)}$${CMP_RANK_ROW}="1st"`);
+  check('the best candidate is marked on its rank and its total, one rule each',
+    best.length === 2, JSON.stringify(best));
 }
 
 // The Settings sanity checks may not reach into another tab by any route Sheets is free to
@@ -551,6 +1040,7 @@ labelFor('Q', 'Pool size (Q)');
 labelFor('SORT_BY', 'Sort by');
 labelFor('TIER_MULT', 'Tier multiplier');
 labelFor('CAT_BAND', 'Category band');
+labelFor('CAT_BAND_SEC', 'Secondary band');
 labelFor('DISAGREE_GAP', 'Disagreement gap');
 labelFor('WEAK_WIN', 'Weak at or below');
 labelFor('STRONG_WIN', 'Strong at or above');
@@ -562,6 +1052,47 @@ CAT_LABELS.forEach(lab => {
   const got = String(seen.sheets['Settings'].cells[`${rng.row},1`] || '');
   if (got !== lab) fails.push(`K_${catKey(lab)} points at a row labelled "${got}", expected "${lab}"`);
 });
+
+// --- Settings defaults -------------------------------------------------------
+// SETTINGS_DEFAULTS is the only place Build.gs holds a league or cutoff number, and
+// tests/test_board_settings.py holds it equal to board_settings.py. That is worth nothing
+// unless the skeleton actually reads it. So: the cells it wrote must equal the object, and
+// then -- the half that catches a literal left behind -- a skeleton written with every
+// default changed must follow every change.
+{
+  const cellsByKey = { teams: 'TEAMS', roster: 'ROSTER', scoring: 'SCORING',
+    tier_mult: 'TIER_MULT', cat_band: 'CAT_BAND', cat_band_sec: 'CAT_BAND_SEC',
+    disagree_gap: 'DISAGREE_GAP',
+    weak_win: 'WEAK_WIN', strong_win: 'STRONG_WIN', bank_win: 'BANK_WIN' };
+  expect('every SETTINGS_DEFAULTS key has a Settings cell',
+    Object.keys(SETTINGS_DEFAULTS).sort().join(','), Object.keys(cellsByKey).sort().join(','));
+  const settingsCells = (sheetName) => {
+    const out = {};
+    Object.keys(cellsByKey).forEach(k => {
+      const rng = seen.namedRanges[cellsByKey[k]];
+      out[k] = rng ? seen.sheets[sheetName].cells[`${rng.row},${rng.col}`] : undefined;
+    });
+    return out;
+  };
+  const same = (got, want) => (typeof want === 'number' ? Number(got) === want : String(got) === want);
+  const compare = (label, got, want) => Object.keys(cellsByKey).forEach(k => {
+    check(`${label}: ${cellsByKey[k]} equals SETTINGS_DEFAULTS.${k}`, same(got[k], want[k]),
+      `got ${got[k]}, want ${want[k]}`);
+  });
+  compare('Settings', settingsCells('Settings'), SETTINGS_DEFAULTS);
+  expect('disagreeGap falls back to SETTINGS_DEFAULTS', disagreeGap(), SETTINGS_DEFAULTS.disagree_gap);
+
+  const saved = SETTINGS_DEFAULTS;
+  const altered = { teams: 11, roster: 14, scoring: 'probe', tier_mult: 3, cat_band: 1.5,
+                    cat_band_sec: 0.25,
+                    disagree_gap: 9, weak_win: 0.3, strong_win: 0.7, bank_win: 0.8 };
+  const probe = new Sheet('Settings probe');
+  probe.maxCols = 10; probe.maxRows = 90;
+  SETTINGS_DEFAULTS = altered;
+  try { writeSettingsSkeleton(probe); } finally { SETTINGS_DEFAULTS = saved; }
+  compare('skeleton written from altered defaults', settingsCells('Settings probe'), altered);
+  delete seen.sheets['Settings probe'];
+}
 
 ['TRACK_FG_BAND', 'TRACK_FT_BAND', 'TRACK_COUNT_BAND', 'GP_DIVISOR', 'MIN_GP',
  'REPLACEMENT', 'PUNT_WEIGHT', 'MULT_STL'].forEach(n => {
@@ -576,29 +1107,91 @@ CAT_LABELS.forEach(lab => {
   check(`DB_DH_${catKey(lab)} is defined`, !!seen.namedRanges['DB_DH_' + catKey(lab)]);
 });
 
-// --- the projection filter -------------------------------------------------
-// Only the column arithmetic can be tested offline; that Google actually fires the trigger
-// cannot be. The arithmetic is the part that silently points at the wrong span.
+// --- the projection groups (ADR-0030) --------------------------------------
+// Each projection's six columns are one column group, collapsed at build. Only the column
+// arithmetic can be tested offline; that Sheets draws the + cannot be. The arithmetic is
+// the part that silently points at the wrong span.
 {
   const sh = seen.sheets['Draft Board'];
-  sh.hidden = []; sh.shown = [];
-  setProjectionVisible(sh, 1, false);
-  expect('hiding HBP hides exactly its six columns',
-    JSON.stringify(sh.hidden), JSON.stringify([[dSpanStart(1), SPAN]]));
-  setProjectionVisible(sh, 2, true);
-  expect('showing BMP-ALT shows exactly its six columns',
-    JSON.stringify(sh.shown), JSON.stringify([[dSpanStart(2), SPAN]]));
+  const groups = sh.groups || [];
+  const has = (c, n) => groups.some(g => g[0] === c && g[1] === n);
+  for (let s = 0; s < SOURCES.length; s++) {
+    check(`${SOURCES[s].label} is one group over exactly its six columns`,
+      has(dSpanStart(s), SPAN), JSON.stringify(groups));
+    check(`${SOURCES[s].label} is collapsed at build`,
+      (sh.collapsed || []).includes(dSpanStart(s)), JSON.stringify(sh.collapsed));
+    check(`${SOURCES[s].label} label column sits directly ahead of its block`,
+      dLabel(s) === dSpanStart(s) - 1);
+  }
+  // Sheets merges two groups that touch. A column belonging to no group has to sit on both
+  // sides of every one, or opening one projection opens its neighbour.
+  const grouped = new Set();
+  groups.forEach(([c, n]) => { for (let k = 0; k < n; k++) grouped.add(c + k); });
+  let touching = '';
+  groups.forEach(([c, n]) => {
+    if (grouped.has(c - 1) || grouped.has(c + n)) touching += ` [${c}+${n}]`;
+  });
+  check('no two column groups touch', touching === '', touching);
+  check('the + sits over the column before its group', sh.groupControl === 'BEFORE',
+    String(sh.groupControl));
+  check('the label columns are never hidden',
+    (sh.hidden || []).every(([c, n]) => SOURCES.every((_, i) => dLabel(i) < c || dLabel(i) >= c + n)),
+    JSON.stringify(sh.hidden));
 
-  // A checkbox tick anywhere but row 1 of the Draft Board must do nothing at all: onEdit
-  // fires on every edit, including each of the ~156 GONE ticks during a draft.
-  sh.hidden = []; sh.shown = [];
-  onEdit({ range: { getRow: () => 5, getColumn: () => 1, getSheet: () => sh,
-                    getValue: () => false } });
-  check('onEdit ignores edits outside row 1', sh.hidden.length === 0 && sh.shown.length === 0);
+  // onEdit fires on every edit, including each of the ~156 ticks during a draft. With the
+  // projection checkboxes gone, an edit to row 1 left of the sort dropdown must do nothing.
+  const before = JSON.stringify([sh.hidden, sh.shown]);
+  onEdit({ range: sh.getRange(5, 1) });
   onEdit({ range: { getRow: () => 1, getColumn: () => 1, getSheet: () => sh,
-                    getValue: () => false } });
-  expect('onEdit on the first checkbox hides the first block',
-    JSON.stringify(sh.hidden), JSON.stringify([[dSpanStart(0), SPAN]]));
+                    getNumColumns: () => 1, getValue: () => false } });
+  check('onEdit hides and shows nothing', JSON.stringify([sh.hidden, sh.shown]) === before);
+}
+
+// --- clearing CMP (ADR-0028) ------------------------------------------------
+// Two routes clear every CMP tick: the Clear all box beside the Compare picks title, and any
+// MINE tick, because the comparison was for that pick. onEdit swallows its own errors, so a
+// route that silently stopped working would look exactly like a route that was never used.
+{
+  const db = seen.sheets['Draft Board'], tr = seen.sheets[TRACKER_TAB];
+  const rows = [R0 + 2, R0 + 9, R0 + 30];
+  const tickCmp = () => rows.forEach(r => { db.cells[`${r},${D.cmp}`] = true; });
+  const cmpLeft = () => rows.filter(r => db.cells[`${r},${D.cmp}`] === true).length;
+  const edit = (sheet, r, c, v, nr, nc) => {
+    const rg = sheet.getRange(r, c, nr || 1, nc || 1);
+    for (let i = 0; i < (nr || 1); i++)
+      for (let j = 0; j < (nc || 1); j++) sheet.cells[`${r + i},${c + j}`] = v;
+    onEdit({ range: rg, value: nr || nc ? undefined : v });
+  };
+
+  tickCmp();
+  edit(tr, 1, CMP_CLEAR_COL, true);
+  check('the Clear all box clears every CMP tick', cmpLeft() === 0, `${cmpLeft()} left`);
+  check('the Clear all box unticks itself', tr.cells[`1,${CMP_CLEAR_COL}`] === false);
+  check('DB_CMP is the CMP column, all of it',
+    seen.namedRanges.DB_CMP && seen.namedRanges.DB_CMP.col === D.cmp
+    && seen.namedRanges.DB_CMP.row === R0 && seen.namedRanges.DB_CMP.nr === POOL_ROWS);
+
+  tickCmp();
+  edit(db, R0 + 50, D.mine, true);
+  check('a MINE tick clears every CMP tick', cmpLeft() === 0, `${cmpLeft()} left`);
+
+  tickCmp();
+  edit(db, R0 + 51, D.mine, false);
+  check('unticking MINE clears nothing', cmpLeft() === rows.length);
+  edit(db, R0 + 60, D.cmp, true);
+  check('a CMP tick clears nothing', cmpLeft() === rows.length);
+  edit(tr, 1, CMP_CLEAR_COL + 1, true);
+  check('a tick beside the Clear all box clears nothing', cmpLeft() === rows.length);
+
+  // A paste across CMP and MINE arrives as one multi-cell edit with no e.value.
+  edit(db, R0 + 70, D.cmp, true, 3, 2);
+  check('a pasted block that ticks MINE clears every CMP tick', cmpLeft() === 0);
+  [50, 70, 71, 72].forEach(k => { db.cells[`${R0 + k},${D.mine}`] = false; });
+  [60, 70, 71, 72].forEach(k => { db.cells[`${R0 + k},${D.cmp}`] = false; });
+
+  tickCmp();
+  clearCompareMenu();
+  check('the menu item clears every CMP tick', cmpLeft() === 0);
 }
 
 // --- draft state survives a layout change ----------------------------------
@@ -621,26 +1214,39 @@ CAT_LABELS.forEach(lab => {
   // column would prove nothing.
   old.cells[`${HDR},${oldInj}`] = 'INJ';
   old.cells[`${R0},${oldPlayer}`] = 'Ada Lovelace';
-  old.cells[`${R0},${oldGone}`] = false;
+  old.cells[`${R0},${oldGone}`] = true;
+  old.cells[`${R0},${D.cmp}`] = true;
   old.cells[`${R0},${oldMine}`] = true;
   old.cells[`${R0},${oldNotes}`] = 'target';
+  // A second player whose Notes cell was never typed over: still the formula into the Board.
+  old.cells[`${R0 + 1},${oldPlayer}`] = 'Grace Hopper';
+  old.cells[`${R0 + 1},${oldNotes}`] = "='Board'!$AB$5";
   old.cells[`${R0},${oldInj}`] = 'STALE';
-  old.getLastRow = () => R0;
+  old.getLastRow = () => R0 + 1;
 
   const at = draftHeaderCols(old);
-  check('draftHeaderCols finds GONE by its header, not by the map', at.GONE === oldGone,
-    `got ${at.GONE}, expected ${oldGone}`);
-  check('draftHeaderCols finds MINE by its header', at.MINE === oldMine);
+  check('draftHeaderCols finds MINE by its header, not by the map', at.MINE === oldMine,
+    `got ${at.MINE}, expected ${oldMine}`);
+  // The sheet before ADR-0028 had GONE where CMP now sits. Falling back to the map there
+  // would read every old GONE tick as a CMP tick on the first rebuild.
+  check('a sheet with no CMP header has no CMP column to read', at.CMP === null,
+    `got ${at.CMP}`);
 
   check('readCheckState tolerates a missing sheet', readCheckState(null) && true);
   const state = readCheckState(old);
   const rec = state['Ada Lovelace'];
   check('the ticked player is read back', !!rec);
   if (rec) {
-    // The precise corruption to guard against: reading MINE as GONE.
-    check('MINE is not read as GONE', rec.gone === false && rec.mine === true,
-      `gone=${rec.gone} mine=${rec.mine}`);
-    check('Notes travel with the checkboxes', rec.notes === 'target', JSON.stringify(rec));
+    check('MINE is read from its own column', rec.mine === true, `mine=${rec.mine}`);
+    check('an old GONE tick never comes back as CMP', rec.cmp === false && rec.gone === undefined,
+      JSON.stringify(rec));
+    check('a typed-over note travels with the checkboxes', rec.notes === 'target',
+      JSON.stringify(rec));
+    // Captured, it would be restored as a literal over the formula, and the next refresh's
+    // comment would never reach the cell.
+    const untouched = state['Grace Hopper'];
+    check('an untouched Notes cell is NOT captured', !!untouched && untouched.notes === '',
+      JSON.stringify(untouched));
     // The Board owns INJ now, and the Draft Board cell is a formula into it. Capturing it
     // here would restore a literal over that formula on the next re-sort and freeze the
     // tier -- no #REF!, no error, just a stale value that reads as current.
@@ -648,6 +1254,10 @@ CAT_LABELS.forEach(lab => {
       `readCheckState still captures INJ: ${JSON.stringify(rec)}`);
     check('draftHeaderCols no longer resolves INJ', at.INJ === undefined);
   }
+  // The same sheet once it says CMP: now the tick is real, and it is carried by its header.
+  old.cells[`${HDR},${oldGone}`] = 'CMP';
+  const rec2 = readCheckState(old)['Ada Lovelace'];
+  check('a CMP tick is carried by its header', !!rec2 && rec2.cmp === true, JSON.stringify(rec2));
 }
 
 // The injury tier is a pipeline column. Both halves of that have to hold: it must be
@@ -657,6 +1267,15 @@ check('B.injuries is refreshed from the pipeline',
 check('B.injuries is not a hand column', !HAND_COLS.includes(B.injuries));
 check('the injury tier is the 21st PLAYERS field',
   REFRESH_MAP.some(([col, idx]) => col === B.injuries && idx === 20));
+// Notes and BMP's GP are pipeline columns too (ADR-0030).
+check('B.notes is refreshed from the pipeline, as the 23rd PLAYERS field',
+  REFRESH_MAP.some(([col, idx]) => col === B.notes && idx === 22));
+check('B.notes is not a hand column', !HAND_COLS.includes(B.notes));
+check('B.bmpGp is refreshed from the pipeline, as the 22nd PLAYERS field',
+  REFRESH_MAP.some(([col, idx]) => col === B.bmpGp && idx === 21));
+check('B.bmpGp is the last Board column, so no refreshed column moved', B.bmpGp === B_LAST);
+expect('the Draft Board GP is the Board\'s BMP games, at the player\'s own row',
+  String(cell('Draft Board', R0, D.gp)).replace(/\d+$/, ''), `='Board'!$${a1col(B.bmpGp)}$`.replace(/'/g, ''));
 
 // --- conditional formats ---------------------------------------------------
 // These carry column letters, which is exactly what drifts when a column is inserted.
@@ -664,15 +1283,15 @@ check('the injury tier is the 21st PLAYERS field',
   const rules = seen.sheets['Draft Board'].rules.map(r => r.formula).filter(Boolean);
   const has = f => rules.some(x => x === f);
   check('MINE rule keys off the Mine column', has(`=${C(D.mine)}${R0}=TRUE`), rules.join('\n'));
-  check('GONE rule keys off the Gone column', has(`=${C(D.drafted)}${R0}=TRUE`));
-  // First match wins, so MINE has to be added before GONE: the old order rendered a
-  // player who was both as struck through, which the mine rule explicitly undid.
+  check('CMP rule keys off the CMP column', has(`=${C(D.cmp)}${R0}=TRUE`));
+  // First match wins, so MINE has to be added before CMP: a player you have taken reads as
+  // yours, whatever else is ticked beside him.
   const iMine = rules.indexOf(`=${C(D.mine)}${R0}=TRUE`);
-  const iGone = rules.indexOf(`=${C(D.drafted)}${R0}=TRUE`);
-  check('MINE resolves before GONE', iMine >= 0 && iGone >= 0 && iMine < iGone,
-    `mine at ${iMine}, gone at ${iGone}`);
-  check('the GP haircut band points at Projected GP',
-    has(`=AND(${C(D.projGp)}${R0}>=68,${C(D.projGp)}${R0}<=74)`));
+  const iCmp = rules.indexOf(`=${C(D.cmp)}${R0}=TRUE`);
+  check('MINE resolves before CMP', iMine >= 0 && iCmp >= 0 && iMine < iCmp,
+    `mine at ${iMine}, cmp at ${iCmp}`);
+  check('no rule on the Draft Board carries the Hashtag GP haircut band',
+    !rules.some(x => x.indexOf('>=68') >= 0));
   check('the round ruler points at the round column',
     has(`=ISODD(${C(D.round)}${R0})`));
   // One rule per tag column, never one rule over nine ranges: a multi-range rule relies on
@@ -703,7 +1322,8 @@ check('the injury tier is the 21st PLAYERS field',
   // this workbook lives on Settings. Referencing one takes down the entire rule set for
   // that tab -- "Conditional format rule cannot reference a different sheet" -- which is
   // how the Draft Board build failed on its first live run.
-  const named = ['DISAGREE_GAP','CAT_BAND','TIER_MULT','TEAMS','Q','WEAK_WIN','STRONG_WIN',
+  const named = ['DISAGREE_GAP','CAT_BAND','CAT_BAND_SEC','TIER_MULT','TEAMS','Q',
+                 'WEAK_WIN','STRONG_WIN',
                  'BANK_WIN','SORT_BY','ROSTER','SCORING'];
   ['Draft Board','Board','Category Tracker','Punts','BMP','HBP','BMP-ALT','Settings']
     .forEach(name => {
@@ -720,6 +1340,49 @@ check('the injury tier is the 21st PLAYERS field',
           fails.push(`${name}: a conditional format rule references another sheet\n     ${f}`);
       });
     });
+}
+
+// --- a reordering refresh keeps My GP live ----------------------------------
+// The restore loop used to write '' into every My GP row without a saved override, once any
+// override existed. The seeding formula was gone, so the GP flag went silent on those rows
+// and never came back. Reproduced on a scratch Board: seed it, override one row, then
+// refresh as though the previous order had been the reverse of this one.
+{
+  const tab = 'Reorder Board';
+  const sh = new Sheet(tab);
+  sh.maxCols = B_LAST; sh.maxRows = RN;
+  writeBoardData(sh);
+  writeBoardFormulas(sh);
+  const newNames = PLAYERS.map(p => p[1]);
+  const oldNames = newNames.slice().reverse();
+  const overrideAt = 0, noteAt = 5;
+  sh.cells[`${R0 + overrideAt},${B.myGp}`] = 55;
+  sh.cells[`${R0 + noteAt},${B.notes}`] = 'typed on the Board';
+
+  // No Settings tab: the added/dropped note is not what is under test.
+  const report = refreshWithReorder({ getSheetByName: () => null }, sh, oldNames, newNames);
+
+  const landed = POOL_ROWS - 1 - overrideAt;
+  expect('a My GP override follows its player through a reorder',
+    cell(tab, R0 + landed, B.myGp), 55);
+  let lost = 0, firstLost = '';
+  for (let j = 0; j < POOL_ROWS; j++) {
+    if (j === landed) continue;
+    const got = cell(tab, R0 + j, B.myGp);
+    if (got !== `=${C(B.gp)}${R0 + j}`) { lost++; if (!firstLost) firstLost = `row ${R0 + j} holds "${got}"`; }
+  }
+  check('a reorder refresh leaves every unoverridden My GP on its seeding formula', lost === 0,
+    `${lost} rows lost it; first: ${firstLost}`);
+  // Notes is the pipeline's column now: whatever sat there is replaced by the comment
+  // Data.gs carries for the player who lands on the row.
+  let notesWrong = 0;
+  for (let j = 0; j < POOL_ROWS; j++)
+    if (cell(tab, R0 + j, B.notes) !== PLAYERS[j][22]) notesWrong++;
+  check('a reorder refresh writes every Notes cell from Data.gs', notesWrong === 0,
+    `${notesWrong} rows differ`);
+  check('a reseeded formula is not counted as a re-attached edit',
+    report.indexOf(' 1 hand edits re-attached') >= 0, report);
+  delete seen.sheets[tab];
 }
 
 // --- rebuilding over an existing sheet --------------------------------------
@@ -739,6 +1402,75 @@ check('the injury tier is the 21st PLAYERS field',
   const introduced = problems.slice(before);
   check('a rebuild clears merges left by the previous layout',
     introduced.length === 0, introduced.slice(0, 3).join('\n     '));
+}
+
+// --- the Data.gs stamp -------------------------------------------------------
+// The digest on Settings is what a parity check matches against the local board before it
+// compares anything (ADR-0022). A stamp only a Full rebuild writes is stale after the first
+// Refresh data, and a stale stamp is a false "same build". So wipe it and prove each path
+// that changes the sheet's data writes it back: the build, Refresh data, Rebuild & re-sort.
+{
+  const settings = seen.sheets['Settings'];
+  const genRow = S_SANITY + 6, digestRow = S_SANITY + 8;
+  const wantGen = META.generated + (META.mixedDates ? '  *** MIXED DATES ***' : '');
+  const wantDigest = META.digest ? String(META.digest) : STAMP_NO_DIGEST;
+  const wipe = () => { delete settings.cells[`${genRow},2`]; delete settings.cells[`${digestRow},2`]; };
+
+  if (SYNTHETIC) expect('synthetic META carries a digest', META.digest, 'synthetic');
+  check('the digest row sits above the build log', digestRow < NOTE_ROW,
+    `digest row ${digestRow}, NOTE_ROW ${NOTE_ROW}`);
+  expect('the digest row is labelled', cell('Settings', digestRow, 1), 'Data digest');
+  expect('a build stamps the generated date', cell('Settings', genRow, 2), wantGen);
+  expect('a build stamps the digest', cell('Settings', digestRow, 2), wantDigest);
+
+  [['Refresh data', refreshData], ['Rebuild & re-sort', rebuildAndResort]].forEach(([label, fn]) => {
+    wipe();
+    const before = problems.length;
+    try { fn(); } catch (e) { fails.push(`${label} THREW: ${e.message}`); }
+    check(`${label} raises no mock problems`, problems.length === before,
+      problems.slice(before, before + 3).join('\n     '));
+    expect(`${label} stamps the generated date`, cell('Settings', genRow, 2), wantGen);
+    expect(`${label} stamps the digest`, cell('Settings', digestRow, 2), wantDigest);
+  });
+
+  // No Data.gs: the stamp says so rather than going blank. Only on synthetic data, where
+  // META is a global the harness owns and can take away.
+  if (SYNTHETIC) {
+    const saved = global.META;
+    wipe();
+    delete global.META;
+    try { stampData(ss); } catch (e) { fails.push('stampData without META THREW: ' + e.message); }
+    global.META = saved;
+    expect('with no Data.gs the date stamp says so', cell('Settings', genRow, 2), STAMP_NO_DATA);
+    expect('with no Data.gs the digest stamp says so', cell('Settings', digestRow, 2), STAMP_NO_DATA);
+    stampData(ss);
+  }
+}
+
+// --- board_layout.json is current --------------------------------------------
+// Python reads the layout from the committed file instead of keeping its own column map, so a
+// stale file is a failure. The comparison is regenerated in a CHILD process run with
+// --write-layout, which forces the synthetic players: this process may have loaded a local
+// Data.gs, and nothing it loaded can reach the child. The answer is the same on every machine.
+{
+  const tmp = path.join(os.tmpdir(), `board_layout.${process.pid}.json`);
+  let fresh = null;
+  try {
+    require('child_process').execFileSync(process.execPath, [__filename, '--write-layout', tmp],
+      { stdio: ['ignore', 'ignore', 'pipe'] });
+    fresh = fs.readFileSync(tmp, 'utf8');
+  } catch (e) {
+    fails.push('could not regenerate the layout to compare against\n     '
+      + String(e.stderr || e.message).split('\n').slice(0, 6).join('\n     '));
+  } finally {
+    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+  }
+  if (fresh !== null) {
+    const committed = fs.existsSync(LAYOUT_PATH) ? fs.readFileSync(LAYOUT_PATH, 'utf8') : null;
+    check('board_layout.json matches what --write-layout writes', committed === fresh,
+      (committed === null ? 'it is missing' : 'it is stale')
+      + ' -- run `node scripts/draft-board/harness.js --write-layout` and commit the result');
+  }
 }
 
 console.log('\n=== ' + (fails.length ? fails.length + ' ASSERTION FAILURE(S)' : 'all assertions passed') + ' ===');

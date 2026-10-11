@@ -30,8 +30,8 @@ The two vendors no longer iterate at all, because they borrow fixed constants
 either way the numbers arrive already computed.
 
 What stays a live formula is everything that has to react while you are drafting: rank,
-tier, round, GAP, the strengths and weaknesses columns, `Left @pos`, and the whole Category
-Tracker. Ticking `MINE` still updates the tracker instantly.
+tier, round, GAP, the three profile columns, and the whole Category Tracker, Compare
+picks included. Ticking `MINE` or `CMP` still updates the tracker instantly.
 
 > **The consequence to keep in mind: changing a constant on Settings does not recalculate
 > the board.** Weights, lambdas and the punt weight are applied upstream. Edit the pipeline
@@ -45,18 +45,19 @@ carries DURH, ZSH and ZSC ([ADR-0015](../decisions/ADR-0015-durant-h2h-primary-v
 `BMP · DURH` is the default sort.
 
 **Nothing scales by games played**
-([ADR-0017](../decisions/ADR-0017-no-games-played-adjustment.md)). The GP columns are
-context for a judgement call, not a multiplier.
+([ADR-0017](../decisions/ADR-0017-no-games-played-adjustment.md)). The Draft Board's one `GP`
+column is Basketball Monster's projected games, there as context for a judgement call, not a
+multiplier ([ADR-0030](../decisions/ADR-0030-draft-board-carries-bmp-gp-and-comments.md)).
 
 **The tabs.**
 
 | Tab | What it is |
 |---|---|
-| `Draft Board` | The one you use on the clock. Row 1 is the control strip — the sort dropdown and the three projection checkboxes. `GONE` and `MINE` sit inside the frozen pane because they are the only cells you write during a draft. |
+| `Draft Board` | The one you use on the clock. Row 1 is the control strip — the sort dropdown. Each projection's six columns are a column group, collapsed after every build and re-sort; click the `+` above its narrow label column (`BMP`, `HBP`, `ALT`) to open one. `Notes` shows Basketball Monster's comment on the player until you type over it. `CMP` and `MINE` sit inside the frozen pane because they are the only cells you write during a draft. Tick `CMP` beside the players you are deciding between and they fill Compare picks on the tracker; ticking `MINE` clears every `CMP`. There is no `GONE`: nobody ticked other managers' picks, and `Left @pos`, which needed them, went with it ([ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)). |
 | `BMP`, `HBP`, `BMP-ALT` | One calculation tab per projection: raw line, the three values with their ranks and dropped categories, the DURANT H2H columns, plain z, and the punt builds. All numbers, no formulas. |
-| `Board` | The spine. Identity, the HBP raw line, the GP block, market, and every column you edit by hand. `Refresh data` writes here and nowhere else. |
+| `Board` | The spine. Identity, the HBP raw line, the GP block, market, the hand columns, Basketball Monster's comment (`Notes`) and BMP's projected games. `Refresh data` writes here and nowhere else. |
 | `Punts` | Nine builds, each listing who it gets at a discount. Computed on BMP · DURH. |
-| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of the Draft Board's Strengths and Weaknesses columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. |
+| `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of all three of the Draft Board's profile columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. Beside it, **Compare picks**: the players ticked `CMP` and not `MINE`, best board # first, up to five (I6:M6). Each column is the tracker as it would read if you took that player next, ranked on expected categories won ([ADR-0027](../decisions/ADR-0027-compare-picks-on-the-tracker.md), [ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)). H3 says so when more than five are ticked. The **Clear all** box in K1 unticks every `CMP` through `onEdit`; `Draft Board ▸ Clear compare` does the same by hand. The win columns are hidden in N:R. |
 | `Settings` | Every constant. Yellow cells are yours; grey cells record what the pipeline used. |
 | `README` | The cheat sheet, mirrored to [cheat-sheet.md](cheat-sheet.md). |
 
@@ -72,7 +73,11 @@ context for a judgement call, not a multiplier.
 | `scripts/draft-board/bbm_constants.py` | Reads a recovered-constants file, and refuses the wrong one | yes |
 | `scripts/bbm/bbm_reference.py` | The valuation engine, validated against Basketball Monster | yes |
 | `scripts/draft-board/harness.js` | Mocks the Sheets API and dry-runs the build | yes |
-| `scripts/draft-board/verify.py` | Re-checks `Data.gs` and diffs a pull of the live board | yes |
+| `scripts/draft-board/verify.py` | Re-checks `Data.gs` and diffs a pull of the live board; `--local` checks the local engine against a pull | yes |
+| `scripts/draft-board/pull_sheet.py` | Pulls every range `verify.py --local` reads, through `playwright-cli` | yes |
+| `scripts/draft-board/verify_local.py` | The `--local` comparison itself | yes |
+| `scripts/draft-board/board_layout.json` | The sheet's layout for Python: columns, headers, Settings cells, named ranges. Generated by `harness.js --write-layout` | yes |
+| `data/draft-board/pulls/<timestamp> <label>.json` | A pull of the sheet. Provider data — **gitignored** | no |
 | `scripts/draft-board/export_readme.js` | Regenerates `cheat-sheet.md` | yes |
 | `scripts/draft-board/export_yahoo_rankings.py` | Turns the board into a Yahoo rankings CSV | yes |
 | `scripts/draft-board/valuation.py` | The playbook's older z/G/VOR model. Not what the board runs on; kept because Phase 2 inherits it | yes |
@@ -85,7 +90,9 @@ context for a judgement call, not a multiplier.
 ## Bringing in new data
 
 A refresh is **six files moving together** — three exports you download, and three files
-the calibration produces for you. All six must carry the same date.
+the calibration produces for you. All six must carry the same date. A seventh is optional:
+Basketball Monster's player comments, which fill the Notes column. Without it the build says
+so and Notes are blank; comments from another date are never borrowed.
 
 ```
 data/player_data/
@@ -95,6 +102,7 @@ data/player_data/
   BMP Constants - YYYY-MM-DD.json         recovered by calibrate_bbm.py, step 2
   BMP-ALT Constants - YYYY-MM-DD.json     recovered by calibrate_bbm.py, step 2
   BBM Injury Risk - YYYY-MM-DD.csv        written by calibrate_bbm.py, step 2 (BMP-ALT run)
+  BMP Comments - YYYY-MM-DD.csv           optional: rank,last_name,first_name,team,positions,comment
 ```
 
 **HBP is the spine.** It decides which 200 players are on the board and supplies team,
@@ -157,6 +165,9 @@ python3 scripts/draft-board/build_data.py
 
 Add `--date YYYY-MM-DD` to pick a specific set.
 
+The same run writes the local board's snapshot, `data/draft-board/board - YYYY-MM-DD.json`,
+from the same objects, and stamps one digest into both files. `--dry-run` writes neither.
+
 **5. Dry-run the build.**
 
 ```bash
@@ -171,7 +182,9 @@ python3 scripts/draft-board/verify.py
 
 Re-checks every invariant the sheet depends on: row alignment across the four tabs, ranks
 being a permutation with no gaps, the weighted column being the unweighted one times its
-weight, and `K × w = k`.
+weight, and `K × w = k`. It also loads the local snapshot this `Data.gs` was built with (the
+one dated `META.generated` under `data/draft-board/`), and requires every number in it to
+equal its `Data.gs` counterpart and the two digests to match; `--snapshot PATH` names another.
 
 Then check the board against something outside it, reusing the scrape step 2 already saved:
 
@@ -193,6 +206,12 @@ itself](#changing-the-sheet-itself). It is about 185KB, so roughly fifteen chunk
 
 **8. Run `Draft Board ▸ Refresh data`.** Read the toast and the build log on Settings.
 
+Before running it, record every MINE tick and every Notes cell you typed over on the Draft
+Board by player name. A refresh that reorders rows can leave them beside the wrong players (see
+[I1](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md#workaround-until-it-is-fixed)
+for the workaround) — the checkboxes and Notes are the Draft Board's own values, not
+formulas into the Board, so nothing else recovers them.
+
 **9. Check the Settings sanity block.** In particular the **names line up across tabs** row:
 anything but `aligned` means the calculation tabs are out of step with the Board, and every
 value on the Draft Board is attached to the wrong player. Stop there.
@@ -200,11 +219,45 @@ value on the Draft Board is attached to the wrong player. Stop there.
 **10. Re-do any `My GP Est` overrides for new arrivals.**
 
 **11. Run `Draft Board ▸ Rebuild & re-sort`.** Deliberately manual. Checkboxes and notes
-reattach by player name. Injury tiers do not need to — the Board owns that column and the
-Draft Board mirrors it, so a tier follows its player through any sort by construction.
+reattach by player name **only when the refresh did not reorder rows**. After a reordering
+refresh, that reattachment is by sheet row, not identity ([I1](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md)) —
+restore MINE and Notes from the names recorded in step 8 rather than trusting what the
+re-sort left in place. Injury tiers do not need either kind of recovery — the Board owns that
+column and the Draft Board mirrors it, so a tier follows its player through any sort by
+construction.
 
-**12. Look at it.** Screenshot the Draft Board and the Category Tracker. Two real defects on
+**11a. Run `Draft Board ▸ Full rebuild (from Data.gs)` as well.** Not optional, and the reason
+is narrow: the Settings tracker block — `k`, `w`, `K` and the **D-on-z slope** — is written only
+by `writeSettingsSkeleton`, which `refreshData` never calls. Those slopes move whenever the
+projections move, so after a refresh alone the block still records the *previous* build and step
+12 fails on eight cells with everything else agreeing. First seen on 2026-10-01, where the sheet's
+column E matched the superseded snapshot exactly.
+
+Safe when there is nothing to lose, which is the normal case: check the pull from step 8 for MINE
+and CMP ticks, Notes, XRank, and the eight `Punted` boxes, and restore them afterwards if any were
+set. `Step 1 — Settings only` would write the same block and must still never be used — it
+recreates the tab and leaves `TIER` and `RND` as `#REF!` on all 200 rows.
+
+**12. Verify the local engine against the sheet.** Required, and only after steps 11 and 11a —
+before the re-sort the rows are still the previous board's order and the comparison is meaningless.
+
+```bash
+python3 scripts/draft-board/pull_sheet.py
+python3 scripts/draft-board/verify.py --local "data/draft-board/pulls/<timestamp> live.json"
+```
+
+Exit 0 is the pass. Exit 3 means the sheet is not the build the snapshot came from — a header
+that differs, a stamped digest that is not the snapshot's, or a sanity check that is not
+`aligned` — so push the right `Data.gs` or `Code.gs` and re-pull rather than reading the diff.
+Exit 1 is a real disagreement; see [Verifying the local engine against the
+sheet](#verifying-the-local-engine-against-the-sheet).
+
+**13. Look at it.** Screenshot the Draft Board and the Category Tracker. Two real defects on
 the tracker were invisible in the cell values and obvious on sight.
+
+**14. Rebase the draft state, if one exists.** `python3 scripts/draft-board/board.py rebase`
+moves `data/draft-board/draft-state.json` onto the new snapshot. Only after step 12 passes, and
+never during a live draft.
 
 ### When it refuses to run
 
@@ -233,11 +286,12 @@ its own cause:
 **Rewritten:** every value, rank, dropped-category tag and per-category column on all three
 calculation tabs; the raw stat lines; ADP; seed rank; the reported pool constants.
 
-**Never touched:** `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Notes`, the
-`Punted` ticks, the `GONE` and `MINE` checkboxes, the `Sort by` selection, the projection
-filter state — and every formula, format, column width and named range.
+**Never touched:** `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, a note typed over a Draft
+Board `Notes` cell, the `Punted` ticks, the `CMP` and `MINE` checkboxes, the `Sort by`
+selection — and every formula, format, column width and named range.
 
-`Injuries` belongs to the first list. It is written from Basketball Monster's risk table
+`Injuries`, the Board's `Notes` (Basketball Monster's comment) and `BMP GP` belong to the first
+list. It is written from Basketball Monster's risk table
 like any other pipeline column, and a board player they do not grade shows `?` rather than
 a blank — a blank in a risk column reads as `LOW`.
 
@@ -259,9 +313,20 @@ work than one which does not. The change report at step 2 tells you in advance.
 Moving a **Board** column breaks `Refresh data`, because `REFRESH_MAP` writes into fixed
 positions.
 
-Moving a **Draft Board** column does not touch the refresh — but the **Category Tracker
-bakes in Draft Board column letters at write time**, and `Rebuild & re-sort` rebuilds only
-the Draft Board. An un-rebuilt tracker reports wrong totals with no error.
+Moving a **Draft Board** column does not touch the refresh — but it silently repoints the
+**Category Tracker**. The tracker's formulas name no column letters; they read `DB_MINE`,
+`DB_RANK`, `DB_DH_<cat>` and the rest, and the letters live in *those named ranges'
+definitions*. `Rebuild & re-sort` calls `buildDraftTab` without `defineNames`, and
+`sheetByName` clears a tab rather than deleting it, so the old definitions survive pointing
+at the pre-move columns. The tracker then computes every win probability off the wrong
+column, with no `#REF!` and no error.
+
+(ADR-0013 records this as the tracker baking in letters "at write time". That was true when
+it was written and is not now; the hazard and the fix are unchanged.)
+
+A column *insert* has a second, louder failure on the same path: `rebuildAndResort` passes
+the sheet straight through with no `ensureGrid`, so once `D_LAST` grows past the live tab's
+column count, `writeGrid` throws.
 
 After any Draft Board column change, do a **full rebuild**, in this order:
 
@@ -277,11 +342,13 @@ tracker is not what you are waiting on.
 
 The `Sort by` dropdown in row 1 offers nine choices — three projections × three values.
 **Changing it does not re-sort the board on its own**; run `Rebuild & re-sort`. Until you
-do, the block header reads `SORT STALE`.
+do, nothing on the board follows the new choice — rows, `#`, tiers and the tracker all still
+reflect the previous sort. No header marks it stale.
 
-The three checkboxes beside it hide and show each projection's six value columns. That runs
-on a simple `onEdit`, so there is nothing to install. If a checkbox ever stops responding,
-`Draft Board ▸ Apply projection filter` does the same job by hand.
+Each projection's six value columns are a column group, collapsed after every build and
+every re-sort ([ADR-0030](../decisions/ADR-0030-draft-board-carries-bmp-gp-and-comments.md)).
+Click the `+` above a block's label column to open it and the `−` to close it. The label
+columns are what keep the three groups separate: Sheets merges groups that touch.
 
 All three projections showing is a **comparison** view, not a draft-day view — it fills the
 screen. The steady state on the clock is one projection expanded.
@@ -396,7 +463,7 @@ development:
 - A **new sheet is 26 columns**. The Draft Board needs 77 and a calculation tab 66.
   `ensureGrid()` grows it first; `setColumnWidth` past the last column throws.
 - A **formula naming a sheet that does not exist yet is a permanent `#REF!`**. It does not
-  heal when the sheet is created later. The Strengths and Weaknesses columns reference the
+  heal when the sheet is created later. The three profile columns reference the
   Category Tracker, and every Draft Board row references a calculation tab, so a full build
   makes all nine tabs up front — `Step 4` and `Rebuild & re-sort` assume they exist.
 - A **sheet name containing a hyphen must be quoted inside a formula**: `'BMP-ALT'!$Q$4`,
@@ -417,8 +484,7 @@ steps that each finish well under it:
 | Menu item | Rebuilds |
 |---|---|
 | `Refresh data` | the Board's changed cells, plus all three calculation tabs — the normal path |
-| `Rebuild & re-sort` | Draft Board order, keeping GONE / MINE / Notes |
-| `Apply projection filter` | shows and hides the value blocks by hand |
+| `Rebuild & re-sort` | Draft Board order, keeping CMP / MINE / Notes |
 | `Full rebuild (from Data.gs)` | everything, destroying hand edits |
 | `Step 1 — Settings only` | Settings and the named ranges. **Building up only** — run against a live board it leaves `TIER` and `RND` as `#REF!`; see below |
 | `Step 2 — Calculation tabs` | the three projection tabs |
@@ -467,8 +533,9 @@ the board into it is two steps: pull the tab out of Google, then convert it.
    `gviz/tq?tqx=out:csv` returns the range as CSV directly. Rows 4–203 are the data rows —
    row 1 is the control strip, row 2 the merged block headers, row 3 the column headers
    (`HDR = 3` in `Build.gs`) — and `headers=0` stops gviz guessing. Columns come back as
-   `#`, `TIER`, `RND`, `Player`, `Tm`, `Pos`, `INJ`. Save the result somewhere outside the
-   repo; it is provider data.
+   `#`, `TIER`, `RND`, `Player`, `Tm`, `Pos`, `INJ`. Save the result under
+   `data/draft-board/pulls/`; it is provider data, and `data/` is gitignored and blocked by
+   `check-no-data.sh`.
 
    > **This range moved.** It was `A3:E202` before the control strip and before `Round` and
    > `Injuries` were inserted. An old pull does not fail — it hands the converter team codes
@@ -505,6 +572,22 @@ Export **after** `Rebuild & re-sort`, never between a refresh and a re-sort — 
 the row order is still the previous board's. The same applies after changing `Sort by`: the
 dropdown does not move any rows until you re-sort.
 
+**Or export from the local board, with no pull at all.**
+
+```bash
+python3 scripts/draft-board/export_yahoo_rankings.py --local
+python3 scripts/draft-board/export_yahoo_rankings.py --local --sort BMP-ALT:durh
+```
+
+`--local` reads the newest snapshot in `data/draft-board/` (`--snapshot PATH` pins another)
+and prints its date and digest prefix, so you know which board you exported. It orders by
+`--sort`, else by the applied sort in `data/draft-board/draft-state.json` if one exists, else
+by `BMP:durh`. Ticks are ignored. Rows reach the same converter as a pull, so the file is
+byte-for-byte what a pull of the same board produces. The refresh-to-re-sort window does not
+exist here: the order is computed from the sort, not read off rows that have not moved yet.
+Once the sheet is refreshed, the snapshot is as current as the sheet will be after its
+re-sort.
+
 The output is provider-derived, so it stays out of version control — but it does
 live in the project, in `data/exports/`. In the working tree and in a commit are
 different things: `data/**` and `*.csv` are both gitignored, and
@@ -523,8 +606,9 @@ cells. It runs without `Data.gs`, synthesizing a 200-player pool, so it works on
 
 It also checks the things this refactor made easy to get wrong: that each projection's six
 value columns are contiguous, that no reference to a hyphenated sheet name is left
-unquoted, that `MINE` resolves before `GONE`, that the projection filter's column
-arithmetic hides exactly one block, and that `readCheckState` finds the draft state by
+unquoted, that `MINE` resolves before `CMP`, that both routes that clear `CMP` do, that each
+projection is one column group over exactly its own block and no two groups touch, that an
+untouched `Notes` cell is not captured by a re-sort, and that `readCheckState` finds the draft state by
 header label rather than by the current column map. Each of those is verified by
 deliberately breaking it and confirming the harness fails.
 
@@ -554,8 +638,8 @@ right. Pull the whole board and diff it against `Data.gs`:
 ```bash
 playwright-cli -s=fantasy eval \
   "() => fetch('https://docs.google.com/spreadsheets/d/<SHEET_ID>/gviz/tq?tqx=out:csv&sheet=Draft%20Board&range=A4:AA203&headers=0', {credentials:'include'}).then(r => r.text())"
-# save the CSV outside the repo -- it is provider data
-python3 scripts/draft-board/verify.py --sheet pull.csv
+# save the CSV under data/draft-board/pulls/ -- it is provider data, and data/ is gitignored
+python3 scripts/draft-board/verify.py --sheet "data/draft-board/pulls/board.csv"
 ```
 
 The wide `A4:AA203` range is the point: it carries the nine value columns **and their
@@ -568,6 +652,155 @@ Then look at Settings ▸ SANITY CHECKS. `Names line up across tabs` and `Draft 
 line up` must both read `aligned`. The second is the board's own witness that its hidden
 block belongs to its rows; a half-finished build is exactly what it catches, and it is the
 one check that costs nothing to read on draft night.
+
+### Verifying the local engine against the sheet
+
+The local board (`board.py`, over `board_engine.py`) re-implements the Draft Board's live
+formulas, the Category Tracker and the Punts tab in Python. Two implementations of one formula
+drift apart without either erroring, so the only proof they agree is a comparison on the real
+sheet:
+
+```bash
+python3 scripts/draft-board/pull_sheet.py
+python3 scripts/draft-board/verify.py --local "data/draft-board/pulls/<timestamp> live.json"
+```
+
+`pull_sheet.py` needs the `fantasy` session's tab on the sheet itself (docs.google.com), not
+the Apps Script editor. After [pushing `Code.gs`](#pushing-buildgs-into-the-sheet), navigate
+back to the sheet before pulling, or the pull fails.
+
+`pull_sheet.py` runs one `playwright-cli -s=fantasy run-code` from the repo root, because the
+persistent profile is keyed by working directory. It downloads the whole workbook as xlsx
+through the browser's own request context, which carries the owner's cookies: one request,
+about 3 seconds. The sheet id comes from `DRAFT_SHEET_ID` in `.env`; `--sheet-id` overrides it.
+The workbook is read with the standard library and cut to the ranges
+[`board_layout.json`](../../scripts/draft-board/board_layout.json) names. It replaced ~94
+sequential gviz range fetches, about 1.5 minutes a pull, which needed single-type ranges and
+anchor columns because gviz drops minority-type cells and all-empty rows. xlsx stores each
+cell's own value and type, so none of that applies. The pull is refused, and nothing written,
+when the download is not an xlsx (a signed-out profile), a tab is missing, or a range holds
+fewer filled cells than the layout says it must.
+
+`verify.py --local` never writes the draft state. It takes the sheet's own `CMP`, `MINE` and
+`Punted` ticks, the Board's hand columns, the Settings inputs and the displayed row order, runs
+the engine on them in memory, and compares:
+
+| Exit | Meaning |
+|---|---|
+| 0 | The engine agrees with every derived cell: Draft Board, tracker, My roster, Punts, reported Settings |
+| 1 | A real disagreement, reported by column and sheet row, never by name |
+| 2 | The pull or the snapshot is missing |
+| 3 | Not comparable: a header differs from `board_layout.json`, the stamped `Data digest` is not the snapshot's, or a Settings alignment check is not `aligned` |
+
+Numbers compare on the raw value to 1e-9, text on its text. Players tied on the sorted value
+share their ranks as a set until the sheet is proven to break ties the engine's way.
+Settings inputs that differ from the defaults the snapshot was built with fail on their own
+line. `SORT_BY` differing from the order actually shown is reported and not failed: `onEdit`
+sets it without re-sorting.
+
+**Triage rule.** If the sheet evaluates differently from `Build.gs`'s formula text — an array
+trap — fix `Build.gs`. If the engine differs from a sheet that evaluates correctly, fix the
+engine. Never widen a tolerance. Write it up in `docs/bugs/`.
+
+**Known gaps** — nothing in a values pull can show them:
+
+- conditional-format bindings and colours;
+- the disagreement gap, which is baked into the rules at build time while the check uses the
+  live Settings cell;
+- the reorder-refresh tick misattachment
+  ([the bug](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md)): ticks read back from
+  the sheet are taken as truth;
+- a `My GP Est` override equal to its seed formula's value, which a values pull cannot tell
+  apart from no override;
+- a Board `My GP Est` the pull lost: the Draft Board no longer mirrors it (ADR-0030);
+- a note typed over a Draft Board `Notes` cell, which reads as a mismatch against the comment.
+
+### The tick scenario, on a copy
+
+Ticks drive most of what the engine re-implements, and the owner's sheet cannot be used to
+exercise them, so the scenario runs on a **copy**, as one command:
+
+```bash
+python3 scripts/draft-board/tick_scenario.py            # ticks, punts and clearing CMP
+python3 scripts/draft-board/tick_scenario.py --full --allow-consent   # adds 6 and 7
+```
+
+**Two tiers, and a gate that reads formulas rather than filenames.** Steps 6 and 7 each cost a
+full Apps Script execution on the copy, which is most of the wall-clock, so they are opt-in.
+Before anything opens a browser, `node scripts/draft-board/harness.js --tick-fingerprint`
+builds the workbook offline and prints two hashes: `tick`, over every generated formula that
+reads the `CMP` column, the `MINE` column or the tracker's `Punted` range — in either
+vocabulary, since the Draft Board reads them as column letters and the tracker as `DB_MINE` /
+`DB_CMP` named ranges — and `rebuild`, over every formula the re-sort and `Refresh data` paths
+rewrite. `tier_needed` compares both against the last passing run:
+
+| what moved | what runs |
+|---|---|
+| neither hash, and not `board_engine.py` | nothing; the browser never opens |
+| the `tick` hash, or `board_engine.py` | steps 1-5 |
+| the `rebuild` hash | steps 1-7, and it says so |
+| no hashes recorded (first run, or a pre-fingerprint stamp) | steps 1-7 |
+
+The hash is taken from the **generated formula text**, so a column width, a colour, a header or
+a README row cannot move it — that was the whole defect. The old gate was `git diff --name-only
+-- Build.gs board_engine.py`, and `Build.gs` is one 2,600-line file covering all nine tabs, so
+editing a column width tripped a four-minute browser run ([ADR-0025](../decisions/ADR-0025-verification-budget.md)).
+Column letters are deliberately left in the hashed text: a formula still reading `$H4` after
+`CMP` moved to `I` is exactly the silent breakage the scenario exists to catch.
+
+A tick-tier pass records only the `tick` hash. It must not stamp `rebuild`, or the steps it
+skipped would never run again.
+
+It copies the live sheet (**File ▸ Make a copy**), unticks anything the copy inherited (Space,
+never Delete, which strips the checkbox), and then, pulling and running the full
+`verify.py --local` comparison after every step:
+
+1. `MINE` on 8 rows, then 14, which reaches the tracker's `MIN(Q, TEAMS × n)` cap.
+2. `CMP` on eight rows spread over the board, two of them `MINE`. Compare picks sees six, shows
+   the best five by board #, and its note says so.
+3. One conceded category, then two.
+4. The **Clear all** box beside Compare picks. `onEdit` has to untick every `CMP` and the box
+   itself. Simple triggers run on a copy with no authorisation, so this needs no consent.
+5. `CMP` on three rows, then `MINE` on a fifteenth, which has to clear them: the second route.
+6. A changed `Sort by`, then `Rebuild & re-sort`. This is the copy's first script run, so Google
+   asks to authorise the copy's script, a screen that grants access to all of Bryan's Sheets.
+   `--allow-consent` is Bryan's approval, **asked for before the run**, to click Allow on it.
+   Without the flag the run stops here and exits 5.
+6. The step fails unless Settings `SORT_BY` reads the new sort **and** verify sees the board
+   sorted by it. Verify on its own accepts whatever sort the board shows, and `onEdit` swallows
+   its own errors.
+7. Two swapped Board names on rows carrying no tick, note or hand value, a hand value
+   (`GP Y-1` = 50) on one of the two swapped rows, then `Refresh data`. `refreshData` finds the
+   names out of order and runs `refreshWithReorder`, which keys hand values by the name each row
+   shows at that moment and writes the Board back in `Data.gs` order. The step reads `GP Y-1` back off the Board itself; the
+   Draft Board no longer mirrors a hand GP column for verify to compare (ADR-0030). The hand value belongs to the swapped-in player, so it
+   must read 50 on that player's new row and be gone from the row it was typed on. A refresh that
+   kept hand values by row position fails here. It goes in `GP Y-1` because the Name Box cannot reach `My GP` on this
+   sheet: Board columns `W` and `Z` are hidden, and the Name Box lands on the next visible one. Clean rows matter because the
+   Draft Board points at fixed Board rows (I1): a tick beside a swapped name would move, and
+   verify, which reads ticks back as truth, would still pass.
+
+It prints one line per step and deletes the copy at the end, pass or fail, matched by its id,
+never by title alone, because an older copy can share the title. It skips itself unless
+`Build.gs` or `board_engine.py` changed since the last passing run (`--force` overrides).
+
+When a step fails, the pulls stay under `data/draft-board/pulls/`. If the fix is in `Build.gs`,
+commit it, redeploy to the live sheet and pass the refresh verification there, then rerun. If
+only `board_engine.py` changed, first re-run `verify.py --local` against the saved pulls.
+
+### Changing the board: both boards, one commit
+
+A change to `Build.gs` formulas, layout, formats, settings or README text is a change to the
+local board too:
+
+1. Edit `Build.gs`, `board_engine.py`, their tests, and regenerate `board_layout.json` with
+   `node scripts/draft-board/harness.js --write-layout` — all in the same commit.
+2. `pytest`, `ruff check .`, `cd scripts/draft-board && node harness.js`.
+3. Deploy `Code.gs` through Playwright from a committed SHA (below).
+4. `Full rebuild` or `Rebuild & re-sort`, as the change requires.
+5. `pull_sheet.py` and `verify.py --local` on the live sheet; the tick scenario when its
+   fingerprint gate says to, at the tier it names, and not otherwise.
+6. Regenerate the cheat sheet.
 
 ### Pushing `Build.gs` into the sheet
 
@@ -620,3 +853,38 @@ node scripts/draft-board/export_readme.js > docs/draft-board/cheat-sheet.md
 the pre-commit hook enforces it, but the reason matters: this repository is
 public and the provider data is not ours to republish
 ([ADR-0006](../decisions/ADR-0006-no-provider-data-redistribution.md)).
+
+---
+
+## Draft day
+
+The sheet is the board a person drafts from; the local board is the one an agent reads. Both
+are kept current by the refresh above and neither is refreshed once the draft starts.
+
+```bash
+python3 scripts/draft-board/board.py new
+```
+
+pins an empty draft state to the newest snapshot. Then, for every pick in the room:
+
+```bash
+python3 scripts/draft-board/board.py gone NAME --pick N --show board,tracker   # anyone else's pick
+python3 scripts/draft-board/board.py mine NAME --pick N --show board,tracker   # yours
+```
+
+`gone` is the local board's own log of other managers' picks. The sheet has no `GONE` column
+([ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)), so verify never compares it, and
+`Left @pos` lives only here. On the sheet, choosing between players is `CMP`: tick it beside
+each one and read Compare picks on the tracker. Ticking `MINE` for your pick clears every
+`CMP`, and so does the **Clear all** box beside the panel. A player another manager takes stays
+in the panel until you untick him. The local board answers the same question with:
+
+```bash
+python3 scripts/draft-board/board.py compare NAME NAME NAME   # ranked on expected categories won
+```
+
+Each candidate's column is the tracker as it would read with him ticked next. `CMP` is not
+draft state: tick and clear it as you like. **Never run `Refresh data`,
+`build_data.py` or `board.py rebase` during a live draft**: either board would move under the
+picks already recorded. The output of `board.py` is provider data and never belongs in `docs/`
+or `tests/`.

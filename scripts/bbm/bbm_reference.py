@@ -239,29 +239,55 @@ def fit_lambda(xs, lo=-4.0, hi=4.0, iterations=200):
 # DURANT
 # --------------------------------------------------------------------------------------
 
-def durant_params(pool, lambdas):
-    """Standardisation constants for the DURANT layer: transform first, then standardise."""
+def durant_params(pool, lambdas, plain):
+    """Standardisation constants for the DURANT layer: **standardise first, then transform**.
+
+    `plain` is the plain-z block the z-scores are built with -- `pool_params` on the derived
+    path, Basketball Monster's recovered constants on the borrowed one. It is required
+    rather than defaulted because which z the transform reads is the whole content of this
+    layer, and a silently wrong default here is wrong on every row and wrong on none.
+
+    Each returned spec carries the plain constants it standardised with (`z_mean`, `z_sd`,
+    and `rate` for a percentage) alongside its own `mean`/`sd` over the transformed column,
+    so `durant_category_values` stays self-sufficient and the block can be passed around
+    on its own, as the punt path does.
+    """
     n = len(pool)
+    if n == 0:
+        raise ValueError("empty pool")
+    zs = {name: [] for name in CATEGORIES}
+    for p in pool:
+        vals = category_values(p, plain)
+        for name in CATEGORIES:
+            zs[name].append(vals[name])
+
     params = {}
-    for key, name, sign in COUNTING:
-        t = [yeo_johnson(p[key], lambdas[name]) for p in pool]
-        params[name] = {
-            "kind": "counting", "key": key, "sign": sign, "lam": lambdas[name],
-            "mean": sum(t) / n, "sd": st.pstdev(t),
-        }
-    for made, att, name in PERCENTAGE:
-        total_att = sum(p[att] for p in pool)
-        rate = sum(p[made] for p in pool) / total_att
-        t = [yeo_johnson(p[made] - p[att] * rate, lambdas[name]) for p in pool]
-        params[name] = {
-            "kind": "percentage", "made": made, "att": att, "rate": rate, "sign": +1,
-            "lam": lambdas[name], "mean": sum(t) / n, "sd": st.pstdev(t),
-        }
+    for name in CATEGORIES:
+        pl, lam = plain[name], lambdas[name]
+        t = [yeo_johnson(z, lam) for z in zs[name]]
+        spec = {"kind": pl["kind"], "sign": pl["sign"], "lam": lam,
+                "z_mean": pl["mean"], "z_sd": pl["sd"],
+                "mean": sum(t) / n, "sd": st.pstdev(t)}
+        if pl["kind"] == "counting":
+            spec["key"] = pl["key"]
+        else:
+            spec["made"], spec["att"], spec["rate"] = pl["made"], pl["att"], pl["rate"]
+        params[name] = spec
     return params
 
 
 def durant_category_values(rates, params):
-    """The nine DURANT category values: Yeo-Johnson, then standardise."""
+    """The nine DURANT category values: standardise, Yeo-Johnson, then standardise again.
+
+    Basketball Monster transformed the raw per-game stat and standardised the result until
+    2026-09-12, and standardises first since 2026-10-01 (ADR-0029). The order is not a
+    detail: Yeo-Johnson is not affine, so the two compositions disagree everywhere the
+    transform bites, and they agree exactly where lambda is 1 -- which is why threes, whose
+    lambda sits on the identity, was the one category that did not move when they switched.
+
+    The sign is applied once, to the z, so the transform sees a column where more is always
+    better. Turnovers reach Yeo-Johnson already inverted.
+    """
     out = {}
     for name in CATEGORIES:
         spec = params[name]
@@ -269,8 +295,9 @@ def durant_category_values(rates, params):
             raw = rates[spec["key"]]
         else:
             raw = rates[spec["made"]] - rates[spec["att"]] * spec["rate"]
-        t = yeo_johnson(raw, spec["lam"])
-        out[name] = 0.0 if spec["sd"] == 0 else spec["sign"] * (t - spec["mean"]) / spec["sd"]
+        z = 0.0 if spec["z_sd"] == 0 else spec["sign"] * (raw - spec["z_mean"]) / spec["z_sd"]
+        t = yeo_johnson(z, spec["lam"])
+        out[name] = 0.0 if spec["sd"] == 0 else (t - spec["mean"]) / spec["sd"]
     return out
 
 
@@ -355,20 +382,24 @@ def build_z_h2h_pool(rates, q, weights=None, seed_order=None, max_iter=50):
     return pool, pool_params([rates[k] for k in pool])
 
 
-def build_durant_pool(rates, q, lambdas, seed_order=None, max_iter=50):
-    """The DURANT pool, iterated to a fixed point on the DURANT score."""
+def build_durant_pool(rates, q, lambdas, plain, seed_order=None, max_iter=50):
+    """The DURANT pool, iterated to a fixed point on the DURANT score.
+
+    `plain` supplies the z the transform reads, and is held fixed across the iteration: the
+    pool being searched for is the one the DURANT score selects, not a second plain pool.
+    """
     keys = list(rates)
     if seed_order is None:
         seed_order = sorted(keys, key=lambda k: -rates[k]["minutes"])
     pool = list(seed_order[:q])
     for _ in range(max_iter):
-        params = durant_params([rates[k] for k in pool], lambdas)
+        params = durant_params([rates[k] for k in pool], lambdas, plain)
         scored = sorted(keys, key=lambda k: -durant(rates[k], params)[0])
         nxt = scored[:q]
         if nxt == pool:
             break
         pool = nxt
-    return pool, durant_params([rates[k] for k in pool], lambdas)
+    return pool, durant_params([rates[k] for k in pool], lambdas, plain)
 
 
 # --------------------------------------------------------------------------------------
@@ -396,13 +427,29 @@ Q = 156
 #: Monster's lambdas come from a different objective, a different pool, or hand-tuning.
 #: Use them to reproduce their numbers; use `fit_lambda` to build your own.
 #:
-#: **These are no longer what the draft board computes with.** They are the search seed and
-#: the drift reference for `calibrate_bbm.py`, which refits a lambda per source on every
-#: refresh against their published columns (ADR-0021). A frozen lambda has exactly the
-#: problem a frozen pool constant had: Basketball Monster retunes it and nothing shows.
+#: **These are no longer what the draft board computes with**, on two counts. They are a
+#: search seed and drift reference, because `calibrate_bbm.py` refits a lambda per source on
+#: every refresh (ADR-0021) -- and they are on the wrong scale besides. They transform the
+#: raw per-game stat, which is the order Basketball Monster used until 2026-09-12 and stopped
+#: using on 2026-10-01 (ADR-0029). Kept because the reverse-engineering doc quotes them and
+#: because they are what reproduces a 2026-09-12 or earlier pull.
 LAMBDAS_BBM_2026_27_JOSH = {
     "pV": 0.4151, "3V": 1.0166, "rV": -0.4381, "aV": 0.0065, "sV": -0.3513,
     "bV": -1.6863, "toV": -0.1778, "fg%V": 0.1727, "ft%V": 1.5038,
+}
+
+#: The same thing for the order Basketball Monster switched to on 2026-10-01: Yeo-Johnson
+#: applied to the standardised z rather than the raw stat (ADR-0029). Different scale, so
+#: these are not comparable to the set above category by category -- blocks moves from
+#: -1.6863 to about -0.04 without their transform having become any gentler.
+#:
+#: Recovered from the Josh source on 2026-10-01, and the Bonus source agrees to within 0.03
+#: on six of nine (the exceptions are the two percentages and steals, which inherit the
+#: plain layer's own residual -- see ADR-0029). Seed and drift reference only; the board
+#: computes with whatever the current refresh refitted.
+LAMBDAS_BBM_2026_27_JOSH_Z = {
+    "pV": 0.5880, "3V": 0.9860, "rV": 0.3410, "aV": 0.3660, "sV": 0.7240,
+    "bV": -0.0400, "toV": 1.5140, "fg%V": 0.2730, "ft%V": 1.3180,
 }
 
 #: DURANT H2H category weights, recovered exactly (every intercept below 0.0005).

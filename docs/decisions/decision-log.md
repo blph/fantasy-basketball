@@ -29,6 +29,15 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0019](ADR-0019-punt-builds-restandardise.md) *(amended by 0021)* | Punt builds discount before standardising and re-derive the pool | Accepted | 2026-09-01 | Bryan | ADR-0009 (in part) |
 | [ADR-0020](ADR-0020-identity-anchored-references.md) | Every derived cell names the player, and the board checks that it did | Accepted | 2026-09-01 | Bryan | |
 | [ADR-0021](ADR-0021-borrowed-bbm-pool-constants.md) | The Basketball Monster sources borrow their standardisation constants | Accepted | 2026-09-01 | Bryan | ADR-0015 (in part), ADR-0019 (in part) |
+| [ADR-0022](ADR-0022-local-draft-board.md) | A local copy of the draft board for agents, kept in step by construction | Accepted | 2026-09-12 | Bryan | |
+| [ADR-0023](ADR-0023-win-rate-cutoffs-40-60.md) | Win-rate cutoffs of 40% and 60%, on both boards | Accepted | 2026-09-12 | Bryan | ADR-0018 (in part) |
+| [ADR-0024](ADR-0024-secondary-strength-band.md) | A secondary strength band at +0.50, and no secondary weakness | Accepted | 2026-09-17 | Bryan | extends ADR-0013, ADR-0018 |
+| [ADR-0025](ADR-0025-verification-budget.md) | Verification is tiered, gated on a formula fingerprint, and budgeted | Accepted | 2026-09-17 | Bryan | — |
+| [ADR-0026](ADR-0026-generated-studies-are-gitignored.md) | Studies are generated, gitignored, and reproduced by a committed script | Accepted | 2026-09-17 | Bryan | — |
+| [ADR-0027](ADR-0027-compare-picks-on-the-tracker.md) *(amended by 0028)* | Compare picks, beside the Category Tracker, ranked on expected categories won | Accepted | 2026-09-17 | Bryan | extends ADR-0018 |
+| [ADR-0028](ADR-0028-cmp-replaces-gone.md) | CMP replaces GONE, and Compare picks fills from it | Accepted | 2026-09-18 | Bryan | ADR-0027 (in part) |
+| [ADR-0029](ADR-0029-durant-standardises-before-transforming.md) | DURANT standardises before it transforms, following Basketball Monster's 2026-10-01 change | Accepted | 2026-10-01 | Bryan | amends ADR-0021; resolves doc III.1 |
+| [ADR-0030](ADR-0030-draft-board-carries-bmp-gp-and-comments.md) | The Draft Board carries BMP's GP and Basketball Monster's comments, and its projection blocks collapse | Accepted | 2026-10-11 | Bryan | amends ADR-0017, ADR-0014 |
 
 ## Decisions expected next
 
@@ -36,4 +45,4 @@ Known open questions that will each need a record once resolved. Listed here so 
 
 - **ESPN↔Yahoo player-ID join strategy.** No shared identifier exists between them. Crosswalk table or normalized name-and-team matching. Highest-risk piece of the design; decide in Phase 2.
 - **AI digest generation approach.** Model, prompt structure, and how digests are delivered.
-- **Draft Assistant interaction model.** Live draft-day input: manual entry, import, or Yahoo sync.
+- **Draft Assistant interaction model.** Live draft-day input: manual entry, import, or Yahoo sync. ADR-0022 settles how an *agent* tracks a draft against the interim board (explicit per-pick entry through `board.py`); the Phase 3 app's model is still open.

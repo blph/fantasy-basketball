@@ -219,6 +219,36 @@ def load_injury_risk(path: Path) -> dict[str, str]:
     return out
 
 
+def load_comments(path: Path) -> dict[str, str]:
+    """Basketball Monster's per-player comments -> {normalised name: comment}.
+
+    The comment is theirs, copied verbatim into the board's Notes column. The file carries
+    no `player_id`, only the vendor's own first and last name, so it keys on the same
+    normalised name the vendor exports reduce to -- which is the key a board row already
+    resolved to when it joined that vendor.
+
+    A comment that opens with `=` or `+` gets a leading space: Sheets stores such a string
+    as a formula whatever the cell's number format.
+    """
+    out: dict[str, str] = {}
+    names: dict[str, str] = {}
+    for row in _rows(path):
+        full = f"{row.get('first_name') or ''} {row.get('last_name') or ''}".strip()
+        text = " ".join((row.get("comment") or "").split())
+        if not full or not text:
+            continue
+        key = normalise(full)
+        if key in names and names[key] != full:
+            raise AmbiguousName(
+                f"{path.name}: '{full}' and '{names[key]}' both normalise to '{key}'"
+            )
+        names[key] = full
+        out[key] = " " + text if text[0] in "=+" else text
+    if not out:
+        raise SourceError(f"{path.name}: no player carries a comment")
+    return out
+
+
 def join(board: list[dict], vendors: dict[str, dict[int, dict]]) -> dict[str, list[str]]:
     """Attach each vendor's id to every board row. Returns a per-vendor report.
 

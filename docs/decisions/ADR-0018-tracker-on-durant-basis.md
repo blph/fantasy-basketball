@@ -30,6 +30,10 @@ Columns: `Category | My team | Average team | Z | Win % | Read | Punted`. `My te
 `Average team` stay raw stats, because a roster's actual rebound total is what a human
 recognises; `Z` and `Win %` carry the verdict.
 
+> **Superseded in part by [ADR-0023](ADR-0023-win-rate-cutoffs-40-60.md).** The `Read`
+> cutoffs below are now WEAK ≤40% and STRONG ≥60%. BANKED ≥75% and everything else in this
+> record stand.
+
 ```
 Z_c   = ( SUMIF(Mine, dh_c) − n·AVERAGE(FILTER(dh_c, drafted)) ) / SQRT(n)
 Win%  = NORMSDIST(Z_c · K_c)

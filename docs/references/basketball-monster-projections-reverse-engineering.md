@@ -188,13 +188,28 @@ one freakish category cannot dominate, and forgive each player their worst categ
 
 ```
 1. Per-game rates, exactly as I.2.
-2. Yeo-Johnson transform each category with its own lambda (I.8).
-   For the percentage categories, transform the impact from I.4, not the rate.
-3. Standardise the transformed column against the pool — same mean/SD treatment as I.4.
+2. Standardise each category against the pool, exactly as I.4 — including the sign, so
+   turnovers are already inverted and every column now reads "more is better".
+3. Yeo-Johnson transform that z with the category's own lambda (I.8).
+4. Standardise again: mean and SD of the transformed column over the pool.
    Build this pool by iterating on the DURANT score, not on Value; the constants differ.
-4. Drop each player's single lowest of the nine.
-5. DURANT = the arithmetic mean of the eight that survive.  All nine weigh the same.
+5. Drop each player's single lowest of the nine.
+6. DURANT = the arithmetic mean of the eight that survive.  All nine weigh the same.
 ```
+
+**Steps 2 and 3 were the other way round until 2026-09-12.** Basketball Monster transformed the
+raw per-game stat and standardised the result; since 2026-10-01 they standardise first and
+transform the z. The order is not a detail — Yeo-Johnson is not affine, so the two compositions
+disagree everywhere the transform bites, by up to 0.19 on a single player's category value. They
+agree exactly where λ = 1, which is why **threes** was the one counting category whose fit did not
+move when they switched: its λ sits on the identity.
+
+If you are reproducing a pull from 2026-09-12 or earlier, use the old order and the λ in I.8. For
+anything later use this one and the λ beside them. The two λ sets are **not comparable category by
+category**: on the z scale blocks reads about −0.04 rather than −1.6863, without their transform
+having become any gentler. See
+[ADR-0029](../decisions/ADR-0029-durant-standardises-before-transforming.md) and
+[the bug](../bugs/2026-10-01-bbm-durant-composition-order.md) for how the change was identified.
 
 The Yeo-Johnson transform, for a value *x* and parameter *λ*:
 
@@ -235,15 +250,26 @@ Two kinds of number live here, and conflating them is the main way to go wrong.
 These reproduce *their* published 2026-27 numbers from the Josh source. They are measurements,
 not universal truths.
 
-Yeo-Johnson λ per category:
+Yeo-Johnson λ per category. **Two sets, one per composition order** (I.6) — they transform
+different quantities and do not compare category by category:
 
-| Category | λ | Category | λ |
-|---|---|---|---|
-| Points | +0.4151 | Blocks | **−1.6863** |
-| Threes | +1.0166 | Turnovers | −0.1778 |
-| Rebounds | −0.4381 | FG% impact | +0.1727 |
-| Assists | +0.0065 | FT% impact | +1.5038 |
-| Steals | −0.3513 | | |
+| Category | λ on the raw stat<br>(to 2026-09-12) | λ on the z<br>(from 2026-10-01) |
+|---|---|---|
+| Points | +0.4151 | +0.5880 |
+| Threes | +1.0166 | +0.9860 |
+| Rebounds | −0.4381 | +0.3410 |
+| Assists | +0.0065 | +0.3660 |
+| Steals | −0.3513 | +0.7240 |
+| Blocks | **−1.6863** | −0.0400 |
+| Turnovers | −0.1778 | +1.5140 |
+| FG% impact | +0.1727 | +0.2730 |
+| FT% impact | +1.5038 | +1.3180 |
+
+The right-hand column is the Josh source on 2026-10-01; Bonus agrees to within 0.03 on six of nine,
+the exceptions being the two percentages and steals, which inherit the plain layer's own residual.
+Threes stays on the identity under both orders, which is the one reading that carries across.
+
+The commentary below describes the left-hand column, and still holds for it.
 
 Read that column as how badly each category needed fixing. **Blocks** get compressed hardest —
 the most right-skewed category, and the thing DURANT exists to address. **Assists** land on
@@ -606,7 +632,24 @@ understates movement.
 
 Findings, not procedures. Everything here is honest about its limits.
 
-## III.1 DURANT's two percentage categories
+## III.1 DURANT's two percentage categories — **resolved 2026-10-01**
+
+> **This item is closed.** Both percentage categories now fit at MAE 0.0098–0.0186, against the
+> 0.0345 and 0.0273 below. The cause was the composition order (I.6): once DURANT is read as
+> transforming the *standardised z* rather than the raw impact, the percentage value inherits the
+> plain layer's single attempt-weighted rate and needs no rate of its own. Two independently fitted
+> rates for one category was the whole residual.
+>
+> That also disposes of the Spearman tell. 0.9977 rather than 1.0 was read here as evidence that
+> something slightly different was being transformed, and it was — the z, not the impact.
+>
+> The section is kept because the ruling-out below is still sound and because it is what made the
+> 2026-10-01 diagnosis possible: the same Spearman test applied to the *counting* categories is what
+> showed the input was right and only the transform's shape had moved. See
+> [ADR-0029](../decisions/ADR-0029-durant-standardises-before-transforming.md). The original
+> analysis follows.
+
+### The original analysis (superseded)
 
 The metric itself is solved: given the nine DURANT category values, both aggregates reproduce at
 the rounding floor. Seven of the nine input columns rebuild from raw stats at MAE ≤ 0.013.
@@ -682,6 +725,22 @@ counting λ are worth watching for drift.
 The plain and DURANT layers recover **different** pool rates for the same category — 0.4918 and
 0.4976 for field goals — where our own derivation makes them identical by construction. That is
 a small independent sign that the two layers are not computed from one shared intermediate.
+
+> **Obsolete since 2026-10-01.** They are computed from one shared intermediate now: the DURANT
+> layer reads the plain z (I.6), so there is one rate per category, and the DURANT percentage rate
+> is gone from both the estimator table above and the constants file. The two rates disagreeing was
+> a true observation about the old order, and it is what the §III.1 residual was made of.
+>
+> The table also collapses from four estimators to three. With the transform reading an
+> already-standardised column, a percentage DURANT value is linear in the transformed z exactly as a
+> counting one is, so the two-dimensional `(rate, λ)` search is replaced by the same
+> one-dimensional λ search the counting categories use: `fit_pct_durant` is deleted and
+> `fit_counting_durant` becomes `fit_durant`, covering all nine.
+>
+> One cost, recorded in [ADR-0029](../decisions/ADR-0029-durant-standardises-before-transforming.md):
+> the DURANT layer now **inherits the plain layer's residual**, because it reads the plain z. Points
+> and assists come out near 0.0037 against a plain fit of 0.0035; steals comes out near 0.015
+> against a plain fit of 0.013.
 
 Applied to their 2026-09-10 Josh source over 234 players, this takes `Value` from MAE 0.0075 to
 0.0034 and `DUR H2H` from 0.0079 to 0.0030, with no row outside two-decimal display rounding.

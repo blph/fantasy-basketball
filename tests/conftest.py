@@ -1,8 +1,9 @@
 """Put the draft-board scripts on the import path.
 
-`valuation.py` lives beside the Apps Script it mirrors rather than in `src/`,
-because it is interim tooling for one draft (ADR-0008) and is deleted with the
-rest of the board when Phase 2 lands.
+Everything the tests import from `scripts/draft-board/` -- `valuation.py`, the build
+pipeline, and the local board (`board_engine.py`, `board.py` and their helpers) -- lives
+beside the Apps Script it feeds or mirrors rather than in `src/`, because it is interim
+tooling for one draft (ADR-0008, ADR-0022) and goes when the sheet does.
 """
 
 import sys

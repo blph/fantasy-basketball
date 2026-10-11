@@ -87,7 +87,7 @@ Two limitations worth costing:
 
 Interim per [ADR-0008](../decisions/ADR-0008-google-sheet-draft-board.md), and
 retired when Phase 2 ingestion lands. Its data is provider data and is gitignored in
-full, `Data.gs` included.
+full, `Data.gs` and the local board in `data/draft-board/` included.
 
 ### Ruled out
 
