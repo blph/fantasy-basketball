@@ -40,7 +40,7 @@ var TRACKER_TAB = 'Category Tracker';
 var TRACKER_R0 = 7;    // first category row on the tracker, in CAT_LABELS order
 
 var POOL_ROWS = 200;   // players carried on the board
-// Row 1 is the control strip (sort dropdown, projection toggles), row 2 the merged block
+// Row 1 is the control strip (the sort dropdown), row 2 the merged block
 // headers, row 3 the column headers. This was 2 before the control strip existed, and
 // every external read range moved with it: see build-and-maintenance.md.
 var HDR = 3;
@@ -168,9 +168,13 @@ var B = {
   tpm: 13, pts: 14, reb: 15, ast: 16, stl: 17, blk: 18, to: 19,
   gp1: 20, gp2: 21, gp3: 22, myGp: 23, gpCheck: 24,
   adp: 25, xrank: 26,
-  injuries: 27, notes: 28
+  injuries: 27, notes: 28,
+  // Appended, never inserted: REFRESH_MAP writes into fixed positions, so a column added
+  // anywhere but the end repoints every one after it. Basketball Monster's own projected
+  // games, which is the one GP the Draft Board shows (ADR-0030).
+  bmpGp: 29
 };
-var B_LAST = B.notes;
+var B_LAST = B.bmpGp;
 
 /**
  * A calculation tab. One map, three identical sheets. Every cell is a number written by
@@ -212,17 +216,19 @@ var D = (function () {
   m.cmp = 8; m.mine = 9;
   var c = 10;
   for (var s = 0; s < SOURCES.length; s++) {
+    // One narrow label column ahead of each source's block (ADR-0030). Each block is a
+    // column group, collapsed at build, and Sheets merges two groups that touch into one --
+    // so without a column between them the three would open and close together. It also
+    // stays on screen when its block is collapsed, which is what says whose + it is.
+    m[SOURCES[s].prefix + 'Lab'] = c++;
     for (var k = 0; k < VALUE_KINDS.length; k++) {
       m[SOURCES[s].prefix + VALUE_KINDS[k].key] = c++;
       m[SOURCES[s].prefix + VALUE_KINDS[k].key + 'Tag'] = c++;
     }
   }
-  // The value the board is currently sorted by, copied from the selected calculation
-  // column at build time. Rank, drop, median, break and tier all read this one column, so
-  // changing the sort repoints one formula rather than five families of them.
-  m.sel = c++;
-  m.drop = c++; m.med = c++; m.brk = c++;
-  m.projGp = c++; m.myGp = c++; m.gpFlag = c++;
+  // One GP, and it is Basketball Monster's -- the projection the board ranks on by default.
+  // Context only: nothing scales by it (ADR-0017).
+  m.gp = c++;
   m.adp = c++; m.xrank = c++; m.gap = c++;
   m.best = c++;
   // Split from one 240px string: strengths are scanned when the tracker says a category
@@ -232,6 +238,15 @@ var D = (function () {
   // the players GONE had not struck off, left the sheet with GONE (ADR-0028).
   m.strengths = c++; m.secondary = c++; m.weaknesses = c++;
   m.notes = c++;
+  // Everything from here on is hidden.
+  //
+  // The value the board is currently sorted by, copied from the selected calculation
+  // column at build time. Rank, drop, median, break and tier all read this one column, so
+  // changing the sort repoints one formula rather than five families of them. Drop, median
+  // and break were a visible TIERING block until ADR-0030: the tier lines drawn from them
+  // already say everything the Break column did.
+  m.sel = c++;
+  m.drop = c++; m.med = c++; m.brk = c++;
   // Hidden feed. The tracker and the profile read these rather than reaching across to a
   // calculation tab, so they follow whichever projection is selected.
   m.hFgm = c++; m.hFga = c++; m.hFtm = c++; m.hFta = c++;
@@ -257,8 +272,10 @@ var D_LAST = D.last;
 function dValue(si, ki) { return D[SOURCES[si].prefix + VALUE_KINDS[ki].key]; }
 function dTag(si, ki)   { return D[SOURCES[si].prefix + VALUE_KINDS[ki].key + 'Tag']; }
 function dRank(si, ki)  { return D.rank0 + si * VALUE_KINDS.length + ki; }
-/** The first column of a source's six-column block — what the projection filter hides. */
+/** The first column of a source's six-column block — what its column group collapses. */
 function dSpanStart(si) { return dValue(si, 0); }
+/** The label column that sits ahead of that block and stays visible when it collapses. */
+function dLabel(si) { return D[SOURCES[si].prefix + 'Lab']; }
 var SPAN = VALUE_KINDS.length * 2;
 
 // ------------------------------------------------------------------ helpers
@@ -424,6 +441,15 @@ function resetColumnGroups(sh, lastCol) {
   }
   try { sh.showColumns(1, lastCol); } catch (e) {}
 }
+/**
+ * Put every group's +/- over the column BEFORE it. Each projection block's toggle then
+ * sits on that source's own label column, rather than on the next source's.
+ */
+function groupControlsBefore(sh) {
+  try {
+    sh.setColumnGroupControlPosition(SpreadsheetApp.GroupControlTogglePosition.BEFORE);
+  } catch (e) { /* cosmetic, like the grouping itself */ }
+}
 function groupAndCollapse(sh, c1, c2) {
   try {
     sh.getRange(1, c1, 1, c2 - c1 + 1).shiftColumnGroupDepth(1);
@@ -553,11 +579,15 @@ var REFRESH_MAP = [
   [B.ftm, 10], [B.fta, 11], [B.ftp, 12],
   [B.tpm, 13], [B.pts, 14], [B.reb, 15], [B.ast, 16],
   [B.stl, 17], [B.blk, 18], [B.to, 19],
-  [B.adp, 4], [B.injuries, 20]
+  [B.adp, 4], [B.injuries, 20],
+  // Notes is Basketball Monster's comment on the player, so it is the pipeline's column
+  // now and no longer a hand one (ADR-0030). A note of your own is typed over the Draft
+  // Board cell, which is where it was always typed.
+  [B.bmpGp, 21], [B.notes, 22]
 ];
 
 /** Columns you fill in by hand. A refresh must never overwrite these. */
-var HAND_COLS = [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank, B.notes];
+var HAND_COLS = [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank];
 
 function writeBoardData(sh) {
   var head = [];
@@ -572,6 +602,7 @@ function writeBoardData(sh) {
   head[B.myGp] = 'My GP\nEst'; head[B.gpCheck] = 'GP\nflag';
   head[B.adp] = 'ADP'; head[B.xrank] = 'XRank';
   head[B.injuries] = 'INJ\nrisk'; head[B.notes] = 'Notes';
+  head[B.bmpGp] = 'BMP\nGP';
 
   var hrow = [];
   for (var i = 1; i <= B_LAST; i++) hrow.push(head[i] === undefined ? '' : head[i]);
@@ -1288,7 +1319,7 @@ function buildDraftTab(ss, sh, board, prior) {
     row[D.round] = '=IF($' + a1col(D.rank) + r + '="","",CEILING($' + a1col(D.rank) + r + '/TEAMS))';
     row[D.player] = bref(B.player); row[D.team] = bref(B.team); row[D.pos] = bref(B.pos);
     row[D.inj] = bref(B.injuries);
-    row[D.projGp] = bref(B.gp); row[D.myGp] = bref(B.myGp);
+    row[D.gp] = bref(B.bmpGp);
     row[D.adp] = bref(B.adp); row[D.xrank] = bref(B.xrank); row[D.notes] = bref(B.notes);
 
     for (var s = 0; s < SOURCES.length; s++) {
@@ -1339,7 +1370,6 @@ function buildDraftTab(ss, sh, board, prior) {
       row[D.tier] = '=IF(' + dK + r + '="BREAK",' + dB + (r - 1) + '+1,' + dB + (r - 1) + ')';
     }
 
-    row[D.gpFlag] = bref(B.gpCheck);
     row[D.best] = bestBuildFormula(n, r);
     profileFormulas(row, r);
 
@@ -1366,7 +1396,7 @@ function buildDraftTab(ss, sh, board, prior) {
   }
 
   writeGrid(sh, f, 1, D.mine - 1);
-  writeGrid(sh, f, dValue(0, 0), D.gap);
+  writeGrid(sh, f, dLabel(0), D.gap);
   writeGrid(sh, f, D.best, D.weaknesses);
   writeGrid(sh, f, D.notes, D_LAST);
 
@@ -1381,14 +1411,13 @@ function buildDraftTab(ss, sh, board, prior) {
 
 /** Rows 1-3: the control strip, the block banners, the column headers. */
 function writeDraftHeaders(sh, si, ki) {
-  // Row 1. Three checkboxes with their labels, then the sort dropdown. The merge ends
-  // exactly at the frozen boundary, because a freeze may not split a merged cell.
+  // Row 1. The sort dropdown. The merge ends exactly at the frozen boundary, because a
+  // freeze may not split a merged cell. The three projection checkboxes that used to sit
+  // left of it are gone (ADR-0030): each block is a column group now. Rebuild & re-sort
+  // reuses the tab without clearing it, so wipe where they stood.
+  sh.getRange(1, 1, 1, D.inj).clearDataValidations();
+  sh.getRange(1, 1, 1, D.inj).clearContent();
   sh.getRange(1, 1, 1, D_LAST).setBackground(COLOR.chrome);
-  for (var s = 0; s < SOURCES.length; s++) {
-    sh.getRange(1, 1 + s * 2).insertCheckboxes().setValue(true);
-    sh.getRange(1, 2 + s * 2).setValue(SOURCES[s].label)
-      .setFontSize(8).setFontWeight('bold').setFontColor(COLOR.identity);
-  }
   sh.getRange(1, D.cmp, 1, 2).merge();
   sh.getRange(1, D.cmp).setValue(sortLabel(si, ki))
     .setBackground(COLOR.inputBg).setFontColor(COLOR.inputText)
@@ -1402,6 +1431,7 @@ function writeDraftHeaders(sh, si, ki) {
   head[D.player] = 'Player'; head[D.team] = 'Tm'; head[D.pos] = 'Pos'; head[D.inj] = 'INJ';
   head[D.cmp] = 'CMP'; head[D.mine] = 'MINE';
   for (var s2 = 0; s2 < SOURCES.length; s2++) {
+    head[dLabel(s2)] = SOURCES[s2].prefix.toUpperCase();
     for (var k2 = 0; k2 < VALUE_KINDS.length; k2++) {
       head[dValue(s2, k2)] = VALUE_KINDS[k2].label;
       head[dTag(s2, k2)] = '';
@@ -1409,7 +1439,7 @@ function writeDraftHeaders(sh, si, ki) {
   }
   head[D.sel] = 'sorted by';
   head[D.drop] = 'Drop'; head[D.med] = 'Local\nmed'; head[D.brk] = 'Break';
-  head[D.projGp] = 'Proj\nGP'; head[D.myGp] = 'My\nGP'; head[D.gpFlag] = 'Flag';
+  head[D.gp] = 'GP';
   head[D.adp] = 'ADP'; head[D.xrank] = 'XRank'; head[D.gap] = 'GAP';
   head[D.best] = 'Best build';
   head[D.strengths] = '▲ Strengths'; head[D.secondary] = '△ Secondary';
@@ -1567,12 +1597,18 @@ function readCheckState(sh) {
     // no error, and a value that looks perfectly ordinary.
     var cmp   = at.CMP ? sh.getRange(R0, at.CMP, n, 1).getValues() : null;
     var mine  = sh.getRange(R0, at.MINE,  n, 1).getValues();
+    // Notes: only a cell that has been TYPED OVER. Untouched, the cell is a formula into
+    // the Board, which holds Basketball Monster's comment and follows the player by
+    // construction -- exactly as INJ does, and for the same reason it must not be captured.
+    // Reading values alone would restore all 200 comments as literals on the first
+    // re-sort, and the next refresh would then change none of them.
     var notes = sh.getRange(R0, at.Notes, n, 1).getValues();
+    var noteForms = sh.getRange(R0, at.Notes, n, 1).getFormulas();
     for (var i = 0; i < n; i++) {
       if (names[i][0]) {
         state[names[i][0]] = {
           cmp: cmp ? cmp[i][0] === true : false, mine: mine[i][0] === true,
-          notes: notes[i][0] || ''
+          notes: noteForms[i][0] ? '' : (notes[i][0] || '')
         };
       }
     }
@@ -1587,8 +1623,13 @@ function readCheckState(sh) {
  * pane and Notes at the far right, so there is no contiguous block to write.
  */
 function restoreCheckState(sh, names, prior) {
-  var cols = [[D.cmp, 'cmp', false], [D.mine, 'mine', false],
-              [D.notes, 'notes', '']];
+  // A typed-over note goes back one cell at a time. Writing the column whole would put a
+  // blank over the formula on every row that has no note of its own.
+  for (var q = 0; q < names.length; q++) {
+    var own = prior[names[q]];
+    if (own && own.notes) sh.getRange(R0 + q, D.notes).setValue(own.notes);
+  }
+  var cols = [[D.cmp, 'cmp', false], [D.mine, 'mine', false]];
   for (var c = 0; c < cols.length; c++) {
     var col = cols[c][0], key = cols[c][1], blank = cols[c][2];
     var out = [], any = false;
@@ -1632,7 +1673,8 @@ function formatBoard(sh) {
     [B.gp1, B.gpCheck, 'AVAILABILITY  ·  context only, nothing scales by it', COLOR.avail],
     [B.adp, B.xrank, 'MARKET', COLOR.market],
     [B.injuries, B.injuries, 'RISK', COLOR.avail],
-    [B.notes, B.notes, 'YOURS', COLOR.notes]
+    [B.notes, B.notes, 'BMP COMMENT', COLOR.notes],
+    [B.bmpGp, B.bmpGp, 'BMP', COLOR.avail]
   ];
   blocks.forEach(function (b) {
     blockHeader(sh, b[0], b[1], b[2], b[3]);
@@ -1653,6 +1695,8 @@ function formatBoard(sh) {
   sh.setColumnWidth(B.pos, 74);
   sh.setColumnWidth(B.injuries, INJ_WIDTH);
   sh.setColumnWidth(B.notes, 260);
+  sh.getRange(R0, B.notes, POOL_ROWS, 1).setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+  sh.getRange(R0, B.bmpGp, POOL_ROWS, 1).setNumberFormat('0');
 
   sh.getRange(R0, 1, POOL_ROWS, B_LAST).setFontSize(10).setVerticalAlignment('middle');
   sh.getRange(R0, B.player, POOL_ROWS, 1).setFontWeight('bold');
@@ -1669,7 +1713,7 @@ function formatBoard(sh) {
   sh.getRange(R0, B.adp, POOL_ROWS, 1).setNumberFormat('0.0');
   sh.getRange(R0, B.xrank, POOL_ROWS, 1).setNumberFormat('0');
 
-  [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank, B.notes].forEach(function (c2) {
+  [B.gp1, B.gp2, B.gp3, B.myGp, B.xrank].forEach(function (c2) {
     markInput(sh, c2);
   });
 
@@ -1792,14 +1836,14 @@ function formatDraftTab(sh, si, ki) {
   for (var s = 0; s < SOURCES.length; s++) {
     blockHeader(sh, dSpanStart(s), dSpanStart(s) + SPAN - 1,
                 SOURCES[s].label, s === si ? SOURCES[s].head : SOURCES[s].off);
+    blockHeader(sh, dLabel(s), dLabel(s), '', s === si ? SOURCES[s].head : SOURCES[s].off);
   }
-  blockHeader(sh, D.sel, D.brk, 'TIERING', COLOR.z);
-  blockHeader(sh, D.projGp, D.gpFlag, 'GP · context only', COLOR.avail);
+  blockHeader(sh, D.gp, D.gp, 'BMP', COLOR.avail);
   blockHeader(sh, D.adp, D.gap, 'MARKET', COLOR.market);
   blockHeader(sh, D.best, D.best, 'BUILD', COLOR.punt);
   blockHeader(sh, D.strengths, D.weaknesses, 'PROFILE', COLOR.transform);
   blockHeader(sh, D.notes, D.notes, 'DRAFT DAY', COLOR.identity);
-  blockHeader(sh, D.hFgm, D_LAST, 'HELPERS — DO NOT READ', COLOR.notes);
+  blockHeader(sh, D.sel, D_LAST, 'HELPERS — DO NOT READ', COLOR.notes);
 
   sh.getRange(HDR, 1, 1, D_LAST)
     .setFontColor(COLOR.headerText).setFontWeight('bold').setFontSize(9).setWrap(true)
@@ -1807,16 +1851,16 @@ function formatDraftTab(sh, si, ki) {
   // Repaint each header cell in its own block colour.
   var paint = [
     [D.rank, D.inj, COLOR.identity], [D.cmp, D.mine, COLOR.value],
-    [D.sel, D.brk, COLOR.z], [D.projGp, D.gpFlag, COLOR.avail],
+    [D.gp, D.gp, COLOR.avail],
     [D.adp, D.gap, COLOR.market], [D.best, D.best, COLOR.punt],
     [D.strengths, D.weaknesses, COLOR.transform], [D.notes, D.notes, COLOR.identity],
-    [D.hFgm, D_LAST, COLOR.notes]
+    [D.sel, D_LAST, COLOR.notes]
   ];
   paint.forEach(function (p) {
     sh.getRange(HDR, p[0], 1, p[1] - p[0] + 1).setBackground(p[2]);
   });
   for (var s2 = 0; s2 < SOURCES.length; s2++) {
-    sh.getRange(HDR, dSpanStart(s2), 1, SPAN)
+    sh.getRange(HDR, dLabel(s2), 1, SPAN + 1)
       .setBackground(s2 === si ? SOURCES[s2].head : SOURCES[s2].off);
     // One header across each value+tag pair: the strongest signal that the two columns
     // are one field.
@@ -1834,6 +1878,9 @@ function formatDraftTab(sh, si, ki) {
   sh.setColumnWidth(D.team, 40); sh.setColumnWidth(D.pos, 68); sh.setColumnWidth(D.inj, INJ_WIDTH);
   sh.setColumnWidth(D.cmp, 46); sh.setColumnWidth(D.mine, 46);
   for (var s3 = 0; s3 < SOURCES.length; s3++) {
+    //: Wide enough for `BMP` at 9pt bold and no wider: collapsed, the three of these are
+    //: all that is left of eighteen columns.
+    sh.setColumnWidth(dLabel(s3), 38);
     for (var k3 = 0; k3 < VALUE_KINDS.length; k3++) {
       var vc = dValue(s3, k3);
       sh.setColumnWidth(vc, vc === activeCol ? 60 : 48);
@@ -1843,7 +1890,7 @@ function formatDraftTab(sh, si, ki) {
   }
   sh.setColumnWidth(D.sel, 56);
   sh.setColumnWidth(D.drop, 50); sh.setColumnWidth(D.med, 50); sh.setColumnWidth(D.brk, 54);
-  sh.setColumnWidth(D.projGp, 44); sh.setColumnWidth(D.myGp, 44); sh.setColumnWidth(D.gpFlag, 46);
+  sh.setColumnWidth(D.gp, 44);
   sh.setColumnWidth(D.adp, 48); sh.setColumnWidth(D.xrank, 46); sh.setColumnWidth(D.gap, 54);
   sh.setColumnWidth(D.best, 108);
   // Sized to the measured maximum, not to a character count: a five-label line is about
@@ -1853,7 +1900,7 @@ function formatDraftTab(sh, si, ki) {
   // multi-category players the column exists to find.
   sh.setColumnWidth(D.strengths, 200); sh.setColumnWidth(D.secondary, 190);
   sh.setColumnWidth(D.weaknesses, 190);
-  sh.setColumnWidth(D.notes, 300);
+  sh.setColumnWidth(D.notes, 420);
 
   sh.getRange(R0, 1, POOL_ROWS, D_LAST).setFontSize(10).setVerticalAlignment('middle');
   sh.getRange(R0, D.player, POOL_ROWS, 1).setFontSize(11).setFontWeight('bold');
@@ -1880,20 +1927,21 @@ function formatDraftTab(sh, si, ki) {
         .setBackground(SOURCES[s4].band).setFontSize(8).setFontColor(COLOR.muted)
         .setHorizontalAlignment('left');
     }
-    // Opening rule on each group's FIRST column, never a closing one on its last: any
-    // subset of groups then stays correctly bounded when the others are hidden.
-    sh.getRange(1, dSpanStart(s4), RN, 1).setBorder(
+    // Opening rule on each group's LABEL column, never a closing one on its last: the
+    // label is the one column of the group that is always on screen, so any subset of
+    // groups stays correctly bounded when the others are collapsed.
+    sh.getRange(R0, dLabel(s4), POOL_ROWS, 1).setBackground(SOURCES[s4].band);
+    sh.getRange(1, dLabel(s4), RN, 1).setBorder(
       null, true, null, null, null, null, COLOR.ruleGroup,
       SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   }
-  sh.getRange(1, D.sel, RN, 1).setBorder(
+  sh.getRange(1, D.gp, RN, 1).setBorder(
     null, true, null, null, null, null, COLOR.ruleGroup,
     SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
 
   sh.getRange(R0, D.drop, POOL_ROWS, 2).setNumberFormat('0.000');
   sh.getRange(R0, D.sel, POOL_ROWS, 1).setNumberFormat('+0.000;−0.000;0.000');
-  sh.getRange(R0, D.projGp, POOL_ROWS, 2).setNumberFormat('0');
-  sh.getRange(R0, D.projGp, POOL_ROWS, 1).setFontColor(COLOR.muted);
+  sh.getRange(R0, D.gp, POOL_ROWS, 1).setNumberFormat('0').setHorizontalAlignment('center');
   sh.getRange(R0, D.adp, POOL_ROWS, 1).setNumberFormat('0.0');
   sh.getRange(R0, D.xrank, POOL_ROWS, 1).setNumberFormat('0');
   // The glyphs are the non-colour channel: GAP survives greyscale and colour blindness.
@@ -1903,8 +1951,11 @@ function formatDraftTab(sh, si, ki) {
   sh.getRange(R0, D.dh0, POOL_ROWS, CAT_LABELS.length * 2).setNumberFormat('+0.00;−0.00;0.00');
   sh.getRange(R0, D.rank0, POOL_ROWS, SOURCES.length * VALUE_KINDS.length).setNumberFormat('0');
 
+  // Still an input: the cell shows Basketball Monster's comment until you type over it.
+  // Clipped, because a 250-character comment wrapped would make every row five lines tall.
   markInput(sh, D.notes);
-  sh.getRange(R0, D.notes, POOL_ROWS, 1).setFontWeight('normal');
+  sh.getRange(R0, D.notes, POOL_ROWS, 1).setFontWeight('normal')
+    .setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
   sh.getRange(R0, D.weaknesses, POOL_ROWS, 1).setBackground(COLOR.negBg);
   // Dark green bold for the primary, soft green regular for the secondary. The filled
   // and hollow triangles carry the same split without colour (see the GAP column).
@@ -1915,12 +1966,15 @@ function formatDraftTab(sh, si, ki) {
   addDraftRules(sh, si, ki, activeCol, disagreeGap());
 
   resetColumnGroups(sh, D_LAST);
-  groupAndCollapse(sh, D.drop, D.med);
-  groupAndCollapse(sh, D.projGp, D.gpFlag);
+  groupControlsBefore(sh);
+  // One group per projection, collapsed (ADR-0030). The label column between them is what
+  // keeps them three groups; every re-sort comes through here and collapses them again.
+  for (var s5 = 0; s5 < SOURCES.length; s5++) {
+    groupAndCollapse(sh, dSpanStart(s5), dSpanStart(s5) + SPAN - 1);
+  }
   groupAndCollapse(sh, D.xrank, D.xrank);
-  groupAndCollapse(sh, D.hFgm, D_LAST);
-  sh.hideColumns(D.sel, 1);
-  sh.hideColumns(D.hFgm, D_LAST - D.hFgm + 1);
+  groupAndCollapse(sh, D.sel, D_LAST);
+  sh.hideColumns(D.sel, D_LAST - D.sel + 1);
   sh.setHiddenGridlines(true);
 }
 
@@ -1994,20 +2048,6 @@ function addDraftRules(sh, si, ki, activeCol, gap) {
     }
   }
 
-  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied('=AND($' + a1col(D.projGp) + R0 + '>=68,$'
-                          + a1col(D.projGp) + R0 + '<=74)')
-    .setBackground(COLOR.warnBg)
-    .setRanges([sh.getRange(R0, D.projGp, POOL_ROWS, 1)]).build());
-  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenTextEqualTo('CHECK')
-    .setBackground(COLOR.flagBg).setFontColor(COLOR.flagText).setBold(true)
-    .setRanges([sh.getRange(R0, D.gpFlag, POOL_ROWS, 1)]).build());
-  addRule(sh, SpreadsheetApp.newConditionalFormatRule()
-    .whenTextEqualTo('BREAK')
-    .setFontColor(COLOR.flagText).setBold(true)
-    .setRanges([sh.getRange(R0, D.brk, POOL_ROWS, 1)]).build());
-
   gradient(sh, [sh.getRange(R0, D.gap, POOL_ROWS, 1)], -40, 40);
   // The only gradient on the value block, on the column the board is sorted by.
   gradient(sh, [sh.getRange(R0, activeCol, POOL_ROWS, 1)], -1, 1);
@@ -2023,7 +2063,7 @@ function addDraftRules(sh, si, ki, activeCol, gap) {
       bands.push(sh.getRange(R0, dValue(s2, k2), POOL_ROWS, 1));
     }
   }
-  bands.push(sh.getRange(R0, D.drop, POOL_ROWS, D.best - D.drop + 1));
+  bands.push(sh.getRange(R0, D.gp, POOL_ROWS, D.best - D.gp + 1));
   bands.push(sh.getRange(R0, D.strengths, POOL_ROWS, D.secondary - D.strengths + 1));
   addRule(sh, SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied('=ISEVEN(ROW())')
@@ -2630,9 +2670,6 @@ var README_ROWS = [
   ['COLOURS', '', ''],
   ['Pale yellow + blue text', '', 'You type here.'],
   ['Grey', '', 'Reported by the pipeline. Editing it changes nothing.'],
-  ['Amber GP cell', '',
-   'Projected GP is inside 68–74, the band where the projection is applying a generic '
-   + 'haircut rather than a player-level opinion.'],
   ['Cream value column', '', 'The value the board is currently sorted by.'],
   ['Green or red tag', '',
    'That projection ranks him at least DISAGREE_GAP places away from where the board does. '
@@ -2687,9 +2724,10 @@ var README_ROWS = [
   ['Sort by', '',
    'Nine choices: three projections × three values. Everything downstream — rank, tier, '
    + 'round, GAP, the tracker — follows it.'],
-  ['Projection checkboxes', '',
-   'Untick one to hide its six columns. All three at once is a comparison view, not a '
-   + 'draft-day view; it fills the screen.'],
+  ['BMP / HBP / ALT  +', '',
+   'Each projection\'s six columns are a group, collapsed after every build and re-sort. '
+   + 'Click the + above its narrow label column to open one, the − to close it. All three '
+   + 'open at once is a comparison view, not a draft-day view; it fills the screen.'],
   ['', '', ''],
 
   ['RANKS, ROUNDS AND TIERS', '', ''],
@@ -2697,10 +2735,10 @@ var README_ROWS = [
    'Rank by the value the board was last sorted on. It follows a new choice in the dropdown '
    + 'only once Rebuild & re-sort has run.'],
   ['RND', ' =CEILING(#/Teams)', 'Which round that rank falls in. Reads league size, nothing more.'],
-  ['Drop', '', 'The value above this row, minus this one.'],
-  ['Local med', '', 'The median of the fifteen drops centred here.'],
-  ['Break', ' Drop > 2 × local median', 'A cliff, relative to what is normal nearby.'],
-  ['TIER', '', 'A running count of the breaks above.'],
+  ['Tier line', ' Drop > 2 × local median',
+   'A cliff, relative to what is normal nearby: this row sits further below the one above '
+   + 'than twice the median of the fifteen drops centred here. The working columns are hidden.'],
+  ['TIER', '', 'A running count of the lines above.'],
   ['', '', ''],
 
   ['THE MARKET', '', ''],
@@ -2823,7 +2861,6 @@ function onOpen() {
     .addItem('Refresh data (new export, keeps your edits)', 'refreshData')
     .addSeparator()
     .addItem('Rebuild & re-sort', 'rebuildAndResort')
-    .addItem('Apply projection filter', 'applyProjectionFilter')
     .addItem('Clear compare (untick every CMP)', 'clearCompareMenu')
     .addSeparator()
     .addItem('Full rebuild (from Data.gs)', 'buildDraftBoard')
@@ -2863,8 +2900,8 @@ function clearCompareMenu() {
 }
 
 /**
- * The board's controls that are cells: the projection checkboxes and the sort dropdown on the
- * Draft Board's control strip, and the two routes that clear CMP -- the Clear all box beside
+ * The board's controls that are cells: the sort dropdown on the Draft Board's control
+ * strip, and the two routes that clear CMP -- the Clear all box beside
  * Compare picks, and any MINE tick, because the comparison was for that pick (ADR-0028).
  *
  * A simple onEdit, not an installable trigger: none of this needs authorisation, so it
@@ -2916,26 +2953,5 @@ function onEdit(e) {
       }
       return;
     }
-    for (var i = 0; i < SOURCES.length; i++) {
-      if (col !== 1 + i * 2) continue;
-      setProjectionVisible(sh, i, e.range.getValue() === true);
-      return;
-    }
   } catch (err) { /* never throw into a user's edit */ }
-}
-
-function setProjectionVisible(sh, si, visible) {
-  var c0 = dSpanStart(si);
-  if (visible) sh.showColumns(c0, SPAN); else sh.hideColumns(c0, SPAN);
-}
-
-/** The same job as onEdit, run by hand. Also the repair path if a checkbox drifts. */
-function applyProjectionFilter() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  _guard('Filter', function () {
-    var sh = ss.getSheetByName('Draft Board');
-    for (var i = 0; i < SOURCES.length; i++) {
-      setProjectionVisible(sh, i, sh.getRange(1, 1 + i * 2).getValue() === true);
-    }
-  });
 }

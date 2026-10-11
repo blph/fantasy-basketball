@@ -37,8 +37,21 @@ function Range(sheet, row, col, nr, nc, label) {
 const chain = ['setBackground','setFontColor','setFontWeight','setFontSize','setFontStyle',
   'setHorizontalAlignment','setVerticalAlignment','setWrap','setNumberFormat','setFontFamily',
   'setBorder','insertCheckboxes','clearDataValidations','merge',
-  'shiftColumnGroupDepth','applyRowBanding'];
+  'applyRowBanding','setWrapStrategy'];
 chain.forEach(m => { Range.prototype[m] = function(){ return this; }; });
+// Recorded, not a no-op: each projection's block is a column group (ADR-0030), and a group
+// over the wrong span, or two that touch and so merge into one, passes every other check.
+// A negative shift is resetColumnGroups flattening the tab.
+Range.prototype.shiftColumnGroupDepth = function (d) {
+  if (d < 0) this.sheet.groups = [];
+  else (this.sheet.groups = this.sheet.groups || []).push([this.col, this.nc]);
+  return this;
+};
+Range.prototype.clearContent = function () {
+  for (let i = 0; i < this.nr; i++)
+    for (let j = 0; j < this.nc; j++) delete this.sheet.cells[`${this.row + i},${this.col + j}`];
+  return this;
+};
 // Recorded, not a no-op: Compare picks is only as good as the dropdown its slots carry, and a
 // slot validated against the wrong column would offer names nobody can take.
 Range.prototype.setDataValidation = function (rule) {
@@ -151,8 +164,7 @@ Sheet.prototype.getRange = function (a, b, c, d) {
 ['clear','clearConditionalFormatRules',
  'setRowHeight','setHiddenGridlines','setConditionalFormatRules']
  .forEach(m => { Sheet.prototype[m] = function(){ return this; }; });
-// Recorded, not a no-op: the projection filter's whole job is column arithmetic, and
-// pointing it at the wrong span is exactly the failure that would pass every other check.
+// Recorded, not a no-op: hiding the wrong span passes every other check.
 Sheet.prototype.setFrozenRows = function (n) { this.frozenRows = n; return this; };
 Sheet.prototype.hideColumns = function (c, n) {
   (this.hidden = this.hidden || []).push([c, n === undefined ? 1 : n]); return this;
@@ -177,7 +189,11 @@ Sheet.prototype.getParent = function(){ return ss; };
 Sheet.prototype.getBandings = function(){ return []; };
 Sheet.prototype.getConditionalFormatRules = function(){ return this.rules; };
 Sheet.prototype.setConditionalFormatRules = function(r){ this.rules = r; return this; };
-Sheet.prototype.getColumnGroup = function(){ return { collapse(){} }; };
+Sheet.prototype.getColumnGroup = function (c) {
+  const sh = this;
+  return { collapse(){ (sh.collapsed = sh.collapsed || []).push(c); } };
+};
+Sheet.prototype.setColumnGroupControlPosition = function (p) { this.groupControl = p; return this; };
 Sheet.prototype.getLastRow = function(){ return 0; };
 Sheet.prototype.getMaxRows = function(){ return this.maxRows; };
 Sheet.prototype.getMaxColumns = function(){ return this.maxCols; };
@@ -242,6 +258,8 @@ global.SpreadsheetApp = {
   newDataValidation: validationBuilder,
   InterpolationType: { NUMBER: 'NUMBER' },
   BorderStyle: { SOLID: 'SOLID', SOLID_MEDIUM: 'SOLID_MEDIUM' },
+  WrapStrategy: { CLIP: 'CLIP' },
+  GroupControlTogglePosition: { BEFORE: 'BEFORE', AFTER: 'AFTER' },
   BandingTheme: { LIGHT_GREY: 'LIGHT_GREY' },
   getUi: () => ({ createMenu: () => { const m = { addItem: () => m, addSeparator: () => m, addToUi(){} }; return m; } })
 };
@@ -267,7 +285,9 @@ if (!SYNTHETIC) {
       +(0.6 + 2.8 * t).toFixed(1), +(6 + 22 * t).toFixed(1), +(2 + 8 * t).toFixed(1),
       +(1 + 7 * t).toFixed(1), +(0.4 + 1.1 * t).toFixed(1), +(0.2 + 1.4 * t).toFixed(1),
       +(0.8 + 2.4 * t).toFixed(1),
-      ['LOW', 'MED', 'HIGH', 'EXTREME', '?'][i % 5]  // the tier, all five tokens present
+      ['LOW', 'MED', 'HIGH', 'EXTREME', '?'][i % 5], // the tier, all five tokens present
+      58 + (i % 24),                                 // Basketball Monster's projected games
+      i % 7 === 6 ? '' : 'Synthetic comment ' + (i + 1) + '.'
     ];
   });
   // What build_data.py stamps at the top of Data.gs. `digest` is the local board's
@@ -1087,28 +1107,44 @@ CAT_LABELS.forEach(lab => {
   check(`DB_DH_${catKey(lab)} is defined`, !!seen.namedRanges['DB_DH_' + catKey(lab)]);
 });
 
-// --- the projection filter -------------------------------------------------
-// Only the column arithmetic can be tested offline; that Google actually fires the trigger
-// cannot be. The arithmetic is the part that silently points at the wrong span.
+// --- the projection groups (ADR-0030) --------------------------------------
+// Each projection's six columns are one column group, collapsed at build. Only the column
+// arithmetic can be tested offline; that Sheets draws the + cannot be. The arithmetic is
+// the part that silently points at the wrong span.
 {
   const sh = seen.sheets['Draft Board'];
-  sh.hidden = []; sh.shown = [];
-  setProjectionVisible(sh, 1, false);
-  expect('hiding HBP hides exactly its six columns',
-    JSON.stringify(sh.hidden), JSON.stringify([[dSpanStart(1), SPAN]]));
-  setProjectionVisible(sh, 2, true);
-  expect('showing BMP-ALT shows exactly its six columns',
-    JSON.stringify(sh.shown), JSON.stringify([[dSpanStart(2), SPAN]]));
+  const groups = sh.groups || [];
+  const has = (c, n) => groups.some(g => g[0] === c && g[1] === n);
+  for (let s = 0; s < SOURCES.length; s++) {
+    check(`${SOURCES[s].label} is one group over exactly its six columns`,
+      has(dSpanStart(s), SPAN), JSON.stringify(groups));
+    check(`${SOURCES[s].label} is collapsed at build`,
+      (sh.collapsed || []).includes(dSpanStart(s)), JSON.stringify(sh.collapsed));
+    check(`${SOURCES[s].label} label column sits directly ahead of its block`,
+      dLabel(s) === dSpanStart(s) - 1);
+  }
+  // Sheets merges two groups that touch. A column belonging to no group has to sit on both
+  // sides of every one, or opening one projection opens its neighbour.
+  const grouped = new Set();
+  groups.forEach(([c, n]) => { for (let k = 0; k < n; k++) grouped.add(c + k); });
+  let touching = '';
+  groups.forEach(([c, n]) => {
+    if (grouped.has(c - 1) || grouped.has(c + n)) touching += ` [${c}+${n}]`;
+  });
+  check('no two column groups touch', touching === '', touching);
+  check('the + sits over the column before its group', sh.groupControl === 'BEFORE',
+    String(sh.groupControl));
+  check('the label columns are never hidden',
+    (sh.hidden || []).every(([c, n]) => SOURCES.every((_, i) => dLabel(i) < c || dLabel(i) >= c + n)),
+    JSON.stringify(sh.hidden));
 
-  // A checkbox tick anywhere but row 1 of the Draft Board must do nothing at all: onEdit
-  // fires on every edit, including each of the ~156 GONE ticks during a draft.
-  sh.hidden = []; sh.shown = [];
+  // onEdit fires on every edit, including each of the ~156 ticks during a draft. With the
+  // projection checkboxes gone, an edit to row 1 left of the sort dropdown must do nothing.
+  const before = JSON.stringify([sh.hidden, sh.shown]);
   onEdit({ range: sh.getRange(5, 1) });
-  check('onEdit ignores edits outside row 1', sh.hidden.length === 0 && sh.shown.length === 0);
   onEdit({ range: { getRow: () => 1, getColumn: () => 1, getSheet: () => sh,
-                    getValue: () => false } });
-  expect('onEdit on the first checkbox hides the first block',
-    JSON.stringify(sh.hidden), JSON.stringify([[dSpanStart(0), SPAN]]));
+                    getNumColumns: () => 1, getValue: () => false } });
+  check('onEdit hides and shows nothing', JSON.stringify([sh.hidden, sh.shown]) === before);
 }
 
 // --- clearing CMP (ADR-0028) ------------------------------------------------
@@ -1182,8 +1218,11 @@ CAT_LABELS.forEach(lab => {
   old.cells[`${R0},${D.cmp}`] = true;
   old.cells[`${R0},${oldMine}`] = true;
   old.cells[`${R0},${oldNotes}`] = 'target';
+  // A second player whose Notes cell was never typed over: still the formula into the Board.
+  old.cells[`${R0 + 1},${oldPlayer}`] = 'Grace Hopper';
+  old.cells[`${R0 + 1},${oldNotes}`] = "='Board'!$AB$5";
   old.cells[`${R0},${oldInj}`] = 'STALE';
-  old.getLastRow = () => R0;
+  old.getLastRow = () => R0 + 1;
 
   const at = draftHeaderCols(old);
   check('draftHeaderCols finds MINE by its header, not by the map', at.MINE === oldMine,
@@ -1201,7 +1240,13 @@ CAT_LABELS.forEach(lab => {
     check('MINE is read from its own column', rec.mine === true, `mine=${rec.mine}`);
     check('an old GONE tick never comes back as CMP', rec.cmp === false && rec.gone === undefined,
       JSON.stringify(rec));
-    check('Notes travel with the checkboxes', rec.notes === 'target', JSON.stringify(rec));
+    check('a typed-over note travels with the checkboxes', rec.notes === 'target',
+      JSON.stringify(rec));
+    // Captured, it would be restored as a literal over the formula, and the next refresh's
+    // comment would never reach the cell.
+    const untouched = state['Grace Hopper'];
+    check('an untouched Notes cell is NOT captured', !!untouched && untouched.notes === '',
+      JSON.stringify(untouched));
     // The Board owns INJ now, and the Draft Board cell is a formula into it. Capturing it
     // here would restore a literal over that formula on the next re-sort and freeze the
     // tier -- no #REF!, no error, just a stale value that reads as current.
@@ -1222,6 +1267,15 @@ check('B.injuries is refreshed from the pipeline',
 check('B.injuries is not a hand column', !HAND_COLS.includes(B.injuries));
 check('the injury tier is the 21st PLAYERS field',
   REFRESH_MAP.some(([col, idx]) => col === B.injuries && idx === 20));
+// Notes and BMP's GP are pipeline columns too (ADR-0030).
+check('B.notes is refreshed from the pipeline, as the 23rd PLAYERS field',
+  REFRESH_MAP.some(([col, idx]) => col === B.notes && idx === 22));
+check('B.notes is not a hand column', !HAND_COLS.includes(B.notes));
+check('B.bmpGp is refreshed from the pipeline, as the 22nd PLAYERS field',
+  REFRESH_MAP.some(([col, idx]) => col === B.bmpGp && idx === 21));
+check('B.bmpGp is the last Board column, so no refreshed column moved', B.bmpGp === B_LAST);
+expect('the Draft Board GP is the Board\'s BMP games, at the player\'s own row',
+  String(cell('Draft Board', R0, D.gp)).replace(/\d+$/, ''), `='Board'!$${a1col(B.bmpGp)}$`.replace(/'/g, ''));
 
 // --- conditional formats ---------------------------------------------------
 // These carry column letters, which is exactly what drifts when a column is inserted.
@@ -1236,8 +1290,8 @@ check('the injury tier is the 21st PLAYERS field',
   const iCmp = rules.indexOf(`=${C(D.cmp)}${R0}=TRUE`);
   check('MINE resolves before CMP', iMine >= 0 && iCmp >= 0 && iMine < iCmp,
     `mine at ${iMine}, cmp at ${iCmp}`);
-  check('the GP haircut band points at Projected GP',
-    has(`=AND(${C(D.projGp)}${R0}>=68,${C(D.projGp)}${R0}<=74)`));
+  check('no rule on the Draft Board carries the Hashtag GP haircut band',
+    !rules.some(x => x.indexOf('>=68') >= 0));
   check('the round ruler points at the round column',
     has(`=ISODD(${C(D.round)}${R0})`));
   // One rule per tag column, never one rule over nine ranges: a multi-range rule relies on
@@ -1303,7 +1357,7 @@ check('the injury tier is the 21st PLAYERS field',
   const oldNames = newNames.slice().reverse();
   const overrideAt = 0, noteAt = 5;
   sh.cells[`${R0 + overrideAt},${B.myGp}`] = 55;
-  sh.cells[`${R0 + noteAt},${B.notes}`] = 'synthetic note';
+  sh.cells[`${R0 + noteAt},${B.notes}`] = 'typed on the Board';
 
   // No Settings tab: the added/dropped note is not what is under test.
   const report = refreshWithReorder({ getSheetByName: () => null }, sh, oldNames, newNames);
@@ -1319,10 +1373,15 @@ check('the injury tier is the 21st PLAYERS field',
   }
   check('a reorder refresh leaves every unoverridden My GP on its seeding formula', lost === 0,
     `${lost} rows lost it; first: ${firstLost}`);
-  expect('a note follows its player through a reorder',
-    cell(tab, R0 + POOL_ROWS - 1 - noteAt, B.notes), 'synthetic note');
+  // Notes is the pipeline's column now: whatever sat there is replaced by the comment
+  // Data.gs carries for the player who lands on the row.
+  let notesWrong = 0;
+  for (let j = 0; j < POOL_ROWS; j++)
+    if (cell(tab, R0 + j, B.notes) !== PLAYERS[j][22]) notesWrong++;
+  check('a reorder refresh writes every Notes cell from Data.gs', notesWrong === 0,
+    `${notesWrong} rows differ`);
   check('a reseeded formula is not counted as a re-attached edit',
-    report.indexOf(' 2 hand edits re-attached') >= 0, report);
+    report.indexOf(' 1 hand edits re-attached') >= 0, report);
   delete seen.sheets[tab];
 }
 

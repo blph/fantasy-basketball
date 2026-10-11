@@ -37,6 +37,7 @@ Record the decision in the **same commit** as the change it describes.
 | [ADR-0027](ADR-0027-compare-picks-on-the-tracker.md) *(amended by 0028)* | Compare picks, beside the Category Tracker, ranked on expected categories won | Accepted | 2026-09-17 | Bryan | extends ADR-0018 |
 | [ADR-0028](ADR-0028-cmp-replaces-gone.md) | CMP replaces GONE, and Compare picks fills from it | Accepted | 2026-09-18 | Bryan | ADR-0027 (in part) |
 | [ADR-0029](ADR-0029-durant-standardises-before-transforming.md) | DURANT standardises before it transforms, following Basketball Monster's 2026-10-01 change | Accepted | 2026-10-01 | Bryan | amends ADR-0021; resolves doc III.1 |
+| [ADR-0030](ADR-0030-draft-board-carries-bmp-gp-and-comments.md) | The Draft Board carries BMP's GP and Basketball Monster's comments, and its projection blocks collapse | Accepted | 2026-10-11 | Bryan | amends ADR-0017, ADR-0014 |
 
 ## Decisions expected next
 

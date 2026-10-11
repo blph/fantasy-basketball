@@ -279,7 +279,7 @@ def check_snapshot(snapshot: dict, data: dict) -> list[str]:
         try:
             differ(i, "row", p["row"], i)
             differ(i, "key", p["key"], SRC.normalise(want["name"]))
-            for field in ("seed", "name", "team", "pos", "inj"):
+            for field in ("seed", "name", "team", "pos", "inj", "bmp_gp", "comment"):
                 differ(i, field, p[field], want[field])
             # Blank in Data.gs, null here: a player the market has not priced.
             differ(i, "adp", p["adp"], None if want["adp"] == "" else want["adp"])

@@ -28,7 +28,6 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 |---|---|
 | **Pale yellow + blue text** | You type here. |
 | **Grey** | Reported by the pipeline. Editing it changes nothing. |
-| **Amber GP cell** | Projected GP is inside 68–74, the band where the projection is applying a generic haircut rather than a player-level opinion. |
 | **Cream value column** | The value the board is currently sorted by. |
 | **Green or red tag** | That projection ranks him at least DISAGREE_GAP places away from where the board does. Green means it likes him more. These are the rows worth slowing down on. |
 | **Thick horizontal line** | A tier break. |
@@ -63,7 +62,7 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 | | |
 |---|---|
 | **Sort by** | Nine choices: three projections × three values. Everything downstream — rank, tier, round, GAP, the tracker — follows it. |
-| **Projection checkboxes** | Untick one to hide its six columns. All three at once is a comparison view, not a draft-day view; it fills the screen. |
+| **BMP / HBP / ALT  +** | Each projection's six columns are a group, collapsed after every build and re-sort. Click the + above its narrow label column to open one, the − to close it. All three open at once is a comparison view, not a draft-day view; it fills the screen. |
 
 ### RANKS, ROUNDS AND TIERS
 
@@ -71,10 +70,8 @@ Values are computed by scripts/draft-board/build_data.py and arrive here as numb
 |---|---|---|
 | **#** | `=RANK(sorted value)` | Rank by the value the board was last sorted on. It follows a new choice in the dropdown only once Rebuild & re-sort has run. |
 | **RND** | `=CEILING(#/Teams)` | Which round that rank falls in. Reads league size, nothing more. |
-| **Drop** | `` | The value above this row, minus this one. |
-| **Local med** | `` | The median of the fifteen drops centred here. |
-| **Break** | `Drop > 2 × local median` | A cliff, relative to what is normal nearby. |
-| **TIER** | `` | A running count of the breaks above. |
+| **Tier line** | `Drop > 2 × local median` | A cliff, relative to what is normal nearby: this row sits further below the one above than twice the median of the fifteen drops centred here. The working columns are hidden. |
+| **TIER** | `` | A running count of the lines above. |
 
 ### THE MARKET
 

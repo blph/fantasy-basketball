@@ -28,7 +28,7 @@ FEEDS = {"hFgm": "fgm", "hFga": "fga", "hFtm": "ftm", "hFta": "fta", "h3": "tpm"
          "hReb": "reb", "hAst": "ast", "hStl": "stl", "hBlk": "blk"}
 FIELD = {"rank": "rank", "tier": "tier", "round": "rnd", "player": "name", "team": "team",
          "pos": "pos", "inj": "inj", "cmp": "cmp", "mine": "mine", "drop": "drop",
-         "med": "med", "brk": "brk", "projGp": "gp", "myGp": "my_gp", "gpFlag": "gp_flag",
+         "med": "med", "brk": "brk", "gp": "gp",
          "adp": "adp", "xrank": "xrank", "gap": "gap", "best": "best_build",
          "strengths": "strengths", "secondary": "secondary",
          "weaknesses": "weaknesses",
@@ -42,6 +42,8 @@ def draft_cell(key: str, row: dict, player: dict, sort: dict):
         return row["values"][f"{sort['source']}:{sort['kind']}"]
     if key == "rowCheck":
         return player["name"]
+    if key.endswith("Lab"):
+        return ""
     if key in FEEDS:
         return player["hbp_raw"][FEEDS[key]]
     if key.startswith(("dh:", "d:")):
@@ -519,8 +521,7 @@ def varied() -> tuple[dict, dict]:
         st.update(name=p["name"], cmp=True, mine=n % 2 == 0)
         state["players"][p["key"]] = st
     key = snapshot["players"][shown[10]]["key"]
-    state["players"][key] = {**ENGINE.player_state(state, key), "my_gp": 40, "xrank": 3,
-                             "notes": "a note nobody wrote"}
+    state["players"][key] = {**ENGINE.player_state(state, key), "my_gp": 40, "xrank": 3}
     state["conceded"] = ["BLK"]
     return snapshot, state
 
@@ -550,20 +551,31 @@ def test_a_wrong_disagreement_condition_fails():
     assert any(line.startswith("FAIL: disagreement") for line in fails(lines))
 
 
-def test_a_board_hand_column_the_pull_lost_is_caught_by_its_draft_board_mirror():
-    # Board hand columns are sparse ranges read as engine input. If one came back blank, the
-    # engine would compute from "no override" -- and the Draft Board's My GP, which mirrors
-    # the Board and sits in a range of always-filled columns, would then disagree with it.
+def test_the_draft_board_gp_is_basketball_monsters_not_hashtags():
+    # ADR-0030: the one GP column carries BMP's games. A sheet still showing Hashtag's
+    # would look entirely plausible.
     snapshot = make_snapshot()
     state = drafted_state(snapshot)
-    key = snapshot["players"][4]["key"]
-    state["players"][key] = {**ENGINE.player_state(state, key), "my_gp": 40}
     pulls = fake_pulls(snapshot, state, LAYOUT)
-    board_my_gp = LAYOUT["tabs"]["Board"]["columns"]["myGp"]["index"]
-    set_cell(pulls, "Board", board_my_gp, LAYOUT["first_row"] + 4, None)
+    p = snapshot["players"][4]
+    assert p["bmp_gp"] != p["hbp_raw"]["gp"]
+    row = next(i for i, idx in enumerate(ENGINE.order(snapshot, state["applied_sort"]))
+               if idx == 4)
+    set_cell(pulls, DB, draft_col("gp"), LAYOUT["first_row"] + row, p["hbp_raw"]["gp"])
     code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
     assert code == 1
-    assert any("(myGp)" in line for line in fails(lines))
+    assert any("(gp)" in line for line in fails(lines))
+
+
+def test_notes_are_the_snapshots_comment_and_a_wrong_one_fails():
+    snapshot = make_snapshot()
+    state = drafted_state(snapshot)
+    pulls = fake_pulls(snapshot, state, LAYOUT)
+    assert VL.diff_local(snapshot, pulls, LAYOUT)[0] == 0
+    set_cell(pulls, DB, draft_col("notes"), LAYOUT["first_row"] + 2, "another comment")
+    code, lines = VL.diff_local(snapshot, pulls, LAYOUT)
+    assert code == 1
+    assert any("(notes)" in line for line in fails(lines))
 
 
 # --- error cells never compare equal to a blank (fix round 1, finding 1) -----------------

@@ -44,7 +44,7 @@ CAT_LABELS = ("FG%", "FT%", "3PM", "PTS", "REB", "AST", "STL", "BLK")
 DEFAULT_FIELDS = ("rank", "tier", "rnd", "name", "team", "pos", "inj", "value", "gap",
                   "left_at_pos")
 COMPACT_FIELDS = ("rank", "tier", "rnd", "name", "team", "pos", "inj", "value", "gone",
-                  "mine", "pick", "adp", "gap", "gp", "my_gp", "gp_flag", "gp_warn", "xrank",
+                  "mine", "pick", "adp", "gap", "gp", "hbp_gp", "my_gp", "gp_flag", "xrank",
                   "in_pool", "strengths", "secondary", "weaknesses", "best_build",
                   "notes")
 ECHO = ("cmd", "name", "team", "rank", "gone", "mine", "pick", "detail")
@@ -856,7 +856,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--team")
     for name in HAND:
         p = add(name, f"set {HAND[name]}; --clear returns it to blank"
-                + (" (My GP then equals projected GP)" if name == "gp" else ""), show)
+                + (" (My GP then equals Hashtag's projected GP)" if name == "gp" else ""), show)
         p.add_argument("name", metavar="NAME")
         p.add_argument("value", nargs="?", type=_int_at_least(0), metavar="N")
         p.add_argument("--clear", action="store_true")

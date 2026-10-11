@@ -22,7 +22,7 @@ T = LAYOUT["tabs"]["Category Tracker"]
 
 
 def blank_pull() -> dict:
-    """Every planned cell empty, then every row a clean invented player with My GP = GP."""
+    """Every planned cell empty, then every row a clean invented player."""
     ranges = {}
     for r in PS.plan_ranges(LAYOUT):
         empty = {"v": False, "f": None} if r["type"] == "boolean" else None
@@ -32,8 +32,6 @@ def blank_pull() -> dict:
     for row in range(FIRST, LAST + 1):
         put(pull, "Draft Board", D["player"]["index"], row, f"Player {row}")
         put(pull, "Board", B["player"]["index"], row, f"Player {row}")
-        put(pull, "Draft Board", D["projGp"]["index"], row, 70)
-        put(pull, "Draft Board", D["myGp"]["index"], row, 70)
     return pull
 
 
@@ -85,8 +83,8 @@ def test_the_cmp_rows_straddle_mine_and_overflow_the_panel():
 def test_clean_rows_come_from_the_bottom_and_skip_anything_touched():
     pull = blank_pull()
     put(pull, "Draft Board", D["mine"]["index"], LAST, True)            # ticked
-    put(pull, "Board", B["notes"]["index"], LAST - 1, "a note")         # noted
-    put(pull, "Draft Board", D["myGp"]["index"], LAST - 2, 55)          # overridden
+    put(pull, "Draft Board", D["xrank"]["index"], LAST - 1, 9)          # hand XRank
+    put(pull, "Board", B["gp1"]["index"], LAST - 2, 55)                 # hand GP Y-1
     ra, na, rb, nb = TS.clean_rows(VL._Pull(pull), LAYOUT)
     assert (ra, rb) == (LAST - 3, LAST - 4)
     assert (na, nb) == (f"Player {LAST - 3}", f"Player {LAST - 4}")

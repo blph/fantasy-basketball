@@ -45,16 +45,17 @@ carries DURH, ZSH and ZSC ([ADR-0015](../decisions/ADR-0015-durant-h2h-primary-v
 `BMP · DURH` is the default sort.
 
 **Nothing scales by games played**
-([ADR-0017](../decisions/ADR-0017-no-games-played-adjustment.md)). The GP columns are
-context for a judgement call, not a multiplier.
+([ADR-0017](../decisions/ADR-0017-no-games-played-adjustment.md)). The Draft Board's one `GP`
+column is Basketball Monster's projected games, there as context for a judgement call, not a
+multiplier ([ADR-0030](../decisions/ADR-0030-draft-board-carries-bmp-gp-and-comments.md)).
 
 **The tabs.**
 
 | Tab | What it is |
 |---|---|
-| `Draft Board` | The one you use on the clock. Row 1 is the control strip — the sort dropdown and the three projection checkboxes. `CMP` and `MINE` sit inside the frozen pane because they are the only cells you write during a draft. Tick `CMP` beside the players you are deciding between and they fill Compare picks on the tracker; ticking `MINE` clears every `CMP`. There is no `GONE`: nobody ticked other managers' picks, and `Left @pos`, which needed them, went with it ([ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)). |
+| `Draft Board` | The one you use on the clock. Row 1 is the control strip — the sort dropdown. Each projection's six columns are a column group, collapsed after every build and re-sort; click the `+` above its narrow label column (`BMP`, `HBP`, `ALT`) to open one. `Notes` shows Basketball Monster's comment on the player until you type over it. `CMP` and `MINE` sit inside the frozen pane because they are the only cells you write during a draft. Tick `CMP` beside the players you are deciding between and they fill Compare picks on the tracker; ticking `MINE` clears every `CMP`. There is no `GONE`: nobody ticked other managers' picks, and `Left @pos`, which needed them, went with it ([ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)). |
 | `BMP`, `HBP`, `BMP-ALT` | One calculation tab per projection: raw line, the three values with their ranks and dropped categories, the DURANT H2H columns, plain z, and the punt builds. All numbers, no formulas. |
-| `Board` | The spine. Identity, the HBP raw line, the GP block, market, and every column you edit by hand. `Refresh data` writes here and nowhere else. |
+| `Board` | The spine. Identity, the HBP raw line, the GP block, market, the hand columns, Basketball Monster's comment (`Notes`) and BMP's projected games. `Refresh data` writes here and nowhere else. |
 | `Punts` | Nine builds, each listing who it gets at a discount. Computed on BMP · DURH. |
 | `Category Tracker` | Eight categories — turnovers are absent by design — with a win probability per category. Tick `Punted` to concede one; it drops out of the read and out of all three of the Draft Board's profile columns. That is the one cross-tab dependency running *into* the Draft Board, and it is safe only while those cells stay literal checkboxes. Make `Punted` a formula and it becomes a circular reference. Beside it, **Compare picks**: the players ticked `CMP` and not `MINE`, best board # first, up to five (I6:M6). Each column is the tracker as it would read if you took that player next, ranked on expected categories won ([ADR-0027](../decisions/ADR-0027-compare-picks-on-the-tracker.md), [ADR-0028](../decisions/ADR-0028-cmp-replaces-gone.md)). H3 says so when more than five are ticked. The **Clear all** box in K1 unticks every `CMP` through `onEdit`; `Draft Board ▸ Clear compare` does the same by hand. The win columns are hidden in N:R. |
 | `Settings` | Every constant. Yellow cells are yours; grey cells record what the pipeline used. |
@@ -89,7 +90,9 @@ context for a judgement call, not a multiplier.
 ## Bringing in new data
 
 A refresh is **six files moving together** — three exports you download, and three files
-the calibration produces for you. All six must carry the same date.
+the calibration produces for you. All six must carry the same date. A seventh is optional:
+Basketball Monster's player comments, which fill the Notes column. Without it the build says
+so and Notes are blank; comments from another date are never borrowed.
 
 ```
 data/player_data/
@@ -99,6 +102,7 @@ data/player_data/
   BMP Constants - YYYY-MM-DD.json         recovered by calibrate_bbm.py, step 2
   BMP-ALT Constants - YYYY-MM-DD.json     recovered by calibrate_bbm.py, step 2
   BBM Injury Risk - YYYY-MM-DD.csv        written by calibrate_bbm.py, step 2 (BMP-ALT run)
+  BMP Comments - YYYY-MM-DD.csv           optional: rank,last_name,first_name,team,positions,comment
 ```
 
 **HBP is the spine.** It decides which 200 players are on the board and supplies team,
@@ -202,8 +206,8 @@ itself](#changing-the-sheet-itself). It is about 185KB, so roughly fifteen chunk
 
 **8. Run `Draft Board ▸ Refresh data`.** Read the toast and the build log on Settings.
 
-Before running it, record every MINE tick and every Notes cell on the Draft Board
-by player name. A refresh that reorders rows can leave them beside the wrong players (see
+Before running it, record every MINE tick and every Notes cell you typed over on the Draft
+Board by player name. A refresh that reorders rows can leave them beside the wrong players (see
 [I1](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md#workaround-until-it-is-fixed)
 for the workaround) — the checkboxes and Notes are the Draft Board's own values, not
 formulas into the Board, so nothing else recovers them.
@@ -282,11 +286,12 @@ its own cause:
 **Rewritten:** every value, rank, dropped-category tag and per-category column on all three
 calculation tabs; the raw stat lines; ADP; seed rank; the reported pool constants.
 
-**Never touched:** `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, `Notes`, the
-`Punted` ticks, the `CMP` and `MINE` checkboxes, the `Sort by` selection, the projection
-filter state — and every formula, format, column width and named range.
+**Never touched:** `My GP Est` overrides, `GP Y-1/2/3`, `XRank`, a note typed over a Draft
+Board `Notes` cell, the `Punted` ticks, the `CMP` and `MINE` checkboxes, the `Sort by`
+selection — and every formula, format, column width and named range.
 
-`Injuries` belongs to the first list. It is written from Basketball Monster's risk table
+`Injuries`, the Board's `Notes` (Basketball Monster's comment) and `BMP GP` belong to the first
+list. It is written from Basketball Monster's risk table
 like any other pipeline column, and a board player they do not grade shows `?` rather than
 a blank — a blank in a risk column reads as `LOW`.
 
@@ -340,9 +345,10 @@ The `Sort by` dropdown in row 1 offers nine choices — three projections × thr
 do, nothing on the board follows the new choice — rows, `#`, tiers and the tracker all still
 reflect the previous sort. No header marks it stale.
 
-The three checkboxes beside it hide and show each projection's six value columns. That runs
-on a simple `onEdit`, so there is nothing to install. If a checkbox ever stops responding,
-`Draft Board ▸ Apply projection filter` does the same job by hand.
+Each projection's six value columns are a column group, collapsed after every build and
+every re-sort ([ADR-0030](../decisions/ADR-0030-draft-board-carries-bmp-gp-and-comments.md)).
+Click the `+` above a block's label column to open it and the `−` to close it. The label
+columns are what keep the three groups separate: Sheets merges groups that touch.
 
 All three projections showing is a **comparison** view, not a draft-day view — it fills the
 screen. The steady state on the clock is one projection expanded.
@@ -479,7 +485,6 @@ steps that each finish well under it:
 |---|---|
 | `Refresh data` | the Board's changed cells, plus all three calculation tabs — the normal path |
 | `Rebuild & re-sort` | Draft Board order, keeping CMP / MINE / Notes |
-| `Apply projection filter` | shows and hides the value blocks by hand |
 | `Full rebuild (from Data.gs)` | everything, destroying hand edits |
 | `Step 1 — Settings only` | Settings and the named ranges. **Building up only** — run against a live board it leaves `TIER` and `RND` as `#REF!`; see below |
 | `Step 2 — Calculation tabs` | the three projection tabs |
@@ -601,9 +606,9 @@ cells. It runs without `Data.gs`, synthesizing a 200-player pool, so it works on
 
 It also checks the things this refactor made easy to get wrong: that each projection's six
 value columns are contiguous, that no reference to a hyphenated sheet name is left
-unquoted, that `MINE` resolves before `CMP`, that both routes that clear `CMP` do, that the
-projection filter's column
-arithmetic hides exactly one block, and that `readCheckState` finds the draft state by
+unquoted, that `MINE` resolves before `CMP`, that both routes that clear `CMP` do, that each
+projection is one column group over exactly its own block and no two groups touch, that an
+untouched `Notes` cell is not captured by a re-sort, and that `readCheckState` finds the draft state by
 header label rather than by the current column map. Each of those is verified by
 deliberately breaking it and confirming the harness fails.
 
@@ -706,7 +711,9 @@ engine. Never widen a tolerance. Write it up in `docs/bugs/`.
   ([the bug](../bugs/2026-09-12-reorder-refresh-tick-misattachment.md)): ticks read back from
   the sheet are taken as truth;
 - a `My GP Est` override equal to its seed formula's value, which a values pull cannot tell
-  apart from no override.
+  apart from no override;
+- a Board `My GP Est` the pull lost: the Draft Board no longer mirrors it (ADR-0030);
+- a note typed over a Draft Board `Notes` cell, which reads as a mismatch against the comment.
 
 ### The tick scenario, on a copy
 
@@ -765,8 +772,8 @@ never Delete, which strips the checkbox), and then, pulling and running the full
 7. Two swapped Board names on rows carrying no tick, note or hand value, a hand value
    (`GP Y-1` = 50) on one of the two swapped rows, then `Refresh data`. `refreshData` finds the
    names out of order and runs `refreshWithReorder`, which keys hand values by the name each row
-   shows at that moment and writes the Board back in `Data.gs` order. Verify compares `My GP` on
-   every row, so its pass is the C1 check. The hand value belongs to the swapped-in player, so it
+   shows at that moment and writes the Board back in `Data.gs` order. The step reads `GP Y-1` back off the Board itself; the
+   Draft Board no longer mirrors a hand GP column for verify to compare (ADR-0030). The hand value belongs to the swapped-in player, so it
    must read 50 on that player's new row and be gone from the row it was typed on. A refresh that
    kept hand values by row position fails here. It goes in `GP Y-1` because the Name Box cannot reach `My GP` on this
    sheet: Board columns `W` and `Z` are hidden, and the Name Box lands on the next visible one. Clean rows matter because the

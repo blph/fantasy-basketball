@@ -76,6 +76,11 @@ SET_FILES = ({lab: (stem, "csv") for lab, stem in SOURCE_FILES.items()}
              | {f"{lab}:const": (stem, "json") for lab, stem in CONSTANT_FILES.items()}
              | {"inj": (INJURY_FILE, "csv")})
 
+#: Basketball Monster's per-player comments, which fill the board's Notes column
+#: (ADR-0030). Part of the dated set when present and never borrowed from another date,
+#: but not required: a board with blank Notes is still a correct board.
+OPTIONAL_FILES = {"comments": ("BMP Comments", "csv")}
+
 #: The injury tiers the board admits, worst first, plus the token for a player Basketball
 #: Monster does not grade. `verify.py` and `injuryRules()` in Build.gs hold the same set.
 INJ_TIERS = ("EXTREME", "HIGH", "MED", "LOW")
@@ -103,7 +108,7 @@ def find_set(date: str | None) -> tuple[str, dict[str, Path]]:
     alongside the exports rather than checked afterwards.
     """
     available: dict[str, dict[str, Path]] = {}
-    for key, (stem, ext) in SET_FILES.items():
+    for key, (stem, ext) in (SET_FILES | OPTIONAL_FILES).items():
         for path in DATA.glob(f"{stem} - *.{ext}"):
             m = DATE.search(path.name)
             if m:
@@ -117,7 +122,7 @@ def find_set(date: str | None) -> tuple[str, dict[str, Path]]:
         found = available.get(date, {})
     else:
         complete = [d for d, s in sorted(available.items(), reverse=True)
-                    if len(s) == len(SET_FILES)]
+                    if set(SET_FILES) <= set(s)]
         if not complete:
             newest = max(available)
             missing = set(SET_FILES) - set(available[newest])
@@ -166,7 +171,25 @@ def load(paths: dict[str, Path]) -> tuple[list[dict], dict[str, dict], dict, dic
                                      source=lab, export_date=export_date)
         except BC.ConstantsError as exc:
             raise SystemExit(str(exc)) from None
+    attach_context(board, vendors, paths.get("comments"))
     return board, vendors, constants, report
+
+
+def attach_context(board: list[dict], vendors: dict[str, dict],
+                   comments_path: Path | None) -> None:
+    """Give every board row the two things the Draft Board shows that are not valued.
+
+    `bmp_gp` is the games Basketball Monster's own source projects, read off the vendor row
+    the player already joined to. `comment` is their note on him, keyed by the same
+    normalised name that join used. Neither scales anything (ADR-0017).
+    """
+    try:
+        comments = S.load_comments(comments_path) if comments_path else {}
+    except S.SourceError as exc:
+        raise SystemExit(str(exc)) from None
+    for row in board:
+        row["bmp_gp"] = round(vendors["BMP"][row["ids"]["BMP"]]["games"])
+        row["comment"] = comments.get(row["key"], "")
 
 
 def load_injuries(board: list[dict], path: Path) -> dict:
@@ -341,6 +364,7 @@ def _player_row(r: dict, tier: str) -> list:
         round(rt["assists"], 1), round(rt["steals"], 1), round(rt["blocks"], 1),
         round(rt["turnovers"], 1),
         tier,
+        r["bmp_gp"], r["comment"],
     ]
 
 
@@ -427,7 +451,7 @@ def emit(board, scored, report, date, paths, mixed, injuries, digest: str = "") 
         head
         + f"var META = {j(meta)};\n\n"
         + "// [seed, player, team, pos, adp, gp, mpg, fgm, fga, fgpct, ftm, fta, ftpct,\n"
-          "//  tpm, pts, reb, ast, stl, blk, to, inj]\n"
+          "//  tpm, pts, reb, ast, stl, blk, to, inj, bmpGp, comment]\n"
         + f"var PLAYERS = {j(players)};\n\n"
         + "// [durh, durhRank, durhDrop, zsh, zshRank, zshDrop, zsc, zscRank,\n"
           "//  dh x8 (weighted), d x8 (unweighted), z x8]   in CAT_LABELS order\n"
@@ -477,6 +501,7 @@ def build_snapshot(board, scored, report, date, paths, mixed, injuries) -> dict:
             "row": i, "key": r["key"], "name": row["name"], "team": row["team"],
             "pos": row["pos"], "seed": row["seed"],
             "adp": None if row["adp"] == "" else row["adp"], "inj": row["inj"],
+            "bmp_gp": row["bmp_gp"], "comment": row["comment"],
             "hbp_raw": {k: row[k] for k in BS.HBP_RAW_FIELDS},
             "values": values,
             "punts": punts,
@@ -562,6 +587,13 @@ def main(argv: list[str] | None = None) -> int:
               f"{c['meta']['fitted_at']}, {c['meta']['players_fitted']} players")
         for w in c["warnings"]:
             print(f"    note: {w}")
+
+    if "comments" in paths:
+        print(f"  comments: {sum(1 for r in board if r['comment'])} of {len(board)} board "
+              "players carry one from Basketball Monster")
+    else:
+        print(f"  comments: no '{OPTIONAL_FILES['comments'][0]} - {date}.csv' -- "
+              "Notes will be blank")
 
     scored = score(board, vendors, constants)
     for lab in ("BMP", "HBP", "BMP-ALT"):

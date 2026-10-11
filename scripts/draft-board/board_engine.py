@@ -240,8 +240,11 @@ def board_rows(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
                     disagree[sk] = "lower"
                 else:
                     disagree[sk] = None
-        gp = pl["hbp_raw"]["gp"]
-        my_gp = gp if ps["my_gp"] is None else ps["my_gp"]
+        # Two different numbers. The Draft Board's one GP column is Basketball Monster's own
+        # projection (ADR-0030); My GP and its flag live on the Board tab, where they seed
+        # from Hashtag's line and are compared against it.
+        hbp_gp = pl["hbp_raw"]["gp"]
+        my_gp = hbp_gp if ps["my_gp"] is None else ps["my_gp"]
         strengths, secondary, weaknesses = _profile(
             pl["name"], pl["values"][src]["d"], labels, conceded,
             settings["cat_band"], settings["cat_band_sec"])
@@ -252,11 +255,12 @@ def board_rows(snapshot: dict, state: dict, settings: dict, applied_sort: dict,
             "rank": rank[i], "tier": tier[i], "rnd": math.ceil(rank[i] / settings["teams"]),
             "sel": sel[i], "drop": drop[i], "med": med[i], "brk": brk[i],
             "gap": None if pl["adp"] is None else pl["adp"] - rank[i],
-            "adp": pl["adp"], "xrank": ps["xrank"], "notes": ps["notes"],
-            "gp": gp, "my_gp": my_gp,
+            "adp": pl["adp"], "xrank": ps["xrank"],
+            # Basketball Monster's comment unless a note was typed over it.
+            "notes": ps["notes"] or pl["comment"],
+            "gp": pl["bmp_gp"], "hbp_gp": hbp_gp, "my_gp": my_gp,
             # writeBoardFormulas: IF(ABS(GP - My GP) > 10, "CHECK", "")
-            "gp_flag": "CHECK" if abs(gp - my_gp) > 10 else "",
-            "gp_warn": 68 <= gp <= 74,                  # addDraftRules' Proj GP warning
+            "gp_flag": "CHECK" if abs(hbp_gp - my_gp) > 10 else "",
             "best_build": _best_build(pl, builds),
             "strengths": strengths, "secondary": secondary, "weaknesses": weaknesses,
             "left_at_pos": 0,

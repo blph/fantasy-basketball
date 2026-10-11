@@ -61,7 +61,7 @@ def _source_block(n: int, i: int, si: int, offset: float) -> dict:
 
 
 def make_snapshot(n: int = 15, date: str = "2026-01-01", **overrides) -> dict:
-    """A complete schema-1 snapshot dict whose digest `board_snapshot.load` accepts.
+    """A complete schema-2 snapshot dict whose digest `board_snapshot.load` accepts.
 
     Overrides: `names` (n names, board order), `player_teams` (n provider team codes), and
     `settings` / `meta`, merged into those dicts. A `settings` override that changes `teams`
@@ -92,6 +92,7 @@ def make_snapshot(n: int = 15, date: str = "2026-01-01", **overrides) -> dict:
             "pos": POS_CYCLE[i % len(POS_CYCLE)], "seed": i + 1,
             "adp": None if i % 6 == 5 else float(i + 1 + i % 3),
             "inj": INJ_CYCLE[i % len(INJ_CYCLE)],
+            "bmp_gp": gp - 3 + i % 4, "comment": f"Synthetic comment {i}.",
             "hbp_raw": {"gp": gp, "mpg": 30.0, "fgm": round(fga * 0.47, 1), "fga": fga,
                         "fgp": 0.47, "ftm": round(fta * 0.8, 1), "fta": fta, "ftp": 0.8,
                         "tpm": 1.0 + i % 3, "pts": 20.0 - i * 0.5, "reb": 5.0 + i % 4,
@@ -107,7 +108,7 @@ def make_snapshot(n: int = 15, date: str = "2026-01-01", **overrides) -> dict:
             "injuries": {"graded": n - n // 5, "missing": n // 5, "unused": 0}}
     meta.update(overrides.get("meta") or {})
     snapshot = {
-        "schema": 1, "meta": meta, "settings": settings,
+        "schema": 2, "meta": meta, "settings": settings,
         "deriv": {"q": settings["q"], "teams": settings["teams"], "roster": settings["roster"],
                   "weights": dict.fromkeys(CATS, 1.0), "k_rosenof": dict.fromkeys(CATS, 1.0),
                   "k_tracker": dict.fromkeys(CATS, 1.0), "slopes": dict.fromkeys(CATS, 1.0),

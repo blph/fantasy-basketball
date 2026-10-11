@@ -18,10 +18,10 @@ BUILD_GS = Path(__file__).resolve().parents[1] / "scripts" / "draft-board" / "Bu
 
 
 def snapshot(**overrides):
-    """A one-player snapshot, shaped like schema 1. Every number is invented."""
+    """A one-player snapshot, shaped like schema 2. Every number is invented."""
     name = made_up_name(0)
     snap = {
-        "schema": 1,
+        "schema": 2,
         "meta": {"generated": "2026-01-01", "digest": "", "data_gs_sha256": "",
                  "sources": {"HBP": "HBP Projections - 2026-01-01.csv"}, "board_rows": 1,
                  "injuries": {"graded": 1, "missing": 0, "unused": 0}},
@@ -128,7 +128,7 @@ class TestLoad:
 
     def test_a_wrong_schema_is_refused(self, tmp_path):
         path = tmp_path / "board - 2026-01-01.json"
-        path.write_text(BS.dumps(sealed(snapshot(schema=2))), encoding="utf-8")
+        path.write_text(BS.dumps(sealed(snapshot(schema=1))), encoding="utf-8")
         with pytest.raises(BS.SnapshotError, match="schema"):
             BS.load(path)
 
@@ -172,6 +172,7 @@ class TestConstants:
         assert tuple(in_gs) == BS.PUNT_BUILDS
 
     def test_player_fields_describe_a_players_row(self):
-        assert len(BS.PLAYER_FIELDS) == 21
+        assert len(BS.PLAYER_FIELDS) == 23
+        assert BS.PLAYER_FIELDS[21:] == ("bmp_gp", "comment")
         assert BS.PLAYER_FIELDS[4] == "adp" and BS.PLAYER_FIELDS[20] == "inj"
         assert BS.HBP_RAW_FIELDS[0] == "gp" and BS.HBP_RAW_FIELDS[-1] == "to"

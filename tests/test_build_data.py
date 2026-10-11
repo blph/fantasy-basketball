@@ -235,7 +235,7 @@ class TestEmit:
         # row one field short would put a stat where the sheet expects a tier.
         text, board, _ = self._emit(projection_set)
         players = self._block(text, "PLAYERS")
-        assert all(len(p) == 21 for p in players)
+        assert all(len(p) == len(BS.PLAYER_FIELDS) for p in players)
         assert len(players) == len(board)
 
     def test_the_tier_lands_in_board_order(self, projection_set):
@@ -284,6 +284,55 @@ class TestEmit:
                               "digest"]
         assert meta["digest"] == "abc"
         assert self._block(self._emit(projection_set)[0], "META")["digest"] == ""
+
+
+def write_comments(directory, date, pairs):
+    """A comments export: `rank,last_name,first_name,team,positions,comment`. All invented."""
+    lines = ["rank,last_name,first_name,team,positions,comment"]
+    for i, (name, text) in enumerate(pairs, start=1):
+        first, last = name.split(" ", 1)
+        lines.append(f'{i},{last},{first},BOS,PG,"{text}"')
+    path = directory / f"BMP Comments - {date}.csv"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8-sig")
+    return path
+
+
+class TestContext:
+    """BMP's games and Basketball Monster's comment, the two unvalued fields (ADR-0030)."""
+
+    def _players(self, projection_set):
+        _date, paths = BD.find_set(None)
+        board, vendors, constants, report = BD.load(paths)
+        scored = BD.score(board, vendors, constants)
+        inj = {"tiers": ["?"] * len(board), "missing": [], "unused": []}
+        text = BD.emit(board, scored, report, "2026-01-01", paths, False, inj)
+        m = re.search(r"var PLAYERS\s*=\s*(.*?);\n", text, re.S)
+        return json.loads(m.group(1)), board, vendors, paths
+
+    def test_the_set_is_complete_without_comments_and_notes_are_blank(self, projection_set):
+        players, _board, _vendors, paths = self._players(projection_set)
+        assert "comments" not in paths
+        assert all(p[22] == "" for p in players)
+
+    def test_bmp_gp_is_the_bmp_exports_games_in_board_order(self, projection_set):
+        players, board, vendors, _paths = self._players(projection_set)
+        want = [round(vendors["BMP"][r["ids"]["BMP"]]["games"]) for r in board]
+        assert [p[21] for p in players] == want
+        assert len(set(want)) > 1
+
+    def test_a_same_dated_comments_file_fills_notes_by_player(self, projection_set):
+        tmp_path, names = projection_set
+        write_comments(tmp_path, "2026-01-01", [(names[7], "Seventh."), (names[0], "First."),
+                                                ("Nobody Onboard", "Unused.")])
+        players, _board, _vendors, paths = self._players(projection_set)
+        assert set(paths) == set(BD.SET_FILES) | {"comments"}
+        assert (players[0][22], players[7][22], players[1][22]) == ("First.", "Seventh.", "")
+
+    def test_another_dates_comments_are_never_borrowed(self, projection_set):
+        tmp_path, names = projection_set
+        write_comments(tmp_path, "2025-12-01", [(names[0], "Stale.")])
+        date, paths = BD.find_set(None)
+        assert date == "2026-01-01" and "comments" not in paths
 
 
 class TestLoadInjuries:

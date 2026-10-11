@@ -203,8 +203,8 @@ class TestRowFields:
         assert set(row) == {
             "row", "key", "name", "team", "pos", "inj", "gone", "mine", "cmp", "rank", "tier",
             "rnd",
-            "sel", "drop", "med", "brk", "gap", "adp", "xrank", "notes", "gp", "my_gp",
-            "gp_flag", "gp_warn", "best_build", "strengths", "secondary", "weaknesses",
+            "sel", "drop", "med", "brk", "gap", "adp", "xrank", "notes", "gp", "hbp_gp",
+            "my_gp", "gp_flag", "best_build", "strengths", "secondary", "weaknesses",
             "left_at_pos",
             "in_pool", "values", "ranks", "tags", "disagree"}
 
@@ -311,7 +311,7 @@ class TestRowFields:
         assert rows[18]["disagree"]["BMP-ALT:zsh"] is None
         assert rows[5]["disagree"]["BMP:durh"] is None
 
-    def test_gp_flag_and_warning(self):
+    def test_gp_is_bmps_and_the_flag_still_reads_hashtags(self):
         snap = make_snapshot(n=6)
         for p, gp in zip(snap["players"], [70, 70, 70, 67, 74, 75], strict=True):
             p["hbp_raw"]["gp"] = gp
@@ -321,7 +321,18 @@ class TestRowFields:
         rows = rows_for(snap, state)
         assert [r["my_gp"] for r in rows] == [59, 60, 70, 67, 74, 75]
         assert [r["gp_flag"] for r in rows] == ["CHECK", "", "", "", "", ""]
-        assert [r["gp_warn"] for r in rows] == [True, True, True, False, True, False]
+        # The Draft Board's GP is Basketball Monster's (ADR-0030); My GP and its flag
+        # mirror the Board tab, which seeds from Hashtag's line.
+        assert [r["gp"] for r in rows] == [p["bmp_gp"] for p in snap["players"]]
+        assert [r["hbp_gp"] for r in rows] == [70, 70, 70, 67, 74, 75]
+
+    def test_notes_show_the_comment_until_one_is_typed_over_it(self):
+        snap = make_snapshot(n=3)
+        state = E.empty_state()
+        tick(state, snap, 1, notes="mine")
+        rows = rows_for(snap, state)
+        assert rows[0]["notes"] == snap["players"][0]["comment"]
+        assert rows[1]["notes"] == "mine"
 
     def test_in_pool_is_bmp_durh_rank_within_q(self):
         n, q = 8, 5

@@ -24,7 +24,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 ROOT = REPO / "data" / "draft-board"
-SCHEMA = 1
+#: 2 added `bmp_gp` and `comment` to every player (ADR-0030). A schema-1 snapshot has
+#: neither, so it is refused rather than read with a hole in it.
+SCHEMA = 2
 
 #: Display order, which is also SOURCES in Build.gs and SOURCE_FILES in build_data.py.
 SOURCES = ("BMP", "HBP", "BMP-ALT")
@@ -40,7 +42,8 @@ PUNT_BUILDS = (("pFt", "Punt FT%"), ("pFg", "Punt FG%"), ("pAst", "Punt AST"), (
 #: index (REFRESH_MAP); the snapshot is named because agents read it by field. One tuple
 #: shared by the writer and the checker, so the two cannot disagree about which is which.
 PLAYER_FIELDS = ("seed", "name", "team", "pos", "adp", "gp", "mpg", "fgm", "fga", "fgp",
-                 "ftm", "fta", "ftp", "tpm", "pts", "reb", "ast", "stl", "blk", "to", "inj")
+                 "ftm", "fta", "ftp", "tpm", "pts", "reb", "ast", "stl", "blk", "to", "inj",
+                 "bmp_gp", "comment")
 
 #: The raw line every calculation tab carries -- always Hashtag's, whatever the projection,
 #: which is why it is named for its source.

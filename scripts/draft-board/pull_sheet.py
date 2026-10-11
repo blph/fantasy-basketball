@@ -55,7 +55,7 @@ DRAFT_TYPES = {
     "player": STRING, "team": STRING, "pos": STRING, "inj": STRING,
     "cmp": BOOLEAN, "mine": BOOLEAN,
     "sel": NUMBER, "drop": NUMBER, "med": NUMBER, "brk": STRING,
-    "projGp": NUMBER, "myGp": NUMBER, "gpFlag": STRING,
+    "gp": NUMBER, "bmpLab": STRING, "hbpLab": STRING, "altLab": STRING,
     "adp": NUMBER, "xrank": NUMBER, "gap": NUMBER,
     "best": STRING, "strengths": STRING, "secondary": STRING, "weaknesses": STRING,
     "notes": STRING, "rowCheck": STRING,
@@ -67,7 +67,8 @@ DRAFT_TAG = re.compile(r"^(bmp|hbp|alt)(Durh|Zsh|Zsc)Tag$")
 
 #: Columns that may be empty on any row. Every other Draft Board column is filled on every
 #: board row, except these two, which are blank on the first row by construction.
-DRAFT_OPTIONAL = {"brk", "gpFlag", "myGp", "adp", "xrank", "gap", "notes", "team", "pos"}
+DRAFT_OPTIONAL = {"brk", "adp", "xrank", "gap", "notes", "team", "pos",
+                  "bmpLab", "hbpLab", "altLab"}
 DRAFT_NOT_FIRST = {"drop", "med"}
 
 #: The Board is pulled only for its name column and the columns typed by hand.

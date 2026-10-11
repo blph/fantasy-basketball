@@ -189,14 +189,12 @@ def clean_rows(sheet: VL._Pull, layout: dict) -> tuple[int, str, int, str]:
     board = lambda k, r: sheet.cell("Board", b[k]["index"], r)  # noqa: E731
     touched = set()
     for r in range(first, last + 1):
-        gp, my = VL._num(draft("projGp", r)), VL._num(draft("myGp", r))
+        # Notes are not read: every row carries the pipeline's comment now (ADR-0030).
         if (VL._v(draft("cmp", r)) is True or VL._v(draft("mine", r)) is True
-                or VL._text(draft("notes", r)) or VL._v(draft("xrank", r)) is not None
-                or gp is None or my is None or abs(gp - my) > 1e-9):
+                or VL._v(draft("xrank", r)) is not None):
             touched.add(VL._text(draft("player", r)))
     clean = [(r, VL._text(board("player", r))) for r in range(first, last + 1)
              if VL._text(board("player", r)) and VL._text(board("player", r)) not in touched
-             and not VL._text(board("notes", r))
              and all(VL._v(board(k, r)) is None for k in ("gp1", "gp2", "gp3", "xrank"))]
     if len(clean) < 2:
         raise StepFailed("fewer than two clean Board rows")

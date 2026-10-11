@@ -60,8 +60,8 @@ DIRECT = {
     "tier": ("num", "tier"), "player": ("text", "name"), "team": ("text", "team"),
     "pos": ("text", "pos"), "inj": ("text", "inj"), "cmp": ("bool", "cmp"),
     "mine": ("bool", "mine"), "drop": ("num", "drop"), "med": ("num", "med"),
-    "brk": ("text", "brk"), "projGp": ("num", "gp"), "myGp": ("num", "my_gp"),
-    "gpFlag": ("text", "gp_flag"), "adp": ("num", "adp"), "xrank": ("num", "xrank"),
+    "brk": ("text", "brk"), "gp": ("num", "gp"),
+    "adp": ("num", "adp"), "xrank": ("num", "xrank"),
     "best": ("text", "best_build"), "strengths": ("text", "strengths"),
     "secondary": ("text", "secondary"),
     "weaknesses": ("text", "weaknesses"),
@@ -78,6 +78,7 @@ class NotComparable(Exception):
 def expected_draft_keys(cat_labels: list[str]) -> set[str]:
     """Every Draft Board column this check compares. A test holds it equal to the layout."""
     keys = set(DIRECT) | set(RANK_DEPENDENT) | set(FEEDS) | {"sel", "rowCheck"}
+    keys |= {prefix + "Lab" for prefix in PREFIX}
     for prefix in PREFIX:
         for kind in KIND:
             keys |= {prefix + kind, prefix + kind + "Tag"}
@@ -296,7 +297,9 @@ def _engine_inputs(snapshot: dict, sheet: _Pull, layout: dict) -> dict:
         for field, key in (("my_gp", "myGp"), ("xrank", "xrank"), ("gp1", "gp1"),
                            ("gp2", "gp2"), ("gp3", "gp3")):
             st[field] = _num(sheet.cell("Board", bcols[key]["index"], r))
-        st["notes"] = _text(sheet.cell("Board", bcols["notes"]["index"], r))
+        # Not the Board's Notes: that column is the pipeline's comment now (ADR-0030), and
+        # the engine supplies it from the snapshot. A note typed over a Draft Board cell is
+        # a literal a values pull cannot tell from the comment, so it reads as a mismatch.
         state["players"][p["key"]] = st
     for i, idx in enumerate(order):
         st = state["players"][players[idx]["key"]]
@@ -371,6 +374,8 @@ def _draft_expected(key: str, er: dict, p: dict, applied: dict):
         return "num", er["values"][ENGINE.sort_key(applied)]
     if key == "rowCheck":
         return "text", p["name"]
+    if key.endswith("Lab") and key[:-3] in PREFIX:
+        return "text", ""                      # the collapse groups' label columns hold nothing
     if key in FEEDS:
         return "num", p["hbp_raw"][FEEDS[key]]
     if key.startswith("dh:") or key.startswith("d:"):

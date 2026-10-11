@@ -37,7 +37,7 @@ def letter(n: int) -> str:
 
 def draft_keys() -> set[str]:
     keys = {"rank", "tier", "round", "player", "team", "pos", "inj", "cmp", "mine", "sel",
-            "drop", "med", "brk", "projGp", "myGp", "gpFlag", "adp", "xrank", "gap", "best",
+            "drop", "med", "brk", "gp", "bmpLab", "hbpLab", "altLab", "adp", "xrank", "gap", "best",
             "strengths", "secondary", "weaknesses", "notes",
             "hFgm", "hFga", "hFtm", "hFta", "h3",
             "hPts", "hReb", "hAst", "hStl", "hBlk", "rowCheck"}
@@ -66,7 +66,7 @@ def test_draft_board_carries_exactly_the_columns_verify_and_the_engine_read():
 def test_board_and_calculation_tabs_carry_the_columns_that_are_read():
     board = set(LAYOUT["tabs"]["Board"]["columns"])
     assert {"player", "gp", "gp1", "gp2", "gp3", "myGp", "gpCheck", "adp", "xrank", "injuries",
-            "notes"} <= board
+            "notes", "bmpGp"} <= board
     for src in board_snapshot.SOURCES:
         calc = set(LAYOUT["tabs"][src]["columns"])
         assert {"player", "durh", "durhRank", "durhDrop", "zsh", "zshRank", "zshDrop", "zsc",
