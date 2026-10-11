@@ -194,8 +194,34 @@ verify exit 0, copy deleted, 320 s):
   routes on a copy; until it passes, the rebuild path with CMP is proven only by the live Full
   rebuilds above.
 
+## Update, 2026-10-11: one GP, Basketball Monster's comments, collapsing projections
+
+- **The Draft Board changed shape** (ADR-0030).
+  - One `GP` column replaces `Proj GP`, `My GP` and `Flag`. It carries BMP's projected games,
+    which were not in `Data.gs` before: every calculation tab holds Hashtag's raw line.
+  - `Notes` shows Basketball Monster's comment on each player. Type over a cell and the note
+    is yours; a re-sort carries only typed-over cells.
+  - Each projection's six columns are a column group, collapsed after every build and re-sort,
+    with a narrow label column ahead of it. The row-1 checkboxes and `Apply projection filter`
+    are gone.
+  - The TIERING block moved into the hidden helpers. `TIER` and the tier lines are unchanged.
+- **The data moved to the 2026-10-11 exports.** Comments are an optional seventh file in the
+  dated set. The snapshot is schema 2, with `bmp_gp` and `comment` on every player.
+- **Deployed and verified in the sheet.** `Code.gs` and `Data.gs` were replaced through Monaco
+  and their hashes read back after a reload. A Full rebuild ran in 173 seconds. A pull of the
+  result passed `verify.py --local` at exit 0 on all 200 rows.
+- **The tick scenario passed at the full tier**, 266 seconds, every step at verify exit 0, the
+  copy deleted. The owner approved the consent screen. This also closes the "Not run" item in
+  the 2026-09-18 update.
+- **One known data gap.** `verify.py --published` fails its worst-row gate on one board row in
+  both vendor sources. Basketball Monster revised that player's projection between the export
+  and the scrape, and the calibration reported the same player as dropped from the fit. Mean
+  error is inside its gate on both sources. A fresh export of the two vendor files clears it.
+- **No longer checked:** the Draft Board does not mirror `My GP`, so `verify.py --local` cannot
+  catch a Board `My GP Est` the pull lost.
+
 ## Records
 
-New: ADR-0022 · ADR-0023 · ADR-0027 · ADR-0028. Superseded in part: ADR-0018, and ADR-0027
+New: ADR-0022 · ADR-0023 · ADR-0027 · ADR-0028 · ADR-0030. Superseded in part: ADR-0018, and ADR-0027
 (by ADR-0028). New bug report:
 `docs/bugs/2026-09-12-reorder-refresh-tick-misattachment.md`.
